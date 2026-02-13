@@ -4,30 +4,8 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/unixpickle/model3d/model2d"
 	"github.com/unixpickle/model3d/model3d"
 )
-
-type SolidKind int
-
-const (
-	Solid2D SolidKind = iota
-	Solid3D
-)
-
-type SolidValue struct {
-	Kind   SolidKind
-	Solid2 model2d.Solid
-	Solid3 model3d.Solid
-}
-
-func solid2D(s model2d.Solid) SolidValue {
-	return SolidValue{Kind: Solid2D, Solid2: s}
-}
-
-func solid3D(s model3d.Solid) SolidValue {
-	return SolidValue{Kind: Solid3D, Solid3: s}
-}
 
 type moduleDef struct {
 	Params []Param
@@ -98,12 +76,14 @@ func evalStmts(e *env, ss []Stmt) ([]SolidValue, error) {
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, got...)
+		if got != nil {
+			out = append(out, *got)
+		}
 	}
 	return out, nil
 }
 
-func evalStmt(e *env, s Stmt) ([]SolidValue, error) {
+func evalStmt(e *env, s Stmt) (*SolidValue, error) {
 	switch st := s.(type) {
 	case *AssignStmt:
 		v, err := evalExpr(e, st.Expr)
@@ -116,7 +96,7 @@ func evalStmt(e *env, s Stmt) ([]SolidValue, error) {
 	case *BlockStmt:
 		e.push()
 		defer e.pop()
-		return evalStmts(e, st.Stmts)
+		return evalStmtsAsOne(e, st.Stmts)
 
 	case *IfStmt:
 		condV, err := evalExpr(e, st.Cond)
@@ -151,255 +131,37 @@ func evalStmt(e *env, s Stmt) ([]SolidValue, error) {
 	}
 }
 
-func evalCallStmt(e *env, st *CallStmt) ([]SolidValue, error) {
+func evalCallStmt(e *env, st *CallStmt) (*SolidValue, error) {
 	name := st.Call.Name
 
-	// If has children, evaluate to solids first (implicit union).
-	var childSolid SolidValue
-	if len(st.Children) > 0 {
-		children, err := evalStmts(e, st.Children)
-		if err != nil {
-			return nil, err
-		}
-		u, err := unionAll(children)
-		if err != nil {
-			return nil, err
-		}
-		childSolid = u
-	}
-
-	// Built-in CSG/transform modules
-	switch name {
-	case "union":
-		if len(st.Children) == 0 {
-			return nil, fmt.Errorf("%v: union() requires children", st.pos())
-		}
-		children, err := evalStmts(e, st.Children)
-		if err != nil {
-			return nil, err
-		}
-		u, err := unionAll(children)
-		if err != nil {
-			return nil, err
-		}
-		return []SolidValue{u}, nil
-
-	case "difference":
-		if len(st.Children) == 0 {
-			return nil, fmt.Errorf("%v: difference() requires children", st.pos())
-		}
-		children, err := evalStmts(e, st.Children)
-		if err != nil {
-			return nil, err
-		}
-		if len(children) == 0 {
-			return nil, fmt.Errorf("%v: difference() had no solids", st.pos())
-		}
-		kind, err := ensureSameKind(children)
-		if err != nil {
-			return nil, fmt.Errorf("%v: difference(): %w", st.pos(), err)
-		}
-		if len(children) == 1 {
-			return []SolidValue{children[0]}, nil
-		}
-		subUnion, err := unionAll(children[1:])
-		if err != nil {
-			return nil, err
-		}
-		switch kind {
-		case Solid3D:
-			return []SolidValue{solid3D(model3d.Subtract(children[0].Solid3, subUnion.Solid3))}, nil
-		case Solid2D:
-			return []SolidValue{solid2D(model2d.Subtract(children[0].Solid2, subUnion.Solid2))}, nil
-		default:
-			return nil, fmt.Errorf("%v: difference(): unknown solid kind", st.pos())
-		}
-
-	case "intersection":
-		if len(st.Children) == 0 {
-			return nil, fmt.Errorf("%v: intersection() requires children", st.pos())
-		}
-		children, err := evalStmts(e, st.Children)
-		if err != nil {
-			return nil, err
-		}
-		kind, err := ensureSameKind(children)
-		if err != nil {
-			return nil, fmt.Errorf("%v: intersection(): %w", st.pos(), err)
-		}
-		switch kind {
-		case Solid3D:
-			solids := make([]model3d.Solid, 0, len(children))
-			for _, ch := range children {
-				solids = append(solids, ch.Solid3)
-			}
-			return []SolidValue{solid3D(model3d.IntersectedSolid(solids))}, nil
-		case Solid2D:
-			solids := make([]model2d.Solid, 0, len(children))
-			for _, ch := range children {
-				solids = append(solids, ch.Solid2)
-			}
-			return []SolidValue{solid2D(model2d.IntersectedSolid(solids))}, nil
-		default:
-			return nil, fmt.Errorf("%v: intersection(): unknown solid kind", st.pos())
-		}
-
-	case "translate", "scale", "rotate":
-		if len(st.Children) == 0 {
+	if handler, ok := builtinHandlers[name]; ok {
+		if len(st.Children) == 0 && handler.RequireChildren {
 			return nil, fmt.Errorf("%v: %s() requires children", st.pos(), name)
 		}
-		arg0, err := evalArg0Vec3(e, st.Call)
-		if err != nil {
-			return nil, err
+		if len(st.Children) > 0 && !handler.AllowChildren {
+			return nil, fmt.Errorf("%v: %s() does not take children", st.pos(), name)
 		}
-		switch childSolid.Kind {
-		case Solid3D:
-			var xf model3d.Transform
-			switch name {
-			case "translate":
-				xf = &model3d.Translate{Offset: model3d.XYZ(arg0[0], arg0[1], arg0[2])}
-			case "scale":
-				xf = &model3d.VecScale{Scale: model3d.XYZ(arg0[0], arg0[1], arg0[2])}
-			case "rotate":
-				// Apply X then Y then Z (and invert reverse order with negative angles).
-				xf = model3d.JoinedTransform{
-					model3d.Rotation(model3d.XYZ(1, 0, 0), arg0[0]*math.Pi/180),
-					model3d.Rotation(model3d.XYZ(0, 1, 0), arg0[1]*math.Pi/180),
-					model3d.Rotation(model3d.XYZ(0, 0, 1), arg0[2]*math.Pi/180),
+		var children []SolidValue
+		var childUnion *SolidValue
+		if len(st.Children) > 0 {
+			var err error
+			children, err = evalStmts(e, st.Children)
+			if err != nil {
+				return nil, err
+			}
+			if handler.NeedsChildUnion {
+				u, err := unionAll(children)
+				if err != nil {
+					return nil, err
 				}
-			}
-			return []SolidValue{solid3D(model3d.TransformSolid(xf, childSolid.Solid3))}, nil
-		case Solid2D:
-			if arg0[2] != 0 && name != "rotate" {
-				return nil, fmt.Errorf("%v: %s(): z component not supported for 2D solids", st.pos(), name)
-			}
-			switch name {
-			case "translate":
-				xf := &model2d.Translate{Offset: model2d.XY(arg0[0], arg0[1])}
-				return []SolidValue{solid2D(model2d.TransformSolid(xf, childSolid.Solid2))}, nil
-			case "scale":
-				xf := &model2d.VecScale{Scale: model2d.XY(arg0[0], arg0[1])}
-				return []SolidValue{solid2D(model2d.TransformSolid(xf, childSolid.Solid2))}, nil
-			case "rotate":
-				if arg0[0] != 0 || arg0[1] != 0 {
-					return nil, fmt.Errorf("%v: rotate(): only Z rotation supported for 2D solids", st.pos())
-				}
-				xf := model2d.Rotation(arg0[2] * math.Pi / 180)
-				return []SolidValue{solid2D(model2d.TransformSolid(xf, childSolid.Solid2))}, nil
+				childUnion = &u
 			}
 		}
-		return nil, fmt.Errorf("%v: %s(): unsupported solid kind", st.pos(), name)
-
-	case "linear_extrude":
-		if len(st.Children) == 0 {
-			return nil, fmt.Errorf("%v: linear_extrude() requires children", st.pos())
-		}
-		if childSolid.Kind != Solid2D {
-			return nil, fmt.Errorf("%v: linear_extrude() requires 2D children", st.pos())
-		}
-		h, err := getNamedOrPosNumAny(e, st.Call, []string{"height", "h"}, 0, 1.0)
+		res, err := handler.Eval(e, st, children, childUnion)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%v: %w", st.pos(), err)
 		}
-		center, err := getNamedOrPosBool(e, st.Call, "center", 1, false)
-		if err != nil {
-			return nil, err
-		}
-		return []SolidValue{solid3D(linearExtrude(childSolid.Solid2, h, center))}, nil
-	}
-
-	// Built-in primitives (no children)
-	if len(st.Children) > 0 && (name == "cube" || name == "sphere" || name == "cylinder" || name == "square" || name == "circle") {
-		return nil, fmt.Errorf("%v: %s() does not take children", st.pos(), name)
-	}
-
-	switch name {
-	case "sphere":
-		r, err := getNamedOrPosNum(e, st.Call, "r", 0, 1.0)
-		if err != nil {
-			return nil, err
-		}
-		return []SolidValue{solid3D(&model3d.Sphere{Radius: r})}, nil
-
-	case "cube":
-		sizeV, err := getNamedOrPosValue(e, st.Call, "size", 0, Num(1))
-		if err != nil {
-			return nil, err
-		}
-		vec, err := sizeV.AsVec3(st.pos())
-		if err != nil {
-			return nil, err
-		}
-		center, err := getNamedOrPosBool(e, st.Call, "center", 1, false)
-		if err != nil {
-			return nil, err
-		}
-		min := [3]float64{0, 0, 0}
-		max := vec
-		if center {
-			min = [3]float64{-vec[0] / 2, -vec[1] / 2, -vec[2] / 2}
-			max = [3]float64{vec[0] / 2, vec[1] / 2, vec[2] / 2}
-		}
-		return []SolidValue{solid3D(model3d.NewRect(
-			model3d.XYZ(min[0], min[1], min[2]),
-			model3d.XYZ(max[0], max[1], max[2]),
-		))}, nil
-
-	case "cylinder":
-		h, err := getNamedOrPosNum(e, st.Call, "h", 0, 1.0)
-		if err != nil {
-			return nil, err
-		}
-		r, err := getNamedOrPosNum(e, st.Call, "r", 1, 1.0)
-		if err != nil {
-			return nil, err
-		}
-		center, err := getNamedOrPosBool(e, st.Call, "center", 2, false)
-		if err != nil {
-			return nil, err
-		}
-		z0 := 0.0
-		z1 := h
-		if center {
-			z0 = -h / 2
-			z1 = h / 2
-		}
-		return []SolidValue{solid3D(&model3d.Cylinder{
-			P1:     model3d.XYZ(0, 0, z0),
-			P2:     model3d.XYZ(0, 0, z1),
-			Radius: r,
-		})}, nil
-
-	case "circle":
-		r, err := getNamedOrPosNum(e, st.Call, "r", 0, 1.0)
-		if err != nil {
-			return nil, err
-		}
-		return []SolidValue{solid2D(&model2d.Circle{Radius: r})}, nil
-
-	case "square":
-		sizeV, err := getNamedOrPosValue(e, st.Call, "size", 0, Num(1))
-		if err != nil {
-			return nil, err
-		}
-		vec, err := sizeV.AsVec2(st.pos())
-		if err != nil {
-			return nil, err
-		}
-		center, err := getNamedOrPosBool(e, st.Call, "center", 1, false)
-		if err != nil {
-			return nil, err
-		}
-		min := [2]float64{0, 0}
-		max := vec
-		if center {
-			min = [2]float64{-vec[0] / 2, -vec[1] / 2}
-			max = [2]float64{vec[0] / 2, vec[1] / 2}
-		}
-		return []SolidValue{solid2D(model2d.NewRect(
-			model2d.XY(min[0], min[1]),
-			model2d.XY(max[0], max[1]),
-		))}, nil
+		return &res, nil
 	}
 
 	// User-defined module call (solids)
@@ -421,10 +183,25 @@ func evalCallStmt(e *env, st *CallStmt) ([]SolidValue, error) {
 		if err != nil {
 			return nil, err
 		}
-		return []SolidValue{u}, nil
+		return &u, nil
 	}
 
 	return nil, fmt.Errorf("%v: unknown module/primitive %q", st.pos(), name)
+}
+
+func evalStmtsAsOne(e *env, ss []Stmt) (*SolidValue, error) {
+	solids, err := evalStmts(e, ss)
+	if err != nil {
+		return nil, err
+	}
+	if len(solids) == 0 {
+		return nil, nil
+	}
+	u, err := unionAll(solids)
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
 }
 
 func evalExpr(e *env, ex Expr) (Value, error) {
@@ -658,127 +435,4 @@ func bindParams(e *env, params []Param, args []Arg) error {
 		e.set(k, v)
 	}
 	return nil
-}
-
-func unionAll(children []SolidValue) (SolidValue, error) {
-	if len(children) == 0 {
-		return SolidValue{}, fmt.Errorf("no solids produced")
-	}
-	if len(children) == 1 {
-		return children[0], nil
-	}
-	kind, err := ensureSameKind(children)
-	if err != nil {
-		return SolidValue{}, err
-	}
-	switch kind {
-	case Solid3D:
-		solids := make([]model3d.Solid, 0, len(children))
-		for _, ch := range children {
-			solids = append(solids, ch.Solid3)
-		}
-		return solid3D(model3d.JoinedSolid(solids)), nil
-	case Solid2D:
-		solids := make([]model2d.Solid, 0, len(children))
-		for _, ch := range children {
-			solids = append(solids, ch.Solid2)
-		}
-		return solid2D(model2d.JoinedSolid(solids)), nil
-	default:
-		return SolidValue{}, fmt.Errorf("unknown solid kind")
-	}
-}
-
-func ensureSameKind(children []SolidValue) (SolidKind, error) {
-	if len(children) == 0 {
-		return Solid3D, fmt.Errorf("no solids produced")
-	}
-	kind := children[0].Kind
-	for _, ch := range children[1:] {
-		if ch.Kind != kind {
-			return kind, fmt.Errorf("mixed 2D and 3D solids")
-		}
-	}
-	return kind, nil
-}
-
-func linearExtrude(s model2d.Solid, height float64, center bool) model3d.Solid {
-	if height < 0 {
-		height = -height
-	}
-	z0 := 0.0
-	z1 := height
-	if center {
-		z0 = -height / 2
-		z1 = height / 2
-	}
-	min2 := s.Min()
-	max2 := s.Max()
-	min := model3d.XYZ(min2.X, min2.Y, z0)
-	max := model3d.XYZ(max2.X, max2.Y, z1)
-	return model3d.CheckedFuncSolid(min, max, func(c model3d.Coord3D) bool {
-		if c.Z < z0 || c.Z > z1 {
-			return false
-		}
-		return s.Contains(model2d.XY(c.X, c.Y))
-	})
-}
-
-func evalArg0Vec3(e *env, c Call) ([3]float64, error) {
-	v, err := getNamedOrPosValue(e, c, "v", 0, List([]Value{Num(0), Num(0), Num(0)}))
-	if err != nil {
-		return [3]float64{}, err
-	}
-	return v.AsVec3(c.P)
-}
-
-func getNamedOrPosNumAny(e *env, c Call, names []string, pos int, def float64) (float64, error) {
-	for _, name := range names {
-		for _, a := range c.Args {
-			if a.Name == name {
-				v, err := evalExpr(e, a.Expr)
-				if err != nil {
-					return 0, err
-				}
-				return v.AsNum(c.P)
-			}
-		}
-	}
-	return getNamedOrPosNum(e, c, names[0], pos, def)
-}
-
-func getNamedOrPosValue(e *env, c Call, name string, pos int, def Value) (Value, error) {
-	// named
-	for _, a := range c.Args {
-		if a.Name == name {
-			return evalExpr(e, a.Expr)
-		}
-	}
-	// positional
-	npos := 0
-	for _, a := range c.Args {
-		if a.Name == "" {
-			if npos == pos {
-				return evalExpr(e, a.Expr)
-			}
-			npos++
-		}
-	}
-	return def, nil
-}
-
-func getNamedOrPosNum(e *env, c Call, name string, pos int, def float64) (float64, error) {
-	v, err := getNamedOrPosValue(e, c, name, pos, Num(def))
-	if err != nil {
-		return 0, err
-	}
-	return v.AsNum(c.P)
-}
-
-func getNamedOrPosBool(e *env, c Call, name string, pos int, def bool) (bool, error) {
-	v, err := getNamedOrPosValue(e, c, name, pos, Bool(def))
-	if err != nil {
-		return false, err
-	}
-	return v.AsBool(c.P)
 }

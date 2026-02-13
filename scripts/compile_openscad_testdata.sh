@@ -11,5 +11,8 @@ shopt -s nullglob
 for scad_file in "${IN_DIR}"/*.scad; do
   base="$(basename "${scad_file}" .scad)"
   out_path="${OUT_DIR}/${base}.stl"
+  if [[ -f "${out_path}" ]]; then
+    continue
+  fi
   openscad -o "${out_path}" "${scad_file}"
 done

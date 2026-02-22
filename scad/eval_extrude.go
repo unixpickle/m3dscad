@@ -8,9 +8,9 @@ import (
 	"github.com/unixpickle/model3d/model3d"
 )
 
-func handleLinearExtrude(e *env, st *CallStmt, _ []SolidValue, childUnion *SolidValue) (SolidValue, error) {
-	if childUnion.Kind != Solid2D {
-		return SolidValue{}, fmt.Errorf("linear_extrude() requires 2D children")
+func handleLinearExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
+	if childUnion.Kind != ShapeSolid2D {
+		return ShapeRep{}, fmt.Errorf("linear_extrude() requires 2D children")
 	}
 	args, err := bindArgs(e, st.Call, []ArgSpec{
 		{Name: "height", Aliases: []string{"h"}, Pos: 0, Default: Num(1.0)},
@@ -19,29 +19,29 @@ func handleLinearExtrude(e *env, st *CallStmt, _ []SolidValue, childUnion *Solid
 		{Name: "scale", Pos: 3, Default: Num(1.0)},
 	})
 	if err != nil {
-		return SolidValue{}, err
+		return ShapeRep{}, err
 	}
 	height, err := argNum(args, "height", st.pos())
 	if err != nil {
-		return SolidValue{}, err
+		return ShapeRep{}, err
 	}
 	center, err := argBool(args, "center", st.pos())
 	if err != nil {
-		return SolidValue{}, err
+		return ShapeRep{}, err
 	}
 	twist, err := argNum(args, "twist", st.pos())
 	if err != nil {
-		return SolidValue{}, err
+		return ShapeRep{}, err
 	}
 	scaleV, ok := args["scale"]
 	if !ok {
-		return SolidValue{}, fmt.Errorf("missing parameter \"scale\"")
+		return ShapeRep{}, fmt.Errorf("missing parameter \"scale\"")
 	}
 	scale, err := scaleV.AsVec2(st.pos())
 	if err != nil {
-		return SolidValue{}, err
+		return ShapeRep{}, err
 	}
-	return solid3D(linearExtrude(childUnion.Solid2, height, center, twist, scale)), nil
+	return shapeSolid3D(linearExtrude(childUnion.S2, height, center, twist, scale)), nil
 }
 
 func linearExtrude(s model2d.Solid, height float64, center bool, twist float64, scale [2]float64) model3d.Solid {
@@ -76,30 +76,30 @@ func linearExtrude(s model2d.Solid, height float64, center bool, twist float64, 
 	})
 }
 
-func handleRotateExtrude(e *env, st *CallStmt, _ []SolidValue, childUnion *SolidValue) (SolidValue, error) {
-	if childUnion.Kind != Solid2D {
-		return SolidValue{}, fmt.Errorf("rotate_extrude() requires 2D children")
+func handleRotateExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
+	if childUnion.Kind != ShapeSolid2D {
+		return ShapeRep{}, fmt.Errorf("rotate_extrude() requires 2D children")
 	}
 	args, err := bindArgs(e, st.Call, []ArgSpec{
 		{Name: "angle", Pos: 0, Default: Num(360.0)},
 		{Name: "start", Pos: 1, Default: Num(0.0)},
 	})
 	if err != nil {
-		return SolidValue{}, err
+		return ShapeRep{}, err
 	}
 	angle, err := argNum(args, "angle", st.pos())
 	if err != nil {
-		return SolidValue{}, err
+		return ShapeRep{}, err
 	}
 	start, err := argNum(args, "start", st.pos())
 	if err != nil {
-		return SolidValue{}, err
+		return ShapeRep{}, err
 	}
-	solid, err := rotateExtrude(childUnion.Solid2, angle, start)
+	solid, err := rotateExtrude(childUnion.S2, angle, start)
 	if err != nil {
-		return SolidValue{}, err
+		return ShapeRep{}, err
 	}
-	return solid3D(solid), nil
+	return shapeSolid3D(solid), nil
 }
 
 func rotateExtrude(s model2d.Solid, angleDeg float64, startDeg float64) (model3d.Solid, error) {

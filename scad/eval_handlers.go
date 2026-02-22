@@ -4,7 +4,7 @@ type callHandler struct {
 	AllowChildren   bool
 	RequireChildren bool
 	NeedsChildUnion bool
-	Eval            func(e *env, st *CallStmt, children []SolidValue, childUnion *SolidValue) (SolidValue, error)
+	Eval            func(e *env, st *CallStmt, children []ShapeRep, childUnion *ShapeRep) (ShapeRep, error)
 }
 
 var builtinHandlers = map[string]callHandler{
@@ -54,19 +54,40 @@ var builtinHandlers = map[string]callHandler{
 		NeedsChildUnion: true,
 		Eval:            handleRotateExtrude,
 	},
+	"solid": {
+		AllowChildren:   true,
+		RequireChildren: true,
+		NeedsChildUnion: true,
+		Eval:            handleSolid,
+	},
 	"sphere": {
 		Eval: handleSphere,
+	},
+	"sphere_sdf": {
+		Eval: handleSphereSDF,
 	},
 	"cube": {
 		Eval: handleCube,
 	},
+	"cube_sdf": {
+		Eval: handleCubeSDF,
+	},
 	"cylinder": {
 		Eval: handleCylinder,
+	},
+	"cylinder_sdf": {
+		Eval: handleCylinderSDF,
 	},
 	"circle": {
 		Eval: handleCircle,
 	},
+	"circle_sdf": {
+		Eval: handleCircleSDF,
+	},
 	"square": {
 		Eval: handleSquare,
+	},
+	"square_sdf": {
+		Eval: handleSquareSDF,
 	},
 }

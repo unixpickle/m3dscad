@@ -63,14 +63,14 @@ func Eval(p *Program) (model3d.Solid, error) {
 	if err != nil {
 		return nil, err
 	}
-	if merged.Kind != Solid3D {
+	if merged.Kind != ShapeSolid3D {
 		return nil, fmt.Errorf("top-level did not produce a 3D solid")
 	}
-	return merged.Solid3, nil
+	return merged.S3, nil
 }
 
-func evalStmts(e *env, ss []Stmt) ([]SolidValue, error) {
-	var out []SolidValue
+func evalStmts(e *env, ss []Stmt) ([]ShapeRep, error) {
+	var out []ShapeRep
 	for _, s := range ss {
 		got, err := evalStmt(e, s)
 		if err != nil {
@@ -83,7 +83,7 @@ func evalStmts(e *env, ss []Stmt) ([]SolidValue, error) {
 	return out, nil
 }
 
-func evalStmt(e *env, s Stmt) (*SolidValue, error) {
+func evalStmt(e *env, s Stmt) (*ShapeRep, error) {
 	switch st := s.(type) {
 	case *AssignStmt:
 		v, err := evalExpr(e, st.Expr)
@@ -131,7 +131,7 @@ func evalStmt(e *env, s Stmt) (*SolidValue, error) {
 	}
 }
 
-func evalCallStmt(e *env, st *CallStmt) (*SolidValue, error) {
+func evalCallStmt(e *env, st *CallStmt) (*ShapeRep, error) {
 	name := st.Call.Name
 
 	if handler, ok := builtinHandlers[name]; ok {
@@ -141,8 +141,8 @@ func evalCallStmt(e *env, st *CallStmt) (*SolidValue, error) {
 		if len(st.Children) > 0 && !handler.AllowChildren {
 			return nil, fmt.Errorf("%v: %s() does not take children", st.pos(), name)
 		}
-		var children []SolidValue
-		var childUnion *SolidValue
+		var children []ShapeRep
+		var childUnion *ShapeRep
 		if len(st.Children) > 0 {
 			var err error
 			children, err = evalStmts(e, st.Children)
@@ -189,7 +189,7 @@ func evalCallStmt(e *env, st *CallStmt) (*SolidValue, error) {
 	return nil, fmt.Errorf("%v: unknown module/primitive %q", st.pos(), name)
 }
 
-func evalStmtsAsOne(e *env, ss []Stmt) (*SolidValue, error) {
+func evalStmtsAsOne(e *env, ss []Stmt) (*ShapeRep, error) {
 	solids, err := evalStmts(e, ss)
 	if err != nil {
 		return nil, err

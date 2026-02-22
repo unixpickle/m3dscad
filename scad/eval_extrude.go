@@ -76,6 +76,86 @@ func linearExtrude(s model2d.Solid, height float64, center bool, twist float64, 
 	})
 }
 
+func handleRotateExtrude(e *env, st *CallStmt, _ []SolidValue, childUnion *SolidValue) (SolidValue, error) {
+	if childUnion.Kind != Solid2D {
+		return SolidValue{}, fmt.Errorf("rotate_extrude() requires 2D children")
+	}
+	args, err := bindArgs(e, st.Call, []ArgSpec{
+		{Name: "angle", Pos: 0, Default: Num(360.0)},
+		{Name: "start", Pos: 1, Default: Num(0.0)},
+	})
+	if err != nil {
+		return SolidValue{}, err
+	}
+	angle, err := argNum(args, "angle", st.pos())
+	if err != nil {
+		return SolidValue{}, err
+	}
+	start, err := argNum(args, "start", st.pos())
+	if err != nil {
+		return SolidValue{}, err
+	}
+	solid, err := rotateExtrude(childUnion.Solid2, angle, start)
+	if err != nil {
+		return SolidValue{}, err
+	}
+	return solid3D(solid), nil
+}
+
+func rotateExtrude(s model2d.Solid, angleDeg float64, startDeg float64) (model3d.Solid, error) {
+	min2 := s.Min()
+	max2 := s.Max()
+	if min2.X < 0 && max2.X > 0 {
+		return nil, fmt.Errorf("rotate_extrude() shape crosses the Y axis")
+	}
+	sign := 1.0
+	if max2.X <= 0 {
+		sign = -1.0
+	}
+	rMax := math.Max(math.Abs(min2.X), math.Abs(max2.X))
+	min := model3d.XYZ(-rMax, -rMax, min2.Y)
+	max := model3d.XYZ(rMax, rMax, max2.Y)
+
+	angle := angleDeg
+	start := normalizeAngleDeg(startDeg)
+	full := math.Abs(angle) >= 360-1e-9
+
+	return model3d.CheckedFuncSolid(min, max, func(c model3d.Coord3D) bool {
+		r := math.Hypot(c.X, c.Y)
+		if !full {
+			theta := math.Atan2(c.Y, c.X) * 180 / math.Pi
+			if angle >= 0 {
+				delta := angleDistanceCCW(start, theta)
+				if delta > angle+1e-9 {
+					return false
+				}
+			} else {
+				delta := angleDistanceCW(start, theta)
+				if delta > -angle+1e-9 {
+					return false
+				}
+			}
+		}
+		return s.Contains(model2d.XY(sign*r, c.Z))
+	}), nil
+}
+
+func normalizeAngleDeg(a float64) float64 {
+	a = math.Mod(a, 360)
+	if a < 0 {
+		a += 360
+	}
+	return a
+}
+
+func angleDistanceCCW(from, to float64) float64 {
+	return normalizeAngleDeg(to - from)
+}
+
+func angleDistanceCW(from, to float64) float64 {
+	return normalizeAngleDeg(from - to)
+}
+
 func inverseExtrudeTransform(x, y, t, twist float64, scale [2]float64) (float64, float64, bool) {
 	sx := 1 + t*(scale[0]-1)
 	sy := 1 + t*(scale[1]-1)

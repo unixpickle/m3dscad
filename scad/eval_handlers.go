@@ -48,6 +48,12 @@ var builtinHandlers = map[string]callHandler{
 		NeedsChildUnion: true,
 		Eval:            handleLinearExtrude,
 	},
+	"rotate_extrude": {
+		AllowChildren:   true,
+		RequireChildren: true,
+		NeedsChildUnion: true,
+		Eval:            handleRotateExtrude,
+	},
 	"sphere": {
 		Eval: handleSphere,
 	},

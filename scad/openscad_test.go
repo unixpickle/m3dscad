@@ -43,14 +43,7 @@ func TestOpenSCADMeshParity(t *testing.T) {
 				t.Fatalf("read scad: %v", err)
 			}
 			src := stripLeadingOpenSCADAssignments(string(srcBytes))
-			prog, err := Parse(src)
-			if err != nil {
-				t.Fatalf("parse scad: %v", err)
-			}
-			solid, err := Eval(prog)
-			if err != nil {
-				t.Fatalf("eval scad: %v", err)
-			}
+			solid := mustEvalSolid(t, src)
 
 			delta := marchingDelta(solid, openscadTestMaxGridSide)
 			if delta <= 0 {

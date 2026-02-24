@@ -3,8 +3,6 @@ package scad
 import (
 	"fmt"
 	"math"
-
-	"github.com/unixpickle/model3d/model3d"
 )
 
 type moduleDef struct {
@@ -53,20 +51,17 @@ func Parse(src string) (*Program, error) {
 	return p.ParseProgram()
 }
 
-func Eval(p *Program) (model3d.Solid, error) {
+func Eval(p *Program) (ShapeRep, error) {
 	e := newEnv()
 	solids, err := evalStmts(e, p.Stmts)
 	if err != nil {
-		return nil, err
+		return ShapeRep{}, err
 	}
 	merged, err := unionAll(solids)
 	if err != nil {
-		return nil, err
+		return ShapeRep{}, err
 	}
-	if merged.Kind != ShapeSolid3D {
-		return nil, fmt.Errorf("top-level did not produce a 3D solid")
-	}
-	return merged.S3, nil
+	return merged, nil
 }
 
 func evalStmts(e *env, ss []Stmt) ([]ShapeRep, error) {

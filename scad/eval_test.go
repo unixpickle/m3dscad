@@ -1,22 +1,48 @@
 package scad
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/unixpickle/model3d/model3d"
 )
 
-func mustEvalSolid(t *testing.T, src string) model3d.Solid {
+func mustEvalShape(t *testing.T, src string) ShapeRep {
 	t.Helper()
 	prog, err := Parse(src)
 	if err != nil {
 		t.Fatalf("parse failed: %v", err)
 	}
-	solid, err := Eval(prog)
+	shape, err := Eval(prog)
 	if err != nil {
 		t.Fatalf("eval failed: %v", err)
 	}
+	return shape
+}
+
+func mustEvalSolid(t *testing.T, src string) model3d.Solid {
+	t.Helper()
+	shape := mustEvalShape(t, src)
+	solid, err := shapeToSolid3D(shape)
+	if err != nil {
+		t.Fatalf("eval to solid failed: %v", err)
+	}
 	return solid
+}
+
+func shapeToSolid3D(shape ShapeRep) (model3d.Solid, error) {
+	switch shape.Kind {
+	case ShapeSolid3D:
+		return shape.S3, nil
+	case ShapeMesh3D:
+		return shape.M3.Solid(), nil
+	case ShapeSDF3D:
+		return model3d.SDFToSolid(shape.SDF3, 0), nil
+	case ShapeSolid2D, ShapeMesh2D, ShapeSDF2D:
+		return nil, fmt.Errorf("2D output not supported")
+	default:
+		return nil, fmt.Errorf("unsupported output kind")
+	}
 }
 
 func assertContains(t *testing.T, s model3d.Solid, p model3d.Coord3D, want bool) {

@@ -34,9 +34,31 @@ func main() {
 		os.Exit(1)
 	}
 
-	solid, err := scad.Eval(prog)
+	shape, err := scad.Eval(prog)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "eval:", err)
+		os.Exit(1)
+	}
+
+	if shape.Kind == scad.ShapeMesh3D {
+		if err := shape.M3.SaveGroupedSTL(*outPath); err != nil {
+			fmt.Fprintln(os.Stderr, "save stl:", err)
+			os.Exit(1)
+		}
+		fmt.Println("wrote:", *outPath)
+		return
+	}
+	if shape.Kind == scad.ShapeSolid2D || shape.Kind == scad.ShapeMesh2D || shape.Kind == scad.ShapeSDF2D {
+		fmt.Fprintln(os.Stderr, "eval:", "2D outputs are not supported for STL export")
+		os.Exit(1)
+	}
+
+	solid := shape.S3
+	if shape.Kind == scad.ShapeSDF3D {
+		solid = model3d.SDFToSolid(shape.SDF3, 0)
+	}
+	if solid == nil {
+		fmt.Fprintln(os.Stderr, "eval:", "output is not a 3D shape")
 		os.Exit(1)
 	}
 

@@ -216,6 +216,22 @@ func parseRotateSpec(e *env, st *CallStmt) (rotateSpec, error) {
 	return rotateSpec{}, fmt.Errorf("rotate(): expected numeric or vector \"a\"")
 }
 
+func handleInsetSDF(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
+	delta, err := parseInsetDelta(e, st)
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	return insetSDF("inset_sdf", childUnion, delta)
+}
+
+func handleOutsetSDF(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
+	delta, err := parseInsetDelta(e, st)
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	return insetSDF("outset_sdf", childUnion, -delta)
+}
+
 func rotateAngle2D(spec rotateSpec) (float64, error) {
 	if spec.AxisAngle {
 		if spec.Axis[0] != 0 || spec.Axis[1] != 0 {
@@ -234,6 +250,65 @@ func rotateAngle2D(spec rotateSpec) (float64, error) {
 		return 0, fmt.Errorf("rotate(): only Z rotation supported for 2D shapes")
 	}
 	return spec.Angles[2] * math.Pi / 180, nil
+}
+
+func parseInsetDelta(e *env, st *CallStmt) (float64, error) {
+	args, err := bindArgs(e, st.Call, []ArgSpec{
+		{Name: "delta", Pos: 0, Required: true},
+	})
+	if err != nil {
+		return 0, err
+	}
+	return argNum(args, "delta", st.pos())
+}
+
+func insetSDF(opName string, childUnion *ShapeRep, delta float64) (ShapeRep, error) {
+	switch childUnion.Kind {
+	case ShapeSDF2D:
+		min, max := insetBounds2D(childUnion.SDF2.Min(), childUnion.SDF2.Max(), delta)
+		return shapeSDF2D(model2d.FuncSDF(min, max, func(c model2d.Coord) float64 {
+			return childUnion.SDF2.SDF(c) - delta
+		})), nil
+	case ShapeSDF3D:
+		min, max := insetBounds3D(childUnion.SDF3.Min(), childUnion.SDF3.Max(), delta)
+		return shapeSDF3D(model3d.FuncSDF(min, max, func(c model3d.Coord3D) float64 {
+			return childUnion.SDF3.SDF(c) - delta
+		})), nil
+	default:
+		return ShapeRep{}, fmt.Errorf("%s(): requires an SDF", opName)
+	}
+}
+
+func insetBounds2D(min, max model2d.Coord, delta float64) (model2d.Coord, model2d.Coord) {
+	min = min.AddScalar(delta)
+	max = max.AddScalar(-delta)
+	if min.X > max.X {
+		mid := (min.X + max.X) / 2
+		min.X, max.X = mid, mid
+	}
+	if min.Y > max.Y {
+		mid := (min.Y + max.Y) / 2
+		min.Y, max.Y = mid, mid
+	}
+	return min, max
+}
+
+func insetBounds3D(min, max model3d.Coord3D, delta float64) (model3d.Coord3D, model3d.Coord3D) {
+	min = min.AddScalar(delta)
+	max = max.AddScalar(-delta)
+	if min.X > max.X {
+		mid := (min.X + max.X) / 2
+		min.X, max.X = mid, mid
+	}
+	if min.Y > max.Y {
+		mid := (min.Y + max.Y) / 2
+		min.Y, max.Y = mid, mid
+	}
+	if min.Z > max.Z {
+		mid := (min.Z + max.Z) / 2
+		min.Z, max.Z = mid, mid
+	}
+	return min, max
 }
 
 func rotateTransform3D(spec rotateSpec) (model3d.DistTransform, error) {

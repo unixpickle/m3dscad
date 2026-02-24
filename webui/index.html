@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>m3dscad WebUI</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <div class="panel panel-left">
+        <header class="panel-header">
+          <div class="title">m3dscad</div>
+          <div class="subtitle">Command+S to compile</div>
+        </header>
+        <textarea id="code" spellcheck="false"></textarea>
+        <div class="status" id="status">WASM not loaded.</div>
+      </div>
+      <div class="panel panel-right">
+        <div class="toolbar">
+          <div class="toolbar-group">
+            <label>
+              <span>Grid</span>
+              <input id="grid" type="number" step="1" min="8" max="512" value="128" />
+            </label>
+            <button id="compile">Compile</button>
+          </div>
+          <div class="toolbar-hint">Drag to orbit, scroll to zoom.</div>
+        </div>
+        <div class="viewport">
+          <canvas id="preview"></canvas>
+          <div class="overlay" id="overlay">
+            <div class="overlay-card" id="overlayCard">
+              <div class="spinner" id="spinner"></div>
+              <div class="overlay-text" id="overlayText">Loading...</div>
+              <button id="cancel" class="cancel-button">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="./wasm_exec.js"></script>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

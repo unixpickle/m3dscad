@@ -118,8 +118,6 @@ func compareMeshes(t *testing.T, label string, source, target *model3d.Mesh, thr
 			maxDist = dist
 		}
 		if dist > threshold {
-			source.SaveGroupedSTL("/Users/alex/Desktop/out1.stl")
-			target.SaveGroupedSTL("/Users/alex/Desktop/out2.stl")
 			t.Fatalf("%s: surface distance %.6f exceeds threshold %.6f", label, dist, threshold)
 
 		}

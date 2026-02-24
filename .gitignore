@@ -1,2 +1,4 @@
 *.stl
 .DS_Store
+webui/m3dscad.wasm
+webui/wasm_exec.js

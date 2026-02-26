@@ -218,6 +218,18 @@ func TestSolidsIntegration(t *testing.T) {
 				model3d.XYZ(1, 2, 2.0),
 			},
 		},
+		{
+			name: "BinaryExprInArgs",
+			src: `
+				sphere(3-2);
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(0.9, 0, 0),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(1.1, 0, 0),
+			},
+		},
 	}
 
 	for _, tc := range tests {

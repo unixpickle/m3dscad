@@ -6,8 +6,13 @@ const overlayText = document.getElementById("overlayText");
 const spinnerEl = document.getElementById("spinner");
 const cancelBtn = document.getElementById("cancel");
 const compileBtn = document.getElementById("compile");
+const downloadBtn = document.getElementById("download");
 const gridEl = document.getElementById("grid");
 const canvas = document.getElementById("preview");
+const resizer = document.getElementById("resizer");
+const appEl = document.getElementById("app");
+const toggleCodeBtn = document.getElementById("toggleCode");
+const togglePreviewBtn = document.getElementById("togglePreview");
 
 const defaultSource = `// Example
 difference() {
@@ -55,6 +60,7 @@ let worker = null;
 let workerReady = false;
 let requestId = 0;
 let pendingRequest = null;
+let lastMesh = null;
 
 function initWorker() {
   setOverlay("Loading WASM...");
@@ -73,23 +79,27 @@ function initWorker() {
       statusEl.textContent = "WASM ready. Press Command+S to compile.";
       return;
     }
-    if (msg.type === "result") {
-      if (!pendingRequest || msg.id !== pendingRequest) {
-        return;
-      }
-      pendingRequest = null;
-      if (!msg.ok) {
-        statusEl.textContent = msg.error || "Unknown error.";
-        setOverlay(statusEl.textContent, true);
-        return;
-      }
-      const positions = new Float32Array(msg.positions);
-      const normals = new Float32Array(msg.normals);
-      renderer.setMesh(positions, normals, msg.bounds);
-      statusEl.textContent = `Triangles: ${positions.length / 9}`;
-      setOverlay("", true);
+  if (msg.type === "result") {
+    if (!pendingRequest || msg.id !== pendingRequest) {
+      return;
     }
-  };
+    pendingRequest = null;
+    if (!msg.ok) {
+      statusEl.textContent = msg.error || "Unknown error.";
+      setOverlay(statusEl.textContent, true);
+      lastMesh = null;
+      downloadBtn.disabled = true;
+      return;
+    }
+    const positions = new Float32Array(msg.positions);
+    const normals = new Float32Array(msg.normals);
+    renderer.setMesh(positions, normals, msg.bounds);
+    lastMesh = { positions, normals };
+    downloadBtn.disabled = positions.length === 0;
+    statusEl.textContent = `Triangles: ${positions.length / 9}`;
+    setOverlay("", true);
+  }
+};
   worker.onerror = (event) => {
     workerReady = false;
     statusEl.textContent = `Worker error: ${event.message}`;
@@ -140,12 +150,29 @@ codeEl.addEventListener("input", () => {
   window.localStorage.setItem("m3dscad_source", codeEl.value);
 });
 
+setupResizer();
+setupMobileToggle();
+
 cancelBtn.addEventListener("click", () => {
   if (!pendingRequest) return;
   statusEl.textContent = "Compilation canceled.";
   setOverlay(statusEl.textContent, true);
   pendingRequest = null;
   initWorker();
+});
+
+downloadBtn.addEventListener("click", () => {
+  if (!lastMesh || lastMesh.positions.length === 0) return;
+  const stl = buildBinarySTL(lastMesh.positions, lastMesh.normals);
+  const blob = new Blob([stl], { type: "application/sla" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "model.stl";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 });
 
 function MeshRenderer(canvas) {
@@ -258,6 +285,7 @@ MeshRenderer.prototype.render = function () {
 };
 
 function setupInteraction(renderer, canvas) {
+  canvas.style.touchAction = "none";
   canvas.addEventListener("mousedown", (event) => {
     renderer.dragging = true;
     renderer.lastPos = [event.clientX, event.clientY];
@@ -279,6 +307,61 @@ function setupInteraction(renderer, canvas) {
     renderer.camera.radius *= 1 + event.deltaY * 0.001;
     renderer.camera.radius = Math.max(renderer.camera.radius, 0.4);
   });
+
+  const pointers = new Map();
+  let lastPinchDist = null;
+
+  const updatePinch = () => {
+    if (pointers.size !== 2) {
+      lastPinchDist = null;
+      return;
+    }
+    const pts = Array.from(pointers.values());
+    const dx = pts[0].x - pts[1].x;
+    const dy = pts[0].y - pts[1].y;
+    const dist = Math.hypot(dx, dy);
+    if (lastPinchDist != null && lastPinchDist > 0) {
+      const scale = lastPinchDist / dist;
+      renderer.camera.radius *= scale;
+      renderer.camera.radius = Math.max(renderer.camera.radius, 0.4);
+    }
+    lastPinchDist = dist;
+  };
+
+  canvas.addEventListener("pointerdown", (event) => {
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.size === 1) {
+      renderer.dragging = true;
+      renderer.lastPos = [event.clientX, event.clientY];
+    }
+    canvas.setPointerCapture(event.pointerId);
+  });
+
+  canvas.addEventListener("pointermove", (event) => {
+    if (!pointers.has(event.pointerId)) return;
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.size === 1 && renderer.dragging) {
+      const dx = event.clientX - renderer.lastPos[0];
+      const dy = event.clientY - renderer.lastPos[1];
+      renderer.lastPos = [event.clientX, event.clientY];
+      renderer.camera.theta -= dx * 0.005;
+      renderer.camera.phi -= dy * 0.005;
+      renderer.camera.phi = Math.min(Math.max(renderer.camera.phi, 0.1), Math.PI - 0.1);
+    } else if (pointers.size === 2) {
+      updatePinch();
+    }
+  });
+
+  const onPointerEnd = (event) => {
+    pointers.delete(event.pointerId);
+    if (pointers.size === 0) {
+      renderer.dragging = false;
+      lastPinchDist = null;
+    }
+  };
+
+  canvas.addEventListener("pointerup", onPointerEnd);
+  canvas.addEventListener("pointercancel", onPointerEnd);
 }
 
 function resizeCanvas(canvas) {
@@ -416,4 +499,81 @@ function setOverlay(text, idle) {
   const isIdle = Boolean(idle);
   spinnerEl.style.display = isIdle ? "none" : "block";
   cancelBtn.style.display = isIdle ? "none" : "block";
+}
+
+function setupMobileToggle() {
+  if (!appEl || !toggleCodeBtn || !togglePreviewBtn) return;
+  const showCode = () => {
+    appEl.classList.add("show-code");
+    appEl.classList.remove("show-preview");
+    toggleCodeBtn.classList.add("active");
+    togglePreviewBtn.classList.remove("active");
+  };
+  const showPreview = () => {
+    appEl.classList.add("show-preview");
+    appEl.classList.remove("show-code");
+    togglePreviewBtn.classList.add("active");
+    toggleCodeBtn.classList.remove("active");
+  };
+  toggleCodeBtn.addEventListener("click", showCode);
+  togglePreviewBtn.addEventListener("click", showPreview);
+  showCode();
+}
+
+function buildBinarySTL(positions, normals) {
+  const triCount = Math.floor(positions.length / 9);
+  const buffer = new ArrayBuffer(84 + triCount * 50);
+  const view = new DataView(buffer);
+  let offset = 80;
+  view.setUint32(offset, triCount, true);
+  offset += 4;
+  for (let i = 0; i < triCount; i++) {
+    const nIdx = i * 9;
+    const pIdx = i * 9;
+    const n0 = normals[nIdx] ?? 0;
+    const n1 = normals[nIdx + 1] ?? 0;
+    const n2 = normals[nIdx + 2] ?? 0;
+    view.setFloat32(offset, n0, true);
+    view.setFloat32(offset + 4, n1, true);
+    view.setFloat32(offset + 8, n2, true);
+    offset += 12;
+    for (let v = 0; v < 9; v++) {
+      view.setFloat32(offset, positions[pIdx + v] ?? 0, true);
+      offset += 4;
+    }
+    view.setUint16(offset, 0, true);
+    offset += 2;
+  }
+  return buffer;
+}
+
+function setupResizer() {
+  if (!resizer) return;
+  const app = document.querySelector(".app");
+  let dragging = false;
+
+  const onMove = (event) => {
+    if (!dragging) return;
+    const rect = app.getBoundingClientRect();
+    const minLeft = 260;
+    const minRight = 320;
+    const x = Math.min(Math.max(event.clientX - rect.left, minLeft), rect.width - minRight);
+    const right = rect.width - x;
+    app.style.gridTemplateColumns = `${x}px 8px ${right}px`;
+  };
+
+  resizer.addEventListener("mousedown", (event) => {
+    dragging = true;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    onMove(event);
+  });
+
+  window.addEventListener("mousemove", onMove);
+  window.addEventListener("mouseup", () => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+  });
 }

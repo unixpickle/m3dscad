@@ -487,6 +487,9 @@ func (p *Parser) parsePrimary() (Expr, error) {
 				elems = append(elems, ex)
 				if p.cur.Kind == TokComma {
 					p.advance()
+					if p.cur.Kind == TokRBrack {
+						break
+					}
 					continue
 				}
 				break

@@ -13,29 +13,76 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   margin: 0;
   font-family: "JetBrains Mono", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono",
     "Courier New", monospace;
   color: var(--ink);
   background: radial-gradient(circle at 10% 10%, #1b1f2f, #0d0f16 55%);
-  height: 100vh;
 }
 
 .app {
   display: grid;
-  grid-template-columns: 1fr 1.2fr;
+  grid-template-columns: minmax(260px, 1fr) 8px minmax(320px, 1.2fr);
   height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+.mobile-toggle {
+  display: none;
+  grid-column: 1 / -1;
+  padding: 10px 12px;
+  gap: 8px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+  justify-content: center;
+}
+
+.toggle-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.toggle-btn.active {
+  color: #1f1f1f;
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 .panel {
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--border);
+  min-width: 0;
+  min-height: 0;
 }
 
 .panel-right {
-  border-right: none;
+  border-left: 1px solid var(--border);
+}
+
+.resizer {
+  cursor: col-resize;
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+
+.resizer:hover {
+  background: #202636;
 }
 
 .panel-header {
@@ -70,6 +117,7 @@ textarea {
   font-family: inherit;
   resize: none;
   outline: none;
+  min-width: 0;
 }
 
 .status {
@@ -125,6 +173,11 @@ textarea {
   font-size: 12px;
 }
 
+.toolbar-group button[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .toolbar-hint {
   font-size: 12px;
   color: var(--muted);
@@ -134,6 +187,7 @@ textarea {
   position: relative;
   flex: 1;
   background: #0b0e17;
+  overflow: hidden;
 }
 
 canvas {
@@ -204,9 +258,25 @@ canvas {
 @media (max-width: 900px) {
   .app {
     grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
   }
   .panel {
     border-right: none;
     border-bottom: 1px solid var(--border);
+  }
+  .mobile-toggle {
+    display: flex;
+  }
+  .resizer {
+    display: none;
+  }
+  .panel-right {
+    border-left: none;
+  }
+  .app.show-preview #panelCode {
+    display: none;
+  }
+  .app.show-code #panelPreview {
+    display: none;
   }
 }

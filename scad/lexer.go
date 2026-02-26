@@ -37,14 +37,33 @@ func (l *Lexer) Next() (Token, error) {
 		return Token{Kind: TokIdent, Lexeme: lex, Pos: startPos}, nil
 	}
 
-	// Number (simple float)
+	// Number (float with optional exponent)
 	if unicode.IsDigit(rune(ch)) || (ch == '.' && l.i+1 < len(l.s) && unicode.IsDigit(rune(l.s[l.i+1]))) {
 		start := l.i
-		l.advance()
+		seenDot := false
+		seenExp := false
+		expSignAllowed := false
 		for l.i < len(l.s) {
 			c := l.peek()
-			if unicode.IsDigit(rune(c)) || c == '.' || c == 'e' || c == 'E' || c == '+' || c == '-' {
-				// permissive; ParseFloat will validate
+			if unicode.IsDigit(rune(c)) {
+				l.advance()
+				expSignAllowed = false
+				continue
+			}
+			if c == '.' && !seenDot && !seenExp {
+				seenDot = true
+				l.advance()
+				expSignAllowed = false
+				continue
+			}
+			if (c == 'e' || c == 'E') && !seenExp {
+				seenExp = true
+				expSignAllowed = true
+				l.advance()
+				continue
+			}
+			if (c == '+' || c == '-') && expSignAllowed {
+				expSignAllowed = false
 				l.advance()
 				continue
 			}

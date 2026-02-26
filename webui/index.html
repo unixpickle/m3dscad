@@ -7,8 +7,12 @@
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <div class="app">
-      <div class="panel panel-left">
+    <div class="app" id="app">
+      <div class="mobile-toggle">
+        <button id="toggleCode" class="toggle-btn active">Code</button>
+        <button id="togglePreview" class="toggle-btn">Preview</button>
+      </div>
+      <div class="panel panel-left" id="panelCode">
         <header class="panel-header">
           <div class="title">m3dscad</div>
           <div class="subtitle">Command+S to compile</div>
@@ -16,7 +20,8 @@
         <textarea id="code" spellcheck="false"></textarea>
         <div class="status" id="status">WASM not loaded.</div>
       </div>
-      <div class="panel panel-right">
+      <div class="resizer" id="resizer"></div>
+      <div class="panel panel-right" id="panelPreview">
         <div class="toolbar">
           <div class="toolbar-group">
             <label>
@@ -24,6 +29,7 @@
               <input id="grid" type="number" step="1" min="8" max="512" value="128" />
             </label>
             <button id="compile">Compile</button>
+            <button id="download" disabled>Download STL</button>
           </div>
           <div class="toolbar-hint">Drag to orbit, scroll to zoom.</div>
         </div>

@@ -87,6 +87,47 @@ func handleSquareSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep,
 	return shapeSDF2D(rect), nil
 }
 
+func handlePolygon(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
+	args, err := bindArgs(e, st.Call, []ArgSpec{
+		{Name: "points", Pos: 0, Required: true},
+		{Name: "paths", Pos: 1, Default: Value{}},
+		{Name: "convexity", Pos: 2, Default: Num(1)},
+	})
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	points, err := parsePolygonPoints(args["points"], st.pos())
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	if len(points) < 3 {
+		return ShapeRep{}, fmt.Errorf("polygon(): need at least 3 points")
+	}
+	paths, err := parsePolygonPaths(args["paths"], len(points), st.pos())
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	if len(paths) == 0 {
+		paths = [][]int{defaultPolygonPath(len(points))}
+	}
+	primary, err := polygonPathSolid(points, paths[0], st.pos())
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	if len(paths) == 1 {
+		return shapeSolid2D(primary), nil
+	}
+	holes := make([]model2d.Solid, 0, len(paths)-1)
+	for _, p := range paths[1:] {
+		s, err := polygonPathSolid(points, p, st.pos())
+		if err != nil {
+			return ShapeRep{}, err
+		}
+		holes = append(holes, s)
+	}
+	return shapeSolid2D(model2d.Subtract(primary, model2d.JoinedSolid(holes))), nil
+}
+
 func parseSphere(e *env, st *CallStmt) (*model3d.Sphere, error) {
 	args, err := bindArgs(e, st.Call, []ArgSpec{
 		{Name: "r", Pos: 0, Default: Num(1.0)},
@@ -211,4 +252,97 @@ func parseSquare(e *env, st *CallStmt) (*model2d.Rect, error) {
 		model2d.XY(min[0], min[1]),
 		model2d.XY(max[0], max[1]),
 	), nil
+}
+
+func parsePolygonPoints(val Value, pos Pos) ([]model2d.Coord, error) {
+	if val.Kind != ValList {
+		return nil, fmt.Errorf("%v: polygon(): points must be a list", pos)
+	}
+	points := make([]model2d.Coord, 0, len(val.List))
+	for _, v := range val.List {
+		if v.Kind != ValList {
+			return nil, fmt.Errorf("%v: polygon(): points must be a list of [x, y] pairs", pos)
+		}
+		vec, err := v.AsVec2(pos)
+		if err != nil {
+			return nil, err
+		}
+		points = append(points, model2d.XY(vec[0], vec[1]))
+	}
+	return points, nil
+}
+
+func parsePolygonPaths(val Value, numPoints int, pos Pos) ([][]int, error) {
+	if val.Kind == ValNull {
+		return nil, nil
+	}
+	if val.Kind != ValList {
+		return nil, fmt.Errorf("%v: polygon(): paths must be a list", pos)
+	}
+	if len(val.List) == 0 {
+		return nil, nil
+	}
+	if val.List[0].Kind != ValList {
+		path, err := parsePolygonPath(val.List, numPoints, pos)
+		if err != nil {
+			return nil, err
+		}
+		return [][]int{path}, nil
+	}
+	paths := make([][]int, 0, len(val.List))
+	for _, p := range val.List {
+		if p.Kind != ValList {
+			return nil, fmt.Errorf("%v: polygon(): paths must be a list of lists", pos)
+		}
+		path, err := parsePolygonPath(p.List, numPoints, pos)
+		if err != nil {
+			return nil, err
+		}
+		paths = append(paths, path)
+	}
+	return paths, nil
+}
+
+func parsePolygonPath(vals []Value, numPoints int, pos Pos) ([]int, error) {
+	if len(vals) < 3 {
+		return nil, fmt.Errorf("%v: polygon(): path must have at least 3 points", pos)
+	}
+	path := make([]int, 0, len(vals))
+	for _, v := range vals {
+		if v.Kind != ValNum {
+			return nil, fmt.Errorf("%v: polygon(): path indices must be numbers", pos)
+		}
+		idx := int(v.Num)
+		if float64(idx) != v.Num {
+			return nil, fmt.Errorf("%v: polygon(): path indices must be integers", pos)
+		}
+		if idx < 0 || idx >= numPoints {
+			return nil, fmt.Errorf("%v: polygon(): path index %d out of range", pos, idx)
+		}
+		path = append(path, idx)
+	}
+	return path, nil
+}
+
+func defaultPolygonPath(n int) []int {
+	path := make([]int, n)
+	for i := range path {
+		path[i] = i
+	}
+	return path
+}
+
+func polygonPathSolid(points []model2d.Coord, path []int, pos Pos) (model2d.Solid, error) {
+	if len(path) < 3 {
+		return nil, fmt.Errorf("%v: polygon(): path must have at least 3 points", pos)
+	}
+	segs := make([]*model2d.Segment, 0, len(path))
+	for i, idx := range path {
+		next := path[(i+1)%len(path)]
+		a := points[idx]
+		b := points[next]
+		segs = append(segs, &model2d.Segment{a, b})
+	}
+	mesh := model2d.NewMeshSegments(segs)
+	return mesh.Solid(), nil
 }

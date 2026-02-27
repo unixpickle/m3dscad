@@ -206,8 +206,7 @@ func evalExpr(e *env, ex Expr) (Value, error) {
 	case *BoolLit:
 		return Bool(x.V), nil
 	case *StringLit:
-		// Strings mostly for future extensions.
-		return Value{Kind: ValList, List: []Value{}}, nil
+		return String(x.V), nil
 	case *VarExpr:
 		v, ok := e.get(x.Name)
 		if !ok {

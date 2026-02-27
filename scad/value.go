@@ -10,6 +10,7 @@ const (
 	ValNull ValueKind = iota
 	ValNum
 	ValBool
+	ValString
 	ValList
 )
 
@@ -17,12 +18,14 @@ type Value struct {
 	Kind ValueKind
 	Num  float64
 	Bool bool
+	Str  string
 	List []Value
 }
 
-func Num(v float64) Value  { return Value{Kind: ValNum, Num: v} }
-func Bool(v bool) Value    { return Value{Kind: ValBool, Bool: v} }
-func List(v []Value) Value { return Value{Kind: ValList, List: v} }
+func Num(v float64) Value   { return Value{Kind: ValNum, Num: v} }
+func Bool(v bool) Value     { return Value{Kind: ValBool, Bool: v} }
+func String(v string) Value { return Value{Kind: ValString, Str: v} }
+func List(v []Value) Value  { return Value{Kind: ValList, List: v} }
 
 func (v Value) AsNum(pos Pos) (float64, error) {
 	if v.Kind != ValNum {
@@ -36,6 +39,13 @@ func (v Value) AsBool(pos Pos) (bool, error) {
 		return false, fmt.Errorf("%v: expected bool", pos)
 	}
 	return v.Bool, nil
+}
+
+func (v Value) AsString(pos Pos) (string, error) {
+	if v.Kind != ValString {
+		return "", fmt.Errorf("%v: expected string", pos)
+	}
+	return v.Str, nil
 }
 
 func (v Value) AsVec3(pos Pos) ([3]float64, error) {

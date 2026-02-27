@@ -129,4 +129,10 @@ var builtinHandlers = map[string]callHandler{
 	"polygon": {
 		Eval: handlePolygon,
 	},
+	"text": {
+		Eval: handleText,
+	},
+	"text_mesh": {
+		Eval: handleTextMesh,
+	},
 }

@@ -68,6 +68,14 @@ func argBool(args map[string]Value, name string, pos Pos) (bool, error) {
 	return v.AsBool(pos)
 }
 
+func argString(args map[string]Value, name string, pos Pos) (string, error) {
+	v, ok := args[name]
+	if !ok {
+		return "", fmt.Errorf("%v: missing parameter %q", pos, name)
+	}
+	return v.AsString(pos)
+}
+
 func argVec3(args map[string]Value, name string, pos Pos) ([3]float64, error) {
 	v, ok := args[name]
 	if !ok {

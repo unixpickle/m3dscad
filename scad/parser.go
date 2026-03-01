@@ -447,6 +447,26 @@ func (p *Parser) parseUnary() (Expr, error) {
 }
 
 func (p *Parser) parsePrimary() (Expr, error) {
+	expr, err := p.parseAtom()
+	if err != nil {
+		return nil, err
+	}
+	for p.cur.Kind == TokLBrack {
+		pos := p.cur.Pos
+		p.advance()
+		idx, err := p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+		if err := p.expect(TokRBrack, "expected ']' after index"); err != nil {
+			return nil, err
+		}
+		expr = &IndexExpr{X: expr, Index: idx, P: pos}
+	}
+	return expr, nil
+}
+
+func (p *Parser) parseAtom() (Expr, error) {
 	switch p.cur.Kind {
 	case TokNumber:
 		e := &NumberLit{V: p.cur.Num, P: p.cur.Pos}
@@ -479,20 +499,40 @@ func (p *Parser) parsePrimary() (Expr, error) {
 		p.advance()
 		var elems []Expr
 		if p.cur.Kind != TokRBrack {
-			for {
+			first, err := p.parseExpr()
+			if err != nil {
+				return nil, err
+			}
+			if p.cur.Kind == TokColon {
+				p.advance()
+				end, err := p.parseExpr()
+				if err != nil {
+					return nil, err
+				}
+				var step Expr
+				if p.cur.Kind == TokColon {
+					p.advance()
+					step, err = p.parseExpr()
+					if err != nil {
+						return nil, err
+					}
+				}
+				if err := p.expect(TokRBrack, "expected ']'"); err != nil {
+					return nil, err
+				}
+				return &RangeLit{Start: first, End: end, Step: step, P: pos}, nil
+			}
+			elems = append(elems, first)
+			for p.cur.Kind == TokComma {
+				p.advance()
+				if p.cur.Kind == TokRBrack {
+					break
+				}
 				ex, err := p.parseExpr()
 				if err != nil {
 					return nil, err
 				}
 				elems = append(elems, ex)
-				if p.cur.Kind == TokComma {
-					p.advance()
-					if p.cur.Kind == TokRBrack {
-						break
-					}
-					continue
-				}
-				break
 			}
 		}
 		if err := p.expect(TokRBrack, "expected ']'"); err != nil {

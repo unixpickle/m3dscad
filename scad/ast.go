@@ -22,7 +22,7 @@ type AssignStmt struct {
 	P    Pos
 }
 
-func (*AssignStmt) stmtNode() {}
+func (*AssignStmt) stmtNode()  {}
 func (s *AssignStmt) pos() Pos { return s.P }
 
 type BlockStmt struct {
@@ -30,7 +30,7 @@ type BlockStmt struct {
 	P     Pos
 }
 
-func (*BlockStmt) stmtNode() {}
+func (*BlockStmt) stmtNode()  {}
 func (s *BlockStmt) pos() Pos { return s.P }
 
 type IfStmt struct {
@@ -40,7 +40,7 @@ type IfStmt struct {
 	P    Pos
 }
 
-func (*IfStmt) stmtNode() {}
+func (*IfStmt) stmtNode()  {}
 func (s *IfStmt) pos() Pos { return s.P }
 
 type Param struct {
@@ -56,7 +56,7 @@ type ModuleDefStmt struct {
 	P      Pos
 }
 
-func (*ModuleDefStmt) stmtNode() {}
+func (*ModuleDefStmt) stmtNode()  {}
 func (s *ModuleDefStmt) pos() Pos { return s.P }
 
 type FuncDefStmt struct {
@@ -66,7 +66,7 @@ type FuncDefStmt struct {
 	P      Pos
 }
 
-func (*FuncDefStmt) stmtNode() {}
+func (*FuncDefStmt) stmtNode()  {}
 func (s *FuncDefStmt) pos() Pos { return s.P }
 
 type Arg struct {
@@ -87,7 +87,7 @@ type CallStmt struct {
 	P        Pos
 }
 
-func (*CallStmt) stmtNode() {}
+func (*CallStmt) stmtNode()  {}
 func (s *CallStmt) pos() Pos { return s.P }
 
 // ---- expressions ----
@@ -97,7 +97,7 @@ type NumberLit struct {
 	P Pos
 }
 
-func (*NumberLit) exprNode() {}
+func (*NumberLit) exprNode()  {}
 func (e *NumberLit) pos() Pos { return e.P }
 
 type BoolLit struct {
@@ -105,7 +105,7 @@ type BoolLit struct {
 	P Pos
 }
 
-func (*BoolLit) exprNode() {}
+func (*BoolLit) exprNode()  {}
 func (e *BoolLit) pos() Pos { return e.P }
 
 type StringLit struct {
@@ -113,7 +113,7 @@ type StringLit struct {
 	P Pos
 }
 
-func (*StringLit) exprNode() {}
+func (*StringLit) exprNode()  {}
 func (e *StringLit) pos() Pos { return e.P }
 
 type VarExpr struct {
@@ -121,7 +121,7 @@ type VarExpr struct {
 	P    Pos
 }
 
-func (*VarExpr) exprNode() {}
+func (*VarExpr) exprNode()  {}
 func (e *VarExpr) pos() Pos { return e.P }
 
 type ArrayLit struct {
@@ -129,8 +129,18 @@ type ArrayLit struct {
 	P     Pos
 }
 
-func (*ArrayLit) exprNode() {}
+func (*ArrayLit) exprNode()  {}
 func (e *ArrayLit) pos() Pos { return e.P }
+
+type RangeLit struct {
+	Start Expr
+	End   Expr
+	Step  Expr // may be nil
+	P     Pos
+}
+
+func (*RangeLit) exprNode()  {}
+func (e *RangeLit) pos() Pos { return e.P }
 
 type UnaryExpr struct {
 	Op TokenKind
@@ -138,7 +148,7 @@ type UnaryExpr struct {
 	P  Pos
 }
 
-func (*UnaryExpr) exprNode() {}
+func (*UnaryExpr) exprNode()  {}
 func (e *UnaryExpr) pos() Pos { return e.P }
 
 type BinaryExpr struct {
@@ -148,7 +158,7 @@ type BinaryExpr struct {
 	P  Pos
 }
 
-func (*BinaryExpr) exprNode() {}
+func (*BinaryExpr) exprNode()  {}
 func (e *BinaryExpr) pos() Pos { return e.P }
 
 type TernaryExpr struct {
@@ -158,7 +168,7 @@ type TernaryExpr struct {
 	P    Pos
 }
 
-func (*TernaryExpr) exprNode() {}
+func (*TernaryExpr) exprNode()  {}
 func (e *TernaryExpr) pos() Pos { return e.P }
 
 type CallExpr struct {
@@ -166,5 +176,14 @@ type CallExpr struct {
 	P    Pos
 }
 
-func (*CallExpr) exprNode() {}
+func (*CallExpr) exprNode()  {}
 func (e *CallExpr) pos() Pos { return e.P }
+
+type IndexExpr struct {
+	X     Expr
+	Index Expr
+	P     Pos
+}
+
+func (*IndexExpr) exprNode()  {}
+func (e *IndexExpr) pos() Pos { return e.P }

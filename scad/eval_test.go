@@ -230,6 +230,46 @@ func TestSolidsIntegration(t *testing.T) {
 				model3d.XYZ(1.1, 0, 0),
 			},
 		},
+		{
+			name: "RangeLen",
+			src: `
+				sphere(r=len([0:10:2]));
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(5.9, 0, 0),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(6.1, 0, 0),
+			},
+		},
+		{
+			name: "ConcatWithRange",
+			src: `
+				vals = concat([0,1], [2:4], [5]);
+				sphere(r=len(vals));
+				translate([0, 0, 100]) sphere(r=vals[5]);
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(5.9, 0, 0),
+				model3d.XYZ(4.9, 0, 100),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(6.1, 0, 0),
+				model3d.XYZ(5.1, 0, 100),
+			},
+		},
+		{
+			name: "DirectRangeIndex",
+			src: `
+				translate([0, 0, 50]) sphere(r=[0:10:2][3]);
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(5.9, 0, 50),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(6.1, 0, 50),
+			},
+		},
 	}
 
 	for _, tc := range tests {

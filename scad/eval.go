@@ -223,6 +223,60 @@ func evalExpr(e *env, ex Expr) (Value, error) {
 			vals = append(vals, v)
 		}
 		return List(vals), nil
+	case *RangeLit:
+		startV, err := evalExpr(e, x.Start)
+		if err != nil {
+			return Value{}, err
+		}
+		endV, err := evalExpr(e, x.End)
+		if err != nil {
+			return Value{}, err
+		}
+		start, err := startV.AsNum(x.Start.pos())
+		if err != nil {
+			return Value{}, err
+		}
+		end, err := endV.AsNum(x.End.pos())
+		if err != nil {
+			return Value{}, err
+		}
+		step := 1.0
+		if end < start {
+			step = -1.0
+		}
+		if x.Step != nil {
+			stepV, err := evalExpr(e, x.Step)
+			if err != nil {
+				return Value{}, err
+			}
+			step, err = stepV.AsNum(x.Step.pos())
+			if err != nil {
+				return Value{}, err
+			}
+		}
+		return RangeValue(Range{
+			Start: start,
+			End:   end,
+			Step:  step,
+		}), nil
+	case *IndexExpr:
+		base, err := evalExpr(e, x.X)
+		if err != nil {
+			return Value{}, err
+		}
+		idxV, err := evalExpr(e, x.Index)
+		if err != nil {
+			return Value{}, err
+		}
+		idxNum, err := idxV.AsNum(x.Index.pos())
+		if err != nil {
+			return Value{}, err
+		}
+		idx := int(idxNum)
+		if float64(idx) != idxNum {
+			return Value{}, fmt.Errorf("%v: index must be an integer", x.Index.pos())
+		}
+		return base.ElemAt(idx, x.Index.pos())
 	case *UnaryExpr:
 		v, err := evalExpr(e, x.X)
 		if err != nil {
@@ -346,26 +400,60 @@ func evalExpr(e *env, ex Expr) (Value, error) {
 }
 
 func evalFuncCall(e *env, c Call) (Value, error) {
-	// Built-in numeric functions (minimal set).
-	if len(c.Args) == 0 {
-		return Value{}, fmt.Errorf("%v: function %s needs args", c.P, c.Name)
-	}
-	arg0, err := evalExpr(e, c.Args[0].Expr)
-	if err != nil {
-		return Value{}, err
-	}
-	x, err := arg0.AsNum(c.P)
-	if err != nil {
-		return Value{}, err
-	}
 	switch c.Name {
+	case "len":
+		if len(c.Args) != 1 {
+			return Value{}, fmt.Errorf("%v: len() takes exactly 1 argument", c.P)
+		}
+		arg0, err := evalExpr(e, c.Args[0].Expr)
+		if err != nil {
+			return Value{}, err
+		}
+		n, err := arg0.Len(c.P)
+		if err != nil {
+			return Value{}, err
+		}
+		return Num(float64(n)), nil
+	case "concat":
+		if len(c.Args) == 0 {
+			return Value{}, fmt.Errorf("%v: concat() needs at least 1 argument", c.P)
+		}
+		var out []Value
+		for _, a := range c.Args {
+			v, err := evalExpr(e, a.Expr)
+			if err != nil {
+				return Value{}, err
+			}
+			elems, err := v.IterableElems(c.P)
+			if err != nil {
+				return Value{}, err
+			}
+			out = append(out, elems...)
+		}
+		return List(out), nil
 	case "sin":
+		x, err := evalUnaryNumericFuncArg(e, c)
+		if err != nil {
+			return Value{}, err
+		}
 		return Num(math.Sin(x)), nil
 	case "cos":
+		x, err := evalUnaryNumericFuncArg(e, c)
+		if err != nil {
+			return Value{}, err
+		}
 		return Num(math.Cos(x)), nil
 	case "sqrt":
+		x, err := evalUnaryNumericFuncArg(e, c)
+		if err != nil {
+			return Value{}, err
+		}
 		return Num(math.Sqrt(x)), nil
 	case "abs":
+		x, err := evalUnaryNumericFuncArg(e, c)
+		if err != nil {
+			return Value{}, err
+		}
 		return Num(math.Abs(x)), nil
 	}
 
@@ -380,6 +468,17 @@ func evalFuncCall(e *env, c Call) (Value, error) {
 	}
 
 	return Value{}, fmt.Errorf("%v: unknown function %q", c.P, c.Name)
+}
+
+func evalUnaryNumericFuncArg(e *env, c Call) (float64, error) {
+	if len(c.Args) != 1 {
+		return 0, fmt.Errorf("%v: function %s needs exactly 1 argument", c.P, c.Name)
+	}
+	arg0, err := evalExpr(e, c.Args[0].Expr)
+	if err != nil {
+		return 0, err
+	}
+	return arg0.AsNum(c.P)
 }
 
 func bindParams(e *env, params []Param, args []Arg) error {

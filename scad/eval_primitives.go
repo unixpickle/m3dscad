@@ -174,24 +174,13 @@ func parseCube(e *env, st *CallStmt) (*model3d.Rect, error) {
 	), nil
 }
 
-func parseCylinder(e *env, st *CallStmt) (*model3d.Cylinder, error) {
-	args, err := bindArgs(e, st.Call, []ArgSpec{
-		{Name: "h", Pos: 0, Default: Num(1.0)},
-		{Name: "r", Pos: 1, Default: Num(1.0)},
-		{Name: "center", Pos: 2, Default: Bool(false)},
-	})
-	if err != nil {
-		return nil, err
-	}
-	h, err := argNum(args, "h", st.pos())
-	if err != nil {
-		return nil, err
-	}
-	r, err := argNum(args, "r", st.pos())
-	if err != nil {
-		return nil, err
-	}
-	center, err := argBool(args, "center", st.pos())
+type SolidSDF interface {
+	model3d.SDF
+	model3d.Solid
+}
+
+func parseCylinder(e *env, st *CallStmt) (SolidSDF, error) {
+	h, r1, r2, center, err := parseCylinderArgs(e, st)
 	if err != nil {
 		return nil, err
 	}
@@ -201,11 +190,220 @@ func parseCylinder(e *env, st *CallStmt) (*model3d.Cylinder, error) {
 		z0 = -h / 2
 		z1 = h / 2
 	}
-	return &model3d.Cylinder{
-		P1:     model3d.XYZ(0, 0, z0),
-		P2:     model3d.XYZ(0, 0, z1),
-		Radius: r,
+	p1 := model3d.XYZ(0, 0, z0)
+	p2 := model3d.XYZ(0, 0, z1)
+	if r1 == r2 {
+		return &model3d.Cylinder{
+			P1:     p1,
+			P2:     p2,
+			Radius: r1,
+		}, nil
+	}
+	if r1 == 0 {
+		return &model3d.Cone{
+			Tip:    p1,
+			Base:   p2,
+			Radius: r2,
+		}, nil
+	}
+	if r2 == 0 {
+		return &model3d.Cone{
+			Tip:    p2,
+			Base:   p1,
+			Radius: r1,
+		}, nil
+	}
+	return &model3d.ConeSlice{
+		P1: p1,
+		P2: p2,
+		R1: r1,
+		R2: r2,
 	}, nil
+}
+
+func parseCylinderArgs(e *env, st *CallStmt) (h, r1, r2 float64, center bool, err error) {
+	h = 1
+	r1 = 1
+	r2 = 1
+	center = false
+
+	named := map[string]Value{}
+	positional := make([]Value, 0, len(st.Call.Args))
+	seenNamed := false
+	for _, a := range st.Call.Args {
+		v, evalErr := evalExpr(e, a.Expr)
+		if evalErr != nil {
+			err = evalErr
+			return
+		}
+		if a.Name != "" {
+			seenNamed = true
+			if _, ok := named[a.Name]; ok {
+				err = fmt.Errorf("cylinder(): duplicate argument %q", a.Name)
+				return
+			}
+			named[a.Name] = v
+			continue
+		}
+		if seenNamed {
+			err = fmt.Errorf("cylinder(): positional args cannot follow named args")
+			return
+		}
+		positional = append(positional, v)
+	}
+	if len(positional) > 4 {
+		err = fmt.Errorf("cylinder(): too many positional args")
+		return
+	}
+
+	allowed := map[string]bool{
+		"h": true, "center": true,
+		"r": true, "r1": true, "r2": true,
+		"d": true, "d1": true, "d2": true,
+	}
+	for k := range named {
+		if !allowed[k] {
+			err = fmt.Errorf("cylinder(): unknown argument %q", k)
+			return
+		}
+	}
+
+	if len(positional) >= 1 {
+		h, err = positional[0].AsNum(st.pos())
+		if err != nil {
+			return
+		}
+	}
+	if len(positional) >= 2 {
+		r1, err = positional[1].AsNum(st.pos())
+		if err != nil {
+			return
+		}
+	}
+	if len(positional) >= 3 {
+		r2, err = positional[2].AsNum(st.pos())
+		if err != nil {
+			return
+		}
+	}
+	if len(positional) >= 4 {
+		center, err = positional[3].AsBool(st.pos())
+		if err != nil {
+			return
+		}
+	}
+
+	if v, ok := named["h"]; ok {
+		h, err = v.AsNum(st.pos())
+		if err != nil {
+			return
+		}
+	}
+	if v, ok := named["center"]; ok {
+		center, err = v.AsBool(st.pos())
+		if err != nil {
+			return
+		}
+	}
+
+	usesUniform := false
+	usesSpecific := len(positional) >= 2 || len(positional) >= 3
+
+	if _, ok := named["r"]; ok {
+		usesUniform = true
+	}
+	if _, ok := named["d"]; ok {
+		usesUniform = true
+	}
+	if _, ok := named["r1"]; ok {
+		usesSpecific = true
+	}
+	if _, ok := named["r2"]; ok {
+		usesSpecific = true
+	}
+	if _, ok := named["d1"]; ok {
+		usesSpecific = true
+	}
+	if _, ok := named["d2"]; ok {
+		usesSpecific = true
+	}
+
+	if usesUniform && usesSpecific {
+		err = fmt.Errorf("cylinder(): cannot combine r/d with r1/r2/d1/d2")
+		return
+	}
+
+	if usesUniform {
+		if rv, ok := named["r"]; ok {
+			r, convErr := rv.AsNum(st.pos())
+			if convErr != nil {
+				err = convErr
+				return
+			}
+			r1 = r
+			r2 = r
+		}
+		if dv, ok := named["d"]; ok {
+			if _, ok := named["r"]; ok {
+				err = fmt.Errorf("cylinder(): cannot provide both r and d")
+				return
+			}
+			d, convErr := dv.AsNum(st.pos())
+			if convErr != nil {
+				err = convErr
+				return
+			}
+			r1 = d / 2
+			r2 = d / 2
+		}
+	} else {
+		if rv, ok := named["r1"]; ok {
+			r1, err = rv.AsNum(st.pos())
+			if err != nil {
+				return
+			}
+		}
+		if rv, ok := named["r2"]; ok {
+			r2, err = rv.AsNum(st.pos())
+			if err != nil {
+				return
+			}
+		}
+		if dv, ok := named["d1"]; ok {
+			if _, hasR1 := named["r1"]; hasR1 {
+				err = fmt.Errorf("cylinder(): cannot provide both r1 and d1")
+				return
+			}
+			d, convErr := dv.AsNum(st.pos())
+			if convErr != nil {
+				err = convErr
+				return
+			}
+			r1 = d / 2
+		}
+		if dv, ok := named["d2"]; ok {
+			if _, hasR2 := named["r2"]; hasR2 {
+				err = fmt.Errorf("cylinder(): cannot provide both r2 and d2")
+				return
+			}
+			d, convErr := dv.AsNum(st.pos())
+			if convErr != nil {
+				err = convErr
+				return
+			}
+			r2 = d / 2
+		}
+	}
+
+	if h < 0 {
+		err = fmt.Errorf("cylinder(): h must be non-negative")
+		return
+	}
+	if r1 < 0 || r2 < 0 {
+		err = fmt.Errorf("cylinder(): radii must be non-negative")
+		return
+	}
+	return
 }
 
 func parseCircle(e *env, st *CallStmt) (*model2d.Circle, error) {

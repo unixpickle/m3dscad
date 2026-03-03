@@ -3,6 +3,9 @@ package scad
 import (
 	"fmt"
 	"math"
+	"math/rand"
+	"sort"
+	"time"
 )
 
 type moduleDef struct {
@@ -103,9 +106,13 @@ func evalStmt(e *env, s Stmt) (*ShapeRep, error) {
 			return nil, err
 		}
 		if b {
+			e.push()
+			defer e.pop()
 			return evalStmt(e, st.Then)
 		}
 		if st.Else != nil {
+			e.push()
+			defer e.pop()
 			return evalStmt(e, st.Else)
 		}
 		return nil, nil
@@ -556,12 +563,90 @@ func evalFuncCall(e *env, c Call) (Value, error) {
 			return Value{}, err
 		}
 		return Num(math.Cos(x * math.Pi / 180)), nil
+	case "tan":
+		x, err := evalUnaryNumericFuncArg(e, c)
+		if err != nil {
+			return Value{}, err
+		}
+		return Num(math.Tan(x * math.Pi / 180)), nil
+	case "asin":
+		x, err := evalUnaryNumericFuncArg(e, c)
+		if err != nil {
+			return Value{}, err
+		}
+		return Num(math.Asin(x) * 180 / math.Pi), nil
+	case "acos":
+		x, err := evalUnaryNumericFuncArg(e, c)
+		if err != nil {
+			return Value{}, err
+		}
+		return Num(math.Acos(x) * 180 / math.Pi), nil
+	case "atan":
+		x, err := evalUnaryNumericFuncArg(e, c)
+		if err != nil {
+			return Value{}, err
+		}
+		return Num(math.Atan(x) * 180 / math.Pi), nil
+	case "atan2":
+		y, x, err := evalBinaryNumericFuncArgs(e, c)
+		if err != nil {
+			return Value{}, err
+		}
+		return Num(math.Atan2(y, x) * 180 / math.Pi), nil
+	case "sign":
+		x, err := evalUnaryNumericFuncArg(e, c)
+		if err != nil {
+			return Value{}, err
+		}
+		if x > 0 {
+			return Num(1), nil
+		}
+		if x < 0 {
+			return Num(-1), nil
+		}
+		return Num(0), nil
+	case "floor":
+		x, err := evalUnaryNumericFuncArg(e, c)
+		if err != nil {
+			return Value{}, err
+		}
+		return Num(math.Floor(x)), nil
+	case "round":
+		x, err := evalUnaryNumericFuncArg(e, c)
+		if err != nil {
+			return Value{}, err
+		}
+		return Num(math.Round(x)), nil
+	case "ceil":
+		x, err := evalUnaryNumericFuncArg(e, c)
+		if err != nil {
+			return Value{}, err
+		}
+		return Num(math.Ceil(x)), nil
+	case "ln":
+		x, err := evalUnaryNumericFuncArg(e, c)
+		if err != nil {
+			return Value{}, err
+		}
+		return Num(math.Log(x)), nil
+	case "log":
+		x, err := evalUnaryNumericFuncArg(e, c)
+		if err != nil {
+			return Value{}, err
+		}
+		return Num(math.Log10(x)), nil
 	case "sqrt":
 		x, err := evalUnaryNumericFuncArg(e, c)
 		if err != nil {
 			return Value{}, err
 		}
 		return Num(math.Sqrt(x)), nil
+	case "exp":
+		x, err := evalUnaryNumericFuncArg(e, c)
+		if err != nil {
+			return Value{}, err
+		}
+		return Num(math.Exp(x)), nil
 	case "abs":
 		x, err := evalUnaryNumericFuncArg(e, c)
 		if err != nil {
@@ -574,6 +659,187 @@ func evalFuncCall(e *env, c Call) (Value, error) {
 			return Value{}, err
 		}
 		return Num(math.Pow(x, y)), nil
+	case "min":
+		xs, err := evalMinMaxArgs(e, c)
+		if err != nil {
+			return Value{}, err
+		}
+		m := xs[0]
+		for _, x := range xs[1:] {
+			m = math.Min(m, x)
+		}
+		return Num(m), nil
+	case "max":
+		xs, err := evalMinMaxArgs(e, c)
+		if err != nil {
+			return Value{}, err
+		}
+		m := xs[0]
+		for _, x := range xs[1:] {
+			m = math.Max(m, x)
+		}
+		return Num(m), nil
+	case "norm":
+		if len(c.Args) != 1 {
+			return Value{}, fmt.Errorf("%v: norm() needs exactly 1 argument", c.P)
+		}
+		v, err := evalExpr(e, c.Args[0].Expr)
+		if err != nil {
+			return Value{}, err
+		}
+		xs, err := iterableAsNums(v, c.P)
+		if err != nil {
+			return Value{}, err
+		}
+		sum := 0.0
+		for _, x := range xs {
+			sum += x * x
+		}
+		return Num(math.Sqrt(sum)), nil
+	case "cross":
+		if len(c.Args) != 2 {
+			return Value{}, fmt.Errorf("%v: cross() needs exactly 2 arguments", c.P)
+		}
+		aV, err := evalExpr(e, c.Args[0].Expr)
+		if err != nil {
+			return Value{}, err
+		}
+		bV, err := evalExpr(e, c.Args[1].Expr)
+		if err != nil {
+			return Value{}, err
+		}
+		a, err := iterableAsNums(aV, c.P)
+		if err != nil {
+			return Value{}, err
+		}
+		b, err := iterableAsNums(bV, c.P)
+		if err != nil {
+			return Value{}, err
+		}
+		if len(a) != len(b) {
+			return Value{}, fmt.Errorf("%v: cross() vectors must have matching dimensions", c.P)
+		}
+		if len(a) == 2 {
+			return Num(a[0]*b[1] - a[1]*b[0]), nil
+		}
+		if len(a) == 3 {
+			return List([]Value{
+				Num(a[1]*b[2] - a[2]*b[1]),
+				Num(a[2]*b[0] - a[0]*b[2]),
+				Num(a[0]*b[1] - a[1]*b[0]),
+			}), nil
+		}
+		return Value{}, fmt.Errorf("%v: cross() only supports 2D or 3D vectors", c.P)
+	case "rands":
+		if len(c.Args) != 3 && len(c.Args) != 4 {
+			return Value{}, fmt.Errorf("%v: rands() needs 3 or 4 arguments", c.P)
+		}
+		minV, err := evalExpr(e, c.Args[0].Expr)
+		if err != nil {
+			return Value{}, err
+		}
+		maxV, err := evalExpr(e, c.Args[1].Expr)
+		if err != nil {
+			return Value{}, err
+		}
+		countV, err := evalExpr(e, c.Args[2].Expr)
+		if err != nil {
+			return Value{}, err
+		}
+		minX, err := minV.AsNum(c.P)
+		if err != nil {
+			return Value{}, err
+		}
+		maxX, err := maxV.AsNum(c.P)
+		if err != nil {
+			return Value{}, err
+		}
+		countF, err := countV.AsNum(c.P)
+		if err != nil {
+			return Value{}, err
+		}
+		count := int(countF)
+		if float64(count) != countF || count < 0 {
+			return Value{}, fmt.Errorf("%v: rands() count must be a non-negative integer", c.P)
+		}
+		var rng *rand.Rand
+		if len(c.Args) == 4 {
+			seedV, err := evalExpr(e, c.Args[3].Expr)
+			if err != nil {
+				return Value{}, err
+			}
+			seedF, err := seedV.AsNum(c.P)
+			if err != nil {
+				return Value{}, err
+			}
+			rng = rand.New(rand.NewSource(int64(seedF)))
+		} else {
+			rng = rand.New(rand.NewSource(time.Now().UnixNano()))
+		}
+		out := make([]Value, 0, count)
+		span := maxX - minX
+		for i := 0; i < count; i++ {
+			out = append(out, Num(minX+rng.Float64()*span))
+		}
+		return List(out), nil
+	case "lookup":
+		if len(c.Args) != 2 {
+			return Value{}, fmt.Errorf("%v: lookup() needs exactly 2 arguments", c.P)
+		}
+		keyV, err := evalExpr(e, c.Args[0].Expr)
+		if err != nil {
+			return Value{}, err
+		}
+		tableV, err := evalExpr(e, c.Args[1].Expr)
+		if err != nil {
+			return Value{}, err
+		}
+		key, err := keyV.AsNum(c.P)
+		if err != nil {
+			return Value{}, err
+		}
+		if tableV.Kind != ValList || len(tableV.List) == 0 {
+			return Value{}, fmt.Errorf("%v: lookup() table must be a non-empty list of [key,value] pairs", c.P)
+		}
+		type kv struct {
+			K float64
+			V float64
+		}
+		pairs := make([]kv, 0, len(tableV.List))
+		for _, p := range tableV.List {
+			if p.Kind != ValList || len(p.List) != 2 {
+				return Value{}, fmt.Errorf("%v: lookup() table entries must be [key, value]", c.P)
+			}
+			k, err := p.List[0].AsNum(c.P)
+			if err != nil {
+				return Value{}, err
+			}
+			v, err := p.List[1].AsNum(c.P)
+			if err != nil {
+				return Value{}, err
+			}
+			pairs = append(pairs, kv{K: k, V: v})
+		}
+		sort.Slice(pairs, func(i, j int) bool { return pairs[i].K < pairs[j].K })
+		if key <= pairs[0].K {
+			return Num(pairs[0].V), nil
+		}
+		last := pairs[len(pairs)-1]
+		if key >= last.K {
+			return Num(last.V), nil
+		}
+		for i := 1; i < len(pairs); i++ {
+			a := pairs[i-1]
+			b := pairs[i]
+			if key <= b.K {
+				if b.K == a.K {
+					return Num(a.V), nil
+				}
+				t := (key - a.K) / (b.K - a.K)
+				return Num(a.V + t*(b.V-a.V)), nil
+			}
+		}
+		return Num(last.V), nil
 	}
 
 	// User-defined functions.
@@ -587,6 +853,62 @@ func evalFuncCall(e *env, c Call) (Value, error) {
 	}
 
 	return Value{}, fmt.Errorf("%v: unknown function %q", c.P, c.Name)
+}
+
+func iterableAsNums(v Value, pos Pos) ([]float64, error) {
+	elems, err := v.IterableElems(pos)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]float64, 0, len(elems))
+	for _, x := range elems {
+		n, err := x.AsNum(pos)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, n)
+	}
+	return out, nil
+}
+
+func evalMinMaxArgs(e *env, c Call) ([]float64, error) {
+	if len(c.Args) == 0 {
+		return nil, fmt.Errorf("%v: function %s needs at least 1 argument", c.P, c.Name)
+	}
+	if len(c.Args) == 1 {
+		v, err := evalExpr(e, c.Args[0].Expr)
+		if err != nil {
+			return nil, err
+		}
+		if v.Kind == ValList || v.Kind == ValRange || v.Kind == ValEach {
+			xs, err := iterableAsNums(v, c.P)
+			if err != nil {
+				return nil, err
+			}
+			if len(xs) == 0 {
+				return nil, fmt.Errorf("%v: function %s needs a non-empty vector/range", c.P, c.Name)
+			}
+			return xs, nil
+		}
+		x, err := v.AsNum(c.P)
+		if err != nil {
+			return nil, err
+		}
+		return []float64{x}, nil
+	}
+	out := make([]float64, 0, len(c.Args))
+	for _, a := range c.Args {
+		v, err := evalExpr(e, a.Expr)
+		if err != nil {
+			return nil, err
+		}
+		x, err := v.AsNum(c.P)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, x)
+	}
+	return out, nil
 }
 
 func evalUnaryNumericFuncArg(e *env, c Call) (float64, error) {

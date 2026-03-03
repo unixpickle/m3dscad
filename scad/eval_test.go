@@ -3,6 +3,7 @@ package scad
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/unixpickle/model3d/model3d"
@@ -132,6 +133,44 @@ func TestSolidsIntegration(t *testing.T) {
 			},
 			outside: []model3d.Coord3D{
 				model3d.XYZ(0, 1.1, 0),
+			},
+		},
+		{
+			name: "CylinderPositionalR1R2",
+			src: `
+				cylinder(2, 1, 0);
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(0.7, 0, 0.2),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(0.4, 0, 1.6),
+			},
+		},
+		{
+			name: "CylinderDiameterD1D2",
+			src: `
+				cylinder(h=4, d1=2, d2=4, center=true);
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(0.9, 0, -1.9),
+				model3d.XYZ(1.7, 0, 1.9),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(1.2, 0, -1.9),
+				model3d.XYZ(2.1, 0, 1.9),
+			},
+		},
+		{
+			name: "CylinderNamedD",
+			src: `
+				cylinder(h=3, d=2);
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(0.9, 0, 1.5),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(1.1, 0, 1.5),
 			},
 		},
 		{
@@ -361,6 +400,59 @@ func TestSolidsIntegration(t *testing.T) {
 				model3d.XYZ(20, 0, 0),
 			},
 		},
+		{
+			name: "IfWithoutElse",
+			src: `
+				if (true) sphere(r=1);
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(0.9, 0, 0),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(1.1, 0, 0),
+			},
+		},
+		{
+			name: "IfElse",
+			src: `
+				if (false) sphere(r=1); else sphere(r=2);
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(1.9, 0, 0),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(2.1, 0, 0),
+			},
+		},
+		{
+			name: "IfElseIf",
+			src: `
+				if (false) sphere(r=1);
+				else if (true) sphere(r=2);
+				else sphere(r=3);
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(1.9, 0, 0),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(2.1, 0, 0),
+				model3d.XYZ(2.9, 0, 0),
+			},
+		},
+		{
+			name: "IfBranchScope",
+			src: `
+				r = 1;
+				if (true) r = 2;
+				sphere(r=r);
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(0.9, 0, 0),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(1.1, 0, 0),
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -371,6 +463,45 @@ func TestSolidsIntegration(t *testing.T) {
 			}
 			for _, p := range tc.outside {
 				assertContains(t, solid, p, false)
+			}
+		})
+	}
+}
+
+func TestCylinderArgErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		src     string
+		wantErr string
+	}{
+		{
+			name:    "PositionalAfterNamed",
+			src:     `cylinder(h=2, 1);`,
+			wantErr: "positional args cannot follow named args",
+		},
+		{
+			name:    "MixedUniformAndSpecific",
+			src:     `cylinder(h=2, r=1, r2=2);`,
+			wantErr: "cannot combine r/d with r1/r2/d1/d2",
+		},
+		{
+			name:    "RAndDConflict",
+			src:     `cylinder(h=2, r=1, d=2);`,
+			wantErr: "cannot provide both r and d",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			prog, err := Parse(tc.src)
+			if err != nil {
+				t.Fatalf("parse failed: %v", err)
+			}
+			_, err = Eval(prog)
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("expected error containing %q, got %v", tc.wantErr, err)
 			}
 		})
 	}
@@ -435,6 +566,73 @@ func TestExpressionAssignments(t *testing.T) {
 				List([]Value{Num(1), Num(0), Num(0)}),
 				List([]Value{Num(0), Num(1), Num(0)}),
 				List([]Value{Num(0), Num(0), Num(1)}),
+			}),
+		},
+		{
+			name: "IfElseAssignmentScope",
+			src: `
+				x = 7;
+				if (false) x = 10; else x = 20;
+			`,
+			var_: "x",
+			want: Num(7),
+		},
+		{
+			name: "BuiltinFunctions",
+			src: `
+				out = [
+					abs(-3),
+					sign(-3), sign(0), sign(2),
+					round(sin(90)),
+					round(cos(180)),
+					round(tan(45)),
+					round(asin(1)),
+					round(acos(0)),
+					round(atan(1)),
+					round(atan2(1,0)),
+					floor(5.9),
+					round(-5.5),
+					ceil(5.1),
+					round(ln(exp(2))),
+					round(log(1000)),
+					pow(2,3),
+					sqrt(9),
+					min([8,3,4,5]),
+					max(8,3,4,5),
+					norm([3,4]),
+					cross([2,1],[0,4]),
+					round(lookup(-35, [[-50,20],[-20,18]]) * 10),
+					len(rands(0,1,4,123)),
+					abs(rands(0,1,3,123)[0]-rands(0,1,3,123)[0]),
+					cross([2,3,4],[5,6,7]),
+				];
+			`,
+			var_: "out",
+			want: List([]Value{
+				Num(3),
+				Num(-1), Num(0), Num(1),
+				Num(1),
+				Num(-1),
+				Num(1),
+				Num(90),
+				Num(90),
+				Num(45),
+				Num(90),
+				Num(5),
+				Num(-6),
+				Num(6),
+				Num(2),
+				Num(3),
+				Num(8),
+				Num(3),
+				Num(3),
+				Num(8),
+				Num(5),
+				Num(8),
+				Num(190),
+				Num(4),
+				Num(0),
+				List([]Value{Num(-3), Num(6), Num(-3)}),
 			}),
 		},
 	}

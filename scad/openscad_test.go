@@ -119,7 +119,6 @@ func compareMeshes(t *testing.T, label string, source, target *model3d.Mesh, thr
 		}
 		if dist > threshold {
 			t.Fatalf("%s: surface distance %.6f exceeds threshold %.6f", label, dist, threshold)
-
 		}
 	}
 }

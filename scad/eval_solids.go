@@ -88,6 +88,38 @@ func unionAll(children []ShapeRep) (ShapeRep, error) {
 	}
 }
 
+func intersectAll(children []ShapeRep) (ShapeRep, error) {
+	if len(children) == 0 {
+		return ShapeRep{}, fmt.Errorf("no shapes produced")
+	}
+	kind, err := ensureSameKind(children)
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	switch kind {
+	case ShapeSolid3D:
+		solids := make([]model3d.Solid, 0, len(children))
+		for _, ch := range children {
+			solids = append(solids, ch.S3)
+		}
+		return shapeSolid3D(model3d.IntersectedSolid(solids)), nil
+	case ShapeSolid2D:
+		solids := make([]model2d.Solid, 0, len(children))
+		for _, ch := range children {
+			solids = append(solids, ch.S2)
+		}
+		return shapeSolid2D(model2d.IntersectedSolid(solids)), nil
+	case ShapeSDF3D:
+		return shapeSDF3D(sdfIntersect3D(children)), nil
+	case ShapeSDF2D:
+		return shapeSDF2D(sdfIntersect2D(children)), nil
+	case ShapeMesh2D, ShapeMesh3D:
+		return ShapeRep{}, fmt.Errorf("intersection() not supported for meshes")
+	default:
+		return ShapeRep{}, fmt.Errorf("intersection(): unknown shape kind")
+	}
+}
+
 func ensureSameKind(children []ShapeRep) (ShapeKind, error) {
 	if len(children) == 0 {
 		return ShapeSolid3D, fmt.Errorf("no shapes produced")

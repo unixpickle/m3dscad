@@ -13,6 +13,7 @@ const (
 	ValBool
 	ValString
 	ValRange
+	ValEach
 	ValList
 )
 
@@ -22,6 +23,7 @@ type Value struct {
 	Bool bool
 	Str  string
 	Rng  Range
+	Each *Value
 	List []Value
 }
 
@@ -30,6 +32,10 @@ func Bool(v bool) Value     { return Value{Kind: ValBool, Bool: v} }
 func String(v string) Value { return Value{Kind: ValString, Str: v} }
 func RangeValue(v Range) Value {
 	return Value{Kind: ValRange, Rng: v}
+}
+func EachValue(v Value) Value {
+	vCopy := v
+	return Value{Kind: ValEach, Each: &vCopy}
 }
 func List(v []Value) Value { return Value{Kind: ValList, List: v} }
 
@@ -118,6 +124,11 @@ func (v Value) IterableElems(pos Pos) ([]Value, error) {
 		return append([]Value(nil), v.List...), nil
 	case ValRange:
 		return v.Rng.Values(pos)
+	case ValEach:
+		if v.Each == nil {
+			return nil, fmt.Errorf("%v: invalid each value", pos)
+		}
+		return v.Each.IterableElems(pos)
 	default:
 		return nil, fmt.Errorf("%v: expected vector or range", pos)
 	}
@@ -135,6 +146,11 @@ func (v Value) ElemAt(idx int, pos Pos) (Value, error) {
 		return v.List[idx], nil
 	case ValRange:
 		return v.Rng.ValueAt(idx, pos)
+	case ValEach:
+		if v.Each == nil {
+			return Value{}, fmt.Errorf("%v: invalid each value", pos)
+		}
+		return v.Each.ElemAt(idx, pos)
 	default:
 		return Value{}, fmt.Errorf("%v: expected vector or range", pos)
 	}
@@ -146,6 +162,11 @@ func (v Value) Len(pos Pos) (int, error) {
 		return len(v.List), nil
 	case ValRange:
 		return v.Rng.Len(pos)
+	case ValEach:
+		if v.Each == nil {
+			return 0, fmt.Errorf("%v: invalid each value", pos)
+		}
+		return v.Each.Len(pos)
 	default:
 		return 0, fmt.Errorf("%v: expected vector or range", pos)
 	}

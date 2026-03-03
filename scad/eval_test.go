@@ -2,6 +2,7 @@ package scad
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/unixpickle/model3d/model3d"
@@ -231,9 +232,38 @@ func TestSolidsIntegration(t *testing.T) {
 			},
 		},
 		{
+			name: "PowFunctionInArgs",
+			src: `
+				sphere(r=pow(2, 3));
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(7.9, 0, 0),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(8.1, 0, 0),
+			},
+		},
+		{
+			name: "TrigFunctionsUseDegrees",
+			src: `
+				union() {
+					sphere(r=sin(90)*2);
+					translate([5,0,0]) sphere(r=abs(cos(180)));
+				}
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(1.9, 0, 0),
+				model3d.XYZ(5.8, 0, 0),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(2.1, 0, 0),
+				model3d.XYZ(6.1, 0, 0),
+			},
+		},
+		{
 			name: "RangeLen",
 			src: `
-				sphere(r=len([0:10:2]));
+				sphere(r=len([0:2:10]));
 			`,
 			inside: []model3d.Coord3D{
 				model3d.XYZ(5.9, 0, 0),
@@ -261,13 +291,74 @@ func TestSolidsIntegration(t *testing.T) {
 		{
 			name: "DirectRangeIndex",
 			src: `
-				translate([0, 0, 50]) sphere(r=[0:10:2][3]);
+				translate([0, 0, 50]) sphere(r=[0:2:10][3]);
 			`,
 			inside: []model3d.Coord3D{
 				model3d.XYZ(5.9, 0, 50),
 			},
 			outside: []model3d.Coord3D{
 				model3d.XYZ(6.1, 0, 50),
+			},
+		},
+		{
+			name: "ForStatementRange",
+			src: `
+				for (a = [1:3])
+					translate([a*4, 0, 0]) sphere(r=1);
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(4.5, 0, 0),
+				model3d.XYZ(8.5, 0, 0),
+				model3d.XYZ(12.5, 0, 0),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(0, 0, 0),
+				model3d.XYZ(16, 0, 0),
+			},
+		},
+		{
+			name: "ForStatementMultipleBindings",
+			src: `
+				for (a = [0:1], b = [0:1])
+					translate([a*5, b*5, 0]) sphere(r=1);
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(0.5, 0.5, 0),
+				model3d.XYZ(5.5, 0.5, 0),
+				model3d.XYZ(0.5, 5.5, 0),
+				model3d.XYZ(5.5, 5.5, 0),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(3, 3, 0),
+			},
+		},
+		{
+			name: "ListComprehensionLetEach",
+			src: `
+				list = [ for (a = [1:4]) let (b = a*a, c = 2*b) each [a, b, c] ];
+				sphere(r=list[5]);
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(7.9, 0, 0),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(8.1, 0, 0),
+			},
+		},
+		{
+			name: "IntersectionFor",
+			src: `
+				intersection_for (n = [1:6]) {
+					rotate([0, 0, n * 60])
+						translate([5,0,0])
+						sphere(r=12);
+				}
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(0, 0, 0),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(20, 0, 0),
 			},
 		},
 	}
@@ -280,6 +371,90 @@ func TestSolidsIntegration(t *testing.T) {
 			}
 			for _, p := range tc.outside {
 				assertContains(t, solid, p, false)
+			}
+		})
+	}
+}
+
+func TestExpressionAssignments(t *testing.T) {
+	tests := []struct {
+		name string
+		src  string
+		var_ string
+		want Value
+	}{
+		{
+			name: "ListComprehensionMap",
+			src: `
+				input = [2, 3, 5, 7, 11];
+				out = [for (a = input) a * a];
+			`,
+			var_: "out",
+			want: List([]Value{Num(4), Num(9), Num(25), Num(49), Num(121)}),
+		},
+		{
+			name: "EachFlattenRange",
+			src: `
+				a = [-2, each [1:2:5], each [6:-2:0], -1];
+			`,
+			var_: "a",
+			want: List([]Value{Num(-2), Num(1), Num(3), Num(5), Num(6), Num(4), Num(2), Num(0), Num(-1)}),
+		},
+		{
+			name: "ForLetEach",
+			src: `
+				list = [ for (a = [1:4]) let (b = a*a, c = 2*b) each [a, b, c] ];
+			`,
+			var_: "list",
+			want: List([]Value{
+				Num(1), Num(1), Num(2),
+				Num(2), Num(4), Num(8),
+				Num(3), Num(9), Num(18),
+				Num(4), Num(16), Num(32),
+			}),
+		},
+		{
+			name: "MultiBindFlat",
+			src: `
+				flat = [ for (a = [0:2], b = [0:2]) a == b ? 1 : 0 ];
+			`,
+			var_: "flat",
+			want: List([]Value{
+				Num(1), Num(0), Num(0),
+				Num(0), Num(1), Num(0),
+				Num(0), Num(0), Num(1),
+			}),
+		},
+		{
+			name: "NestedMatrix",
+			src: `
+				identity = [ for (a = [0:2]) [ for (b = [0:2]) a == b ? 1 : 0 ] ];
+			`,
+			var_: "identity",
+			want: List([]Value{
+				List([]Value{Num(1), Num(0), Num(0)}),
+				List([]Value{Num(0), Num(1), Num(0)}),
+				List([]Value{Num(0), Num(0), Num(1)}),
+			}),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			prog, err := Parse(tc.src)
+			if err != nil {
+				t.Fatalf("parse failed: %v", err)
+			}
+			e := newEnv()
+			if _, err := evalStmts(e, prog.Stmts); err != nil {
+				t.Fatalf("eval failed: %v", err)
+			}
+			got, ok := e.get(tc.var_)
+			if !ok {
+				t.Fatalf("missing variable %q", tc.var_)
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("value mismatch for %q:\n got: %#v\nwant: %#v", tc.var_, got, tc.want)
 			}
 		})
 	}

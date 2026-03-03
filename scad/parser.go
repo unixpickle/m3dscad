@@ -48,6 +48,10 @@ func (p *Parser) parseStmt() (Stmt, error) {
 			return p.parseFuncDef()
 		case "if":
 			return p.parseIf()
+		case "for":
+			return p.parseForStmt(false)
+		case "intersection_for":
+			return p.parseForStmt(true)
 		}
 	}
 
@@ -147,6 +151,28 @@ func (p *Parser) parseIf() (Stmt, error) {
 		}
 	}
 	return &IfStmt{Cond: cond, Then: thenStmt, Else: elseStmt, P: pos}, nil
+}
+
+func (p *Parser) parseForStmt(intersection bool) (Stmt, error) {
+	pos := p.cur.Pos
+	if intersection {
+		if err := p.expectIdent("intersection_for"); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := p.expectIdent("for"); err != nil {
+			return nil, err
+		}
+	}
+	binds, err := p.parseForBinds()
+	if err != nil {
+		return nil, err
+	}
+	body, err := p.parseStmt()
+	if err != nil {
+		return nil, err
+	}
+	return &ForStmt{Binds: binds, Body: body, Intersection: intersection, P: pos}, nil
 }
 
 func (p *Parser) parseModuleDef() (Stmt, error) {
@@ -477,6 +503,14 @@ func (p *Parser) parseAtom() (Expr, error) {
 		p.advance()
 		return e, nil
 	case TokIdent:
+		switch p.cur.Lexeme {
+		case "for":
+			return p.parseForExpr()
+		case "let":
+			return p.parseLetExpr()
+		case "each":
+			return p.parseEachExpr()
+		}
 		// true/false
 		if p.cur.Lexeme == "true" || p.cur.Lexeme == "false" {
 			e := &BoolLit{V: p.cur.Lexeme == "true", P: p.cur.Pos}
@@ -505,17 +539,20 @@ func (p *Parser) parseAtom() (Expr, error) {
 			}
 			if p.cur.Kind == TokColon {
 				p.advance()
-				end, err := p.parseExpr()
+				second, err := p.parseExpr()
 				if err != nil {
 					return nil, err
 				}
+				end := second
 				var step Expr
 				if p.cur.Kind == TokColon {
 					p.advance()
-					step, err = p.parseExpr()
+					end, err = p.parseExpr()
 					if err != nil {
 						return nil, err
 					}
+					// OpenSCAD range syntax is [start:step:end].
+					step = second
 				}
 				if err := p.expect(TokRBrack, "expected ']'"); err != nil {
 					return nil, err
@@ -552,6 +589,116 @@ func (p *Parser) parseAtom() (Expr, error) {
 	default:
 		return nil, fmt.Errorf("%v: expected expression", p.cur.Pos)
 	}
+}
+
+func (p *Parser) parseForExpr() (Expr, error) {
+	pos := p.cur.Pos
+	if err := p.expectIdent("for"); err != nil {
+		return nil, err
+	}
+	binds, err := p.parseForBinds()
+	if err != nil {
+		return nil, err
+	}
+	body, err := p.parseExpr()
+	if err != nil {
+		return nil, err
+	}
+	return &ForExpr{Binds: binds, Body: body, P: pos}, nil
+}
+
+func (p *Parser) parseLetExpr() (Expr, error) {
+	pos := p.cur.Pos
+	if err := p.expectIdent("let"); err != nil {
+		return nil, err
+	}
+	binds, err := p.parseLetBinds()
+	if err != nil {
+		return nil, err
+	}
+	body, err := p.parseExpr()
+	if err != nil {
+		return nil, err
+	}
+	return &LetExpr{Binds: binds, Body: body, P: pos}, nil
+}
+
+func (p *Parser) parseEachExpr() (Expr, error) {
+	pos := p.cur.Pos
+	if err := p.expectIdent("each"); err != nil {
+		return nil, err
+	}
+	x, err := p.parseExpr()
+	if err != nil {
+		return nil, err
+	}
+	return &EachExpr{X: x, P: pos}, nil
+}
+
+func (p *Parser) parseForBinds() ([]ForBind, error) {
+	if err := p.expect(TokLParen, "expected '(' after for"); err != nil {
+		return nil, err
+	}
+	var binds []ForBind
+	if p.cur.Kind != TokRParen {
+		for {
+			if p.cur.Kind != TokIdent {
+				return nil, fmt.Errorf("%v: expected loop variable name", p.cur.Pos)
+			}
+			name := p.cur.Lexeme
+			pos := p.cur.Pos
+			p.advance()
+			if err := p.expect(TokAssign, "expected '=' in for binding"); err != nil {
+				return nil, err
+			}
+			ex, err := p.parseExpr()
+			if err != nil {
+				return nil, err
+			}
+			binds = append(binds, ForBind{Name: name, Expr: ex, P: pos})
+			if p.cur.Kind != TokComma {
+				break
+			}
+			p.advance()
+		}
+	}
+	if err := p.expect(TokRParen, "expected ')' after for bindings"); err != nil {
+		return nil, err
+	}
+	return binds, nil
+}
+
+func (p *Parser) parseLetBinds() ([]LetBind, error) {
+	if err := p.expect(TokLParen, "expected '(' after let"); err != nil {
+		return nil, err
+	}
+	var binds []LetBind
+	if p.cur.Kind != TokRParen {
+		for {
+			if p.cur.Kind != TokIdent {
+				return nil, fmt.Errorf("%v: expected let variable name", p.cur.Pos)
+			}
+			name := p.cur.Lexeme
+			pos := p.cur.Pos
+			p.advance()
+			if err := p.expect(TokAssign, "expected '=' in let binding"); err != nil {
+				return nil, err
+			}
+			ex, err := p.parseExpr()
+			if err != nil {
+				return nil, err
+			}
+			binds = append(binds, LetBind{Name: name, Expr: ex, P: pos})
+			if p.cur.Kind != TokComma {
+				break
+			}
+			p.advance()
+		}
+	}
+	if err := p.expect(TokRParen, "expected ')' after let bindings"); err != nil {
+		return nil, err
+	}
+	return binds, nil
 }
 
 func (p *Parser) advance() error {

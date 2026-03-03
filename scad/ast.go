@@ -43,6 +43,22 @@ type IfStmt struct {
 func (*IfStmt) stmtNode()  {}
 func (s *IfStmt) pos() Pos { return s.P }
 
+type ForBind struct {
+	Name string
+	Expr Expr
+	P    Pos
+}
+
+type ForStmt struct {
+	Binds        []ForBind
+	Body         Stmt
+	Intersection bool
+	P            Pos
+}
+
+func (*ForStmt) stmtNode()  {}
+func (s *ForStmt) pos() Pos { return s.P }
+
 type Param struct {
 	Name    string
 	Default Expr // may be nil
@@ -187,3 +203,35 @@ type IndexExpr struct {
 
 func (*IndexExpr) exprNode()  {}
 func (e *IndexExpr) pos() Pos { return e.P }
+
+type ForExpr struct {
+	Binds []ForBind
+	Body  Expr
+	P     Pos
+}
+
+func (*ForExpr) exprNode()  {}
+func (e *ForExpr) pos() Pos { return e.P }
+
+type LetBind struct {
+	Name string
+	Expr Expr
+	P    Pos
+}
+
+type LetExpr struct {
+	Binds []LetBind
+	Body  Expr
+	P     Pos
+}
+
+func (*LetExpr) exprNode()  {}
+func (e *LetExpr) pos() Pos { return e.P }
+
+type EachExpr struct {
+	X Expr
+	P Pos
+}
+
+func (*EachExpr) exprNode()  {}
+func (e *EachExpr) pos() Pos { return e.P }

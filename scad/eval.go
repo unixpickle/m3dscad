@@ -110,6 +110,9 @@ func evalStmt(e *env, s Stmt) (*ShapeRep, error) {
 		}
 		return nil, nil
 
+	case *ForStmt:
+		return evalForStmt(e, st)
+
 	case *ModuleDefStmt:
 		e.mods[st.Name] = moduleDef{Params: st.Params, Body: st.Body}
 		return nil, nil
@@ -220,6 +223,22 @@ func evalExpr(e *env, ex Expr) (Value, error) {
 			if err != nil {
 				return Value{}, err
 			}
+			if _, ok := el.(*ForExpr); ok {
+				elems, err := v.IterableElems(el.pos())
+				if err != nil {
+					return Value{}, err
+				}
+				vals = append(vals, elems...)
+				continue
+			}
+			if v.Kind == ValEach {
+				elems, err := v.IterableElems(el.pos())
+				if err != nil {
+					return Value{}, err
+				}
+				vals = append(vals, elems...)
+				continue
+			}
 			vals = append(vals, v)
 		}
 		return List(vals), nil
@@ -277,6 +296,45 @@ func evalExpr(e *env, ex Expr) (Value, error) {
 			return Value{}, fmt.Errorf("%v: index must be an integer", x.Index.pos())
 		}
 		return base.ElemAt(idx, x.Index.pos())
+	case *ForExpr:
+		var out []Value
+		err := evalForBindsExpr(e, x.Binds, 0, func() error {
+			v, err := evalExpr(e, x.Body)
+			if err != nil {
+				return err
+			}
+			if v.Kind == ValEach {
+				elems, err := v.IterableElems(x.Body.pos())
+				if err != nil {
+					return err
+				}
+				out = append(out, elems...)
+				return nil
+			}
+			out = append(out, v)
+			return nil
+		})
+		if err != nil {
+			return Value{}, err
+		}
+		return List(out), nil
+	case *LetExpr:
+		e.push()
+		defer e.pop()
+		for _, b := range x.Binds {
+			v, err := evalExpr(e, b.Expr)
+			if err != nil {
+				return Value{}, err
+			}
+			e.set(b.Name, v)
+		}
+		return evalExpr(e, x.Body)
+	case *EachExpr:
+		v, err := evalExpr(e, x.X)
+		if err != nil {
+			return Value{}, err
+		}
+		return EachValue(v), nil
 	case *UnaryExpr:
 		v, err := evalExpr(e, x.X)
 		if err != nil {
@@ -399,6 +457,61 @@ func evalExpr(e *env, ex Expr) (Value, error) {
 	return Value{}, fmt.Errorf("%v: unreachable", ex.pos())
 }
 
+func evalForStmt(e *env, st *ForStmt) (*ShapeRep, error) {
+	var results []ShapeRep
+	err := evalForBindsExpr(e, st.Binds, 0, func() error {
+		res, err := evalStmt(e, st.Body)
+		if err != nil {
+			return err
+		}
+		if res != nil {
+			results = append(results, *res)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(results) == 0 {
+		return nil, nil
+	}
+	var merged ShapeRep
+	if st.Intersection {
+		merged, err = intersectAll(results)
+	} else {
+		merged, err = unionAll(results)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &merged, nil
+}
+
+func evalForBindsExpr(e *env, binds []ForBind, idx int, fn func() error) error {
+	if idx == len(binds) {
+		return fn()
+	}
+	b := binds[idx]
+	iterVal, err := evalExpr(e, b.Expr)
+	if err != nil {
+		return err
+	}
+	elems, err := iterVal.IterableElems(b.P)
+	if err != nil {
+		return err
+	}
+	for _, val := range elems {
+		e.push()
+		e.set(b.Name, val)
+		err := evalForBindsExpr(e, binds, idx+1, fn)
+		e.pop()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func evalFuncCall(e *env, c Call) (Value, error) {
 	switch c.Name {
 	case "len":
@@ -436,13 +549,13 @@ func evalFuncCall(e *env, c Call) (Value, error) {
 		if err != nil {
 			return Value{}, err
 		}
-		return Num(math.Sin(x)), nil
+		return Num(math.Sin(x * math.Pi / 180)), nil
 	case "cos":
 		x, err := evalUnaryNumericFuncArg(e, c)
 		if err != nil {
 			return Value{}, err
 		}
-		return Num(math.Cos(x)), nil
+		return Num(math.Cos(x * math.Pi / 180)), nil
 	case "sqrt":
 		x, err := evalUnaryNumericFuncArg(e, c)
 		if err != nil {
@@ -455,6 +568,12 @@ func evalFuncCall(e *env, c Call) (Value, error) {
 			return Value{}, err
 		}
 		return Num(math.Abs(x)), nil
+	case "pow":
+		x, y, err := evalBinaryNumericFuncArgs(e, c)
+		if err != nil {
+			return Value{}, err
+		}
+		return Num(math.Pow(x, y)), nil
 	}
 
 	// User-defined functions.
@@ -479,6 +598,29 @@ func evalUnaryNumericFuncArg(e *env, c Call) (float64, error) {
 		return 0, err
 	}
 	return arg0.AsNum(c.P)
+}
+
+func evalBinaryNumericFuncArgs(e *env, c Call) (float64, float64, error) {
+	if len(c.Args) != 2 {
+		return 0, 0, fmt.Errorf("%v: function %s needs exactly 2 arguments", c.P, c.Name)
+	}
+	arg0, err := evalExpr(e, c.Args[0].Expr)
+	if err != nil {
+		return 0, 0, err
+	}
+	arg1, err := evalExpr(e, c.Args[1].Expr)
+	if err != nil {
+		return 0, 0, err
+	}
+	x, err := arg0.AsNum(c.P)
+	if err != nil {
+		return 0, 0, err
+	}
+	y, err := arg1.AsNum(c.P)
+	if err != nil {
+		return 0, 0, err
+	}
+	return x, y, nil
 }
 
 func bindParams(e *env, params []Param, args []Arg) error {

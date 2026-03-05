@@ -1,4 +1,9 @@
-const codeEl = document.getElementById("code");
+import { basicSetup } from "codemirror";
+import { EditorState } from "@codemirror/state";
+import { EditorView, keymap } from "@codemirror/view";
+import { indentWithTab } from "@codemirror/commands";
+
+const codeHostEl = document.getElementById("code");
 const statusEl = document.getElementById("status");
 const overlayEl = document.getElementById("overlay");
 const overlayCard = document.getElementById("overlayCard");
@@ -22,7 +27,10 @@ difference() {
 `;
 
 const storedSource = window.localStorage.getItem("m3dscad_source");
-codeEl.value = storedSource && storedSource.trim().length > 0 ? storedSource : defaultSource;
+const initialSource = storedSource && storedSource.trim().length > 0 ? storedSource : defaultSource;
+
+let editorView = null;
+createEditor(initialSource);
 
 const vertexShader = `
   attribute vec3 a_position;
@@ -61,6 +69,37 @@ let workerReady = false;
 let requestId = 0;
 let pendingRequest = null;
 let lastMesh = null;
+
+function createEditor(source) {
+  editorView = new EditorView({
+    state: EditorState.create({
+      doc: source,
+      extensions: [
+        basicSetup,
+        keymap.of([
+          {
+            key: "Mod-s",
+            run: () => {
+              compile();
+              return true;
+            },
+          },
+          indentWithTab,
+        ]),
+        EditorView.lineWrapping,
+        EditorView.updateListener.of((update) => {
+          if (!update.docChanged) return;
+          window.localStorage.setItem("m3dscad_source", getSource());
+        }),
+      ],
+    }),
+    parent: codeHostEl,
+  });
+}
+
+function getSource() {
+  return editorView ? editorView.state.doc.toString() : "";
+}
 
 function initWorker() {
   setOverlay("Loading WASM...");
@@ -120,7 +159,7 @@ function compile() {
   worker.postMessage({
     type: "compile",
     id: pendingRequest,
-    code: codeEl.value,
+    code: getSource(),
     gridSize,
   });
 }
@@ -131,23 +170,6 @@ document.addEventListener("keydown", (event) => {
     event.preventDefault();
     compile();
   }
-});
-
-codeEl.addEventListener("keydown", (event) => {
-  if (event.key === "Tab") {
-    event.preventDefault();
-    const start = codeEl.selectionStart;
-    const end = codeEl.selectionEnd;
-    const value = codeEl.value;
-    const insert = "  ";
-    codeEl.value = value.slice(0, start) + insert + value.slice(end);
-    codeEl.selectionStart = start + insert.length;
-    codeEl.selectionEnd = start + insert.length;
-  }
-});
-
-codeEl.addEventListener("input", () => {
-  window.localStorage.setItem("m3dscad_source", codeEl.value);
 });
 
 setupResizer();

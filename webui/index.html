@@ -17,7 +17,7 @@
           <div class="title">m3dscad</div>
           <div class="subtitle">Command+S to compile</div>
         </header>
-        <textarea id="code" spellcheck="false"></textarea>
+        <div id="code" class="code-editor"></div>
         <div class="status" id="status">WASM not loaded.</div>
       </div>
       <div class="resizer" id="resizer"></div>
@@ -46,6 +46,6 @@
       </div>
     </div>
     <script src="./wasm_exec.js"></script>
-    <script type="module" src="./main.js"></script>
+    <script src="./main.bundle.js"></script>
   </body>
 </html>

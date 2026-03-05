@@ -1,0 +1,17 @@
+{
+  "name": "m3dscad-webui",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "build": "esbuild main.js --bundle --format=iife --target=es2020 --outfile=main.bundle.js"
+  },
+  "dependencies": {
+    "@codemirror/commands": "^6.10.0",
+    "@codemirror/state": "^6.5.2",
+    "@codemirror/view": "^6.38.6",
+    "codemirror": "^6.0.2"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.10"
+  }
+}

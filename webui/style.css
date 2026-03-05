@@ -106,18 +106,55 @@ body {
   color: var(--muted);
 }
 
-textarea {
+.code-editor {
   flex: 1;
-  padding: 18px 20px;
   border: none;
   background: var(--panel-2);
+  color: var(--ink);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.code-editor .cm-editor {
+  height: 100%;
+  background: transparent;
   color: var(--ink);
   font-size: 13px;
   line-height: 1.6;
   font-family: inherit;
-  resize: none;
+}
+
+.code-editor .cm-scroller {
+  overflow: auto;
+  padding: 18px 20px;
+}
+
+.code-editor .cm-content {
+  caret-color: #ffffff;
+}
+
+.code-editor .cm-cursor,
+.code-editor .cm-dropCursor {
+  border-left-color: #ffffff !important;
+}
+
+.code-editor .cm-focused {
   outline: none;
-  min-width: 0;
+}
+
+.code-editor .cm-gutters {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+}
+
+.code-editor .cm-activeLine {
+  background: transparent !important;
+}
+
+.code-editor .cm-activeLineGutter {
+  background: transparent !important;
 }
 
 .status {

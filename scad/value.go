@@ -254,3 +254,78 @@ func (r Range) Len(pos Pos) (int, error) {
 	}
 	return n, nil
 }
+
+func (v Value) Equal(other Value) bool {
+	if v.Kind != other.Kind {
+		return false
+	}
+	switch v.Kind {
+	case ValNull:
+		return true
+	case ValNum:
+		return v.Num == other.Num
+	case ValBool:
+		return v.Bool == other.Bool
+	case ValString:
+		return v.Str == other.Str
+	case ValList:
+		if len(v.List) != len(other.List) {
+			return false
+		}
+		for i := range v.List {
+			if !v.List[i].Equal(other.List[i]) {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
+}
+
+// CompareOrder returns ordering for relational operators.
+// It returns (-1, true), (0, true), or (1, true) when comparable;
+// otherwise (0, false).
+func (v Value) CompareOrder(other Value) (int, bool) {
+	switch {
+	case v.Kind == ValNum && other.Kind == ValNum:
+		return compareFloat(v.Num, other.Num), true
+	case v.Kind == ValString && other.Kind == ValString:
+		return compareString(v.Str, other.Str), true
+	case v.Kind == ValBool && other.Kind == ValBool:
+		return compareFloat(boolAsNum(v.Bool), boolAsNum(other.Bool)), true
+	case v.Kind == ValBool && other.Kind == ValNum:
+		return compareFloat(boolAsNum(v.Bool), other.Num), true
+	case v.Kind == ValNum && other.Kind == ValBool:
+		return compareFloat(v.Num, boolAsNum(other.Bool)), true
+	default:
+		return 0, false
+	}
+}
+
+func boolAsNum(b bool) float64 {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+func compareFloat(a, b float64) int {
+	if a < b {
+		return -1
+	}
+	if a > b {
+		return 1
+	}
+	return 0
+}
+
+func compareString(a, b string) int {
+	if a < b {
+		return -1
+	}
+	if a > b {
+		return 1
+	}
+	return 0
+}

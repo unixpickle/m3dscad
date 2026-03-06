@@ -105,13 +105,6 @@ func handleRotateExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRe
 func rotateExtrude(s model2d.Solid, angleDeg float64, startDeg float64) (model3d.Solid, error) {
 	min2 := s.Min()
 	max2 := s.Max()
-	if min2.X < 0 && max2.X > 0 {
-		return nil, fmt.Errorf("rotate_extrude() shape crosses the Y axis")
-	}
-	sign := 1.0
-	if max2.X <= 0 {
-		sign = -1.0
-	}
 	rMax := math.Max(math.Abs(min2.X), math.Abs(max2.X))
 	min := model3d.XYZ(-rMax, -rMax, min2.Y)
 	max := model3d.XYZ(rMax, rMax, max2.Y)
@@ -136,7 +129,16 @@ func rotateExtrude(s model2d.Solid, angleDeg float64, startDeg float64) (model3d
 				}
 			}
 		}
-		return s.Contains(model2d.XY(sign*r, c.Z))
+		for _, neg := range []bool{false, true} {
+			x := r
+			if neg {
+				x = -x
+			}
+			if s.Contains(model2d.XY(x, c.Z)) {
+				return true
+			}
+		}
+		return false
 	}), nil
 }
 

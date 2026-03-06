@@ -11,6 +11,14 @@ type ArgSpec struct {
 }
 
 func bindArgs(e *env, c Call, specs []ArgSpec) (map[string]Value, error) {
+	allowedNames := make(map[string]struct{}, len(specs))
+	for _, spec := range specs {
+		allowedNames[spec.Name] = struct{}{}
+		for _, alias := range spec.Aliases {
+			allowedNames[alias] = struct{}{}
+		}
+	}
+
 	named := make(map[string]Value, len(c.Args))
 	positional := make([]Value, 0, len(c.Args))
 	for _, a := range c.Args {
@@ -19,6 +27,9 @@ func bindArgs(e *env, c Call, specs []ArgSpec) (map[string]Value, error) {
 			return nil, err
 		}
 		if a.Name != "" {
+			if _, ok := allowedNames[a.Name]; !ok {
+				return nil, fmt.Errorf("%v: %s(): unknown argument %q", a.P, c.Name, a.Name)
+			}
 			named[a.Name] = v
 		} else {
 			positional = append(positional, v)

@@ -246,9 +246,9 @@ func TestSolidsIntegration(t *testing.T) {
 		{
 			name: "LinearExtrudeSquareTransforms",
 			src: `
-				linear_extrude(height=3, center=true)
-					translate([1,2,0]) rotate([0,0,90]) square(size=[2,4], center=true);
-			`,
+					linear_extrude(height=3, center=true)
+						translate([1,2,0]) rotate([0,0,90]) square(size=[2,4], center=true);
+				`,
 			inside: []model3d.Coord3D{
 				model3d.XYZ(1, 2, 0),
 				model3d.XYZ(2.5, 2, 1),
@@ -259,10 +259,25 @@ func TestSolidsIntegration(t *testing.T) {
 			},
 		},
 		{
+			name: "RotateExtrudeCrossYAxisUsesBothSides",
+			src: `
+					rotate_extrude()
+						square(size=[2,2], center=true);
+				`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(0.5, 0, 0),
+				model3d.XYZ(-0.5, 0, 0),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(1.1, 0, 0),
+				model3d.XYZ(0, 0, 1.1),
+			},
+		},
+		{
 			name: "BinaryExprInArgs",
 			src: `
-				sphere(3-2);
-			`,
+					sphere(3-2);
+				`,
 			inside: []model3d.Coord3D{
 				model3d.XYZ(0.9, 0, 0),
 			},
@@ -507,6 +522,53 @@ func TestCylinderArgErrors(t *testing.T) {
 	}
 }
 
+func TestMissingArgError(t *testing.T) {
+	tests := []struct {
+		name    string
+		src     string
+		wantErr string
+	}{
+		{
+			name: "UnknownNamedArgFunction",
+			src: `
+				function add_one(x) = x + 1;
+				out = add_one(y=2);
+			`,
+			wantErr: `unknown named argument "y"`,
+		},
+		{
+			name: "UnknownNamedArgModule",
+			src: `
+				module ball(r) {
+					sphere(r=r);
+				}
+				ball(radius=2);
+			`,
+			wantErr: `unknown named argument "radius"`,
+		},
+		{
+			name:    "UnknownNamedArgBuiltin",
+			src:     `text("hi", foo=3);`,
+			wantErr: `text(): unknown argument "foo"`,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			prog, err := Parse(tc.src)
+			if err != nil {
+				t.Fatalf("parse failed: %v", err)
+			}
+			_, err = Eval(prog)
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("expected error containing %q, got %v", tc.wantErr, err)
+			}
+		})
+	}
+}
+
 func TestExpressionAssignments(t *testing.T) {
 	tests := []struct {
 		name string
@@ -580,7 +642,7 @@ func TestExpressionAssignments(t *testing.T) {
 		{
 			name: "BuiltinFunctions",
 			src: `
-				out = [
+					out = [
 					abs(-3),
 					sign(-3), sign(0), sign(2),
 					round(sin(90)),
@@ -633,6 +695,30 @@ func TestExpressionAssignments(t *testing.T) {
 				Num(4),
 				Num(0),
 				List([]Value{Num(-3), Num(6), Num(-3)}),
+			}),
+		},
+		{
+			name: "ComparisonSemantics",
+			src: `
+					out = [
+						1 < 2, 1 <= 1, 2 > 1, 2 >= 3, 1 == 1, 1 != 2,
+						"ab" > "aa", "aa" > "a", "a" == "a", "a" != "b",
+						true > false, true >= 1, false < 1, true < 2, 2 > false,
+						true < "a", true < [1],
+						[1,2] == [1,2], [1,2] != [2,1], [1] < [2], [1] > [0],
+						[1] == 1, [1] != 1, "1" == 1, "1" != 1,
+						true == 1, true != 1
+					];
+				`,
+			var_: "out",
+			want: List([]Value{
+				Bool(true), Bool(true), Bool(true), Bool(false), Bool(true), Bool(true),
+				Bool(true), Bool(true), Bool(true), Bool(true),
+				Bool(true), Bool(true), Bool(true), Bool(true), Bool(true),
+				Bool(false), Bool(false),
+				Bool(true), Bool(true), Bool(false), Bool(false),
+				Bool(false), Bool(true), Bool(false), Bool(true),
+				Bool(false), Bool(true),
 			}),
 		},
 	}

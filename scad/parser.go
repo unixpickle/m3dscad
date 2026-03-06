@@ -8,6 +8,12 @@ type Parser struct {
 	peek Token
 }
 
+type namedExprBind struct {
+	Name string
+	Expr Expr
+	P    Pos
+}
+
 func NewParser(src string) (*Parser, error) {
 	lx := NewLexer(src)
 	t0, err := lx.Next()
@@ -636,66 +642,67 @@ func (p *Parser) parseEachExpr() (Expr, error) {
 }
 
 func (p *Parser) parseForBinds() ([]ForBind, error) {
-	if err := p.expect(TokLParen, "expected '(' after for"); err != nil {
+	rawBinds, err := p.parseNamedExprBinds(
+		"expected '(' after for",
+		"expected loop variable name",
+		"expected '=' in for binding",
+		"expected ')' after for bindings",
+	)
+	if err != nil {
 		return nil, err
 	}
-	var binds []ForBind
-	if p.cur.Kind != TokRParen {
-		for {
-			if p.cur.Kind != TokIdent {
-				return nil, fmt.Errorf("%v: expected loop variable name", p.cur.Pos)
-			}
-			name := p.cur.Lexeme
-			pos := p.cur.Pos
-			p.advance()
-			if err := p.expect(TokAssign, "expected '=' in for binding"); err != nil {
-				return nil, err
-			}
-			ex, err := p.parseExpr()
-			if err != nil {
-				return nil, err
-			}
-			binds = append(binds, ForBind{Name: name, Expr: ex, P: pos})
-			if p.cur.Kind != TokComma {
-				break
-			}
-			p.advance()
-		}
-	}
-	if err := p.expect(TokRParen, "expected ')' after for bindings"); err != nil {
-		return nil, err
+	binds := make([]ForBind, 0, len(rawBinds))
+	for _, b := range rawBinds {
+		binds = append(binds, ForBind{Name: b.Name, Expr: b.Expr, P: b.P})
 	}
 	return binds, nil
 }
 
 func (p *Parser) parseLetBinds() ([]LetBind, error) {
-	if err := p.expect(TokLParen, "expected '(' after let"); err != nil {
+	rawBinds, err := p.parseNamedExprBinds(
+		"expected '(' after let",
+		"expected let variable name",
+		"expected '=' in let binding",
+		"expected ')' after let bindings",
+	)
+	if err != nil {
 		return nil, err
 	}
-	var binds []LetBind
+	binds := make([]LetBind, 0, len(rawBinds))
+	for _, b := range rawBinds {
+		binds = append(binds, LetBind{Name: b.Name, Expr: b.Expr, P: b.P})
+	}
+	return binds, nil
+}
+
+func (p *Parser) parseNamedExprBinds(openErr, nameErr, assignErr, closeErr string) ([]namedExprBind, error) {
+	if err := p.expect(TokLParen, openErr); err != nil {
+		return nil, err
+	}
+	var binds []namedExprBind
 	if p.cur.Kind != TokRParen {
 		for {
 			if p.cur.Kind != TokIdent {
-				return nil, fmt.Errorf("%v: expected let variable name", p.cur.Pos)
+				return nil, fmt.Errorf("%v: %s", p.cur.Pos, nameErr)
 			}
 			name := p.cur.Lexeme
 			pos := p.cur.Pos
 			p.advance()
-			if err := p.expect(TokAssign, "expected '=' in let binding"); err != nil {
+			if err := p.expect(TokAssign, assignErr); err != nil {
 				return nil, err
 			}
 			ex, err := p.parseExpr()
 			if err != nil {
 				return nil, err
 			}
-			binds = append(binds, LetBind{Name: name, Expr: ex, P: pos})
+			binds = append(binds, namedExprBind{Name: name, Expr: ex, P: pos})
 			if p.cur.Kind != TokComma {
 				break
 			}
 			p.advance()
 		}
 	}
-	if err := p.expect(TokRParen, "expected ')' after let bindings"); err != nil {
+	if err := p.expect(TokRParen, closeErr); err != nil {
 		return nil, err
 	}
 	return binds, nil

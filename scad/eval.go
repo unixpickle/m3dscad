@@ -404,28 +404,24 @@ func evalExpr(e *env, ex Expr) (Value, error) {
 			case TokCaret:
 				return Num(math.Pow(a, b)), nil
 			}
-		case TokEq, TokNeq, TokLt, TokLte, TokGt, TokGte:
-			a, err := lv.AsNum(x.pos())
-			if err != nil {
-				return Value{}, err
-			}
-			b, err := rv.AsNum(x.pos())
-			if err != nil {
-				return Value{}, err
+		case TokEq:
+			return Bool(lv.Equal(rv)), nil
+		case TokNeq:
+			return Bool(!lv.Equal(rv)), nil
+		case TokLt, TokLte, TokGt, TokGte:
+			ord, ok := lv.CompareOrder(rv)
+			if !ok {
+				return Bool(false), nil
 			}
 			switch x.Op {
-			case TokEq:
-				return Bool(a == b), nil
-			case TokNeq:
-				return Bool(a != b), nil
 			case TokLt:
-				return Bool(a < b), nil
+				return Bool(ord < 0), nil
 			case TokLte:
-				return Bool(a <= b), nil
+				return Bool(ord <= 0), nil
 			case TokGt:
-				return Bool(a > b), nil
+				return Bool(ord > 0), nil
 			case TokGte:
-				return Bool(a >= b), nil
+				return Bool(ord >= 0), nil
 			}
 		case TokAnd, TokOr:
 			a, err := lv.AsBool(x.pos())
@@ -946,6 +942,11 @@ func evalBinaryNumericFuncArgs(e *env, c Call) (float64, float64, error) {
 }
 
 func bindParams(e *env, params []Param, args []Arg) error {
+	paramNames := make(map[string]struct{}, len(params))
+	for _, p := range params {
+		paramNames[p.Name] = struct{}{}
+	}
+
 	// Evaluate defaults first.
 	values := make(map[string]Value, len(params))
 	for _, p := range params {
@@ -975,6 +976,9 @@ func bindParams(e *env, params []Param, args []Arg) error {
 	// Named fill.
 	for _, a := range args {
 		if a.Name != "" {
+			if _, ok := paramNames[a.Name]; !ok {
+				return fmt.Errorf("%v: unknown named argument %q", a.P, a.Name)
+			}
 			v, err := evalExpr(e, a.Expr)
 			if err != nil {
 				return err

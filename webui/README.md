@@ -45,6 +45,6 @@ Then open `http://localhost:8080`.
 ## Controls
 
 - `Command+S` (or `Ctrl+S`) compiles the code and updates the preview.
-- Mesh grid size controls the maximum marching cubes side length (default 128).
+- Mesh grid size controls the maximum dual contour cell side length (default 128).
 - Drag to orbit.
 - Scroll to zoom.

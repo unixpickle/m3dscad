@@ -22487,13 +22487,14 @@ difference() {
   }
   MeshRenderer.prototype.setMesh = function(positions, normals, bounds) {
     const gl = this.gl;
+    const hadMesh = this.vertexCount > 0;
     this.vertexCount = positions.length / 3;
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buffers.position);
     gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buffers.normal);
     gl.bufferData(gl.ARRAY_BUFFER, normals, gl.STATIC_DRAW);
     this.bounds = bounds;
-    this.fitPending = true;
+    this.fitPending = !hadMesh;
   };
   MeshRenderer.prototype.fitView = function() {
     if (!this.bounds) {
@@ -22596,6 +22597,9 @@ difference() {
       if (pointers.size === 1) {
         renderer2.dragging = true;
         renderer2.lastPos = [event.clientX, event.clientY];
+      } else if (pointers.size === 2) {
+        renderer2.dragging = false;
+        lastPinchDist = null;
       }
       canvas2.setPointerCapture(event.pointerId);
     });
@@ -22615,9 +22619,17 @@ difference() {
     });
     const onPointerEnd = (event) => {
       pointers.delete(event.pointerId);
-      if (pointers.size === 0) {
+      if (pointers.size === 1) {
+        const remaining = Array.from(pointers.values())[0];
+        renderer2.dragging = true;
+        renderer2.lastPos = [remaining.x, remaining.y];
+        lastPinchDist = null;
+      } else if (pointers.size === 0) {
         renderer2.dragging = false;
         lastPinchDist = null;
+      }
+      if (canvas2.hasPointerCapture(event.pointerId)) {
+        canvas2.releasePointerCapture(event.pointerId);
       }
     };
     canvas2.addEventListener("pointerup", onPointerEnd);

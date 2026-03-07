@@ -51,14 +51,14 @@ func shapeToMesh(shape scad.ShapeRep, gridSize int) (*model3d.Mesh, error) {
 		if err != nil {
 			return nil, err
 		}
-		return model3d.MarchingCubesSearch(shape.S3, delta, 8), nil
+		return model3d.DualContour(shape.S3, delta, true, false), nil
 	case scad.ShapeSDF3D:
 		solid := model3d.SDFToSolid(shape.SDF3, 0)
 		delta, err := marchingDelta(solid, gridSize)
 		if err != nil {
 			return nil, err
 		}
-		return model3d.MarchingCubesSearch(solid, delta, 8), nil
+		return model3d.DualContour(solid, delta, true, false), nil
 	case scad.ShapeSolid2D, scad.ShapeMesh2D, scad.ShapeSDF2D:
 		return nil, fmt.Errorf("2D outputs are not supported in the 3D preview")
 	default:

@@ -237,13 +237,15 @@ function MeshRenderer(canvas) {
 
 MeshRenderer.prototype.setMesh = function (positions, normals, bounds) {
   const gl = this.gl;
+  const hadMesh = this.vertexCount > 0;
   this.vertexCount = positions.length / 3;
   gl.bindBuffer(gl.ARRAY_BUFFER, this.buffers.position);
   gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
   gl.bindBuffer(gl.ARRAY_BUFFER, this.buffers.normal);
   gl.bufferData(gl.ARRAY_BUFFER, normals, gl.STATIC_DRAW);
   this.bounds = bounds;
-  this.fitPending = true;
+  // Preserve user camera settings across recompiles after the first successful mesh.
+  this.fitPending = !hadMesh;
 };
 
 MeshRenderer.prototype.fitView = function () {
@@ -355,6 +357,9 @@ function setupInteraction(renderer, canvas) {
     if (pointers.size === 1) {
       renderer.dragging = true;
       renderer.lastPos = [event.clientX, event.clientY];
+    } else if (pointers.size === 2) {
+      renderer.dragging = false;
+      lastPinchDist = null;
     }
     canvas.setPointerCapture(event.pointerId);
   });
@@ -376,9 +381,17 @@ function setupInteraction(renderer, canvas) {
 
   const onPointerEnd = (event) => {
     pointers.delete(event.pointerId);
-    if (pointers.size === 0) {
+    if (pointers.size === 1) {
+      const remaining = Array.from(pointers.values())[0];
+      renderer.dragging = true;
+      renderer.lastPos = [remaining.x, remaining.y];
+      lastPinchDist = null;
+    } else if (pointers.size === 0) {
       renderer.dragging = false;
       lastPinchDist = null;
+    }
+    if (canvas.hasPointerCapture(event.pointerId)) {
+      canvas.releasePointerCapture(event.pointerId);
     }
   };
 

@@ -88,44 +88,92 @@ func handleSquareSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep,
 }
 
 func handlePolygon(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
+	solid, err := parsePolygonSolid(e, st)
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	return shapeSolid2D(solid), nil
+}
+
+func handlePolygonSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
+	mesh, err := parsePolygonMesh(e, st)
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	return shapeSDF2D(model2d.MeshToSDF(mesh)), nil
+}
+
+func handlePolygonMesh(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
+	mesh, err := parsePolygonMesh(e, st)
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	return shapeMesh2D(mesh), nil
+}
+
+func parsePolygonSolid(e *env, st *CallStmt) (model2d.Solid, error) {
+	points, paths, err := parsePolygonData(e, st)
+	if err != nil {
+		return nil, err
+	}
+	primary, err := polygonPathSolid(points, paths[0], st.pos())
+	if err != nil {
+		return nil, err
+	}
+	if len(paths) == 1 {
+		return primary, nil
+	}
+	holes := make([]model2d.Solid, 0, len(paths)-1)
+	for _, p := range paths[1:] {
+		s, err := polygonPathSolid(points, p, st.pos())
+		if err != nil {
+			return nil, err
+		}
+		holes = append(holes, s)
+	}
+	return model2d.Subtract(primary, model2d.JoinedSolid(holes)), nil
+}
+
+func parsePolygonMesh(e *env, st *CallStmt) (*model2d.Mesh, error) {
+	points, paths, err := parsePolygonData(e, st)
+	if err != nil {
+		return nil, err
+	}
+	mesh := model2d.NewMesh()
+	for _, path := range paths {
+		pathMesh, err := polygonPathMesh(points, path, st.pos())
+		if err != nil {
+			return nil, err
+		}
+		mesh.AddMesh(pathMesh)
+	}
+	return mesh, nil
+}
+
+func parsePolygonData(e *env, st *CallStmt) ([]model2d.Coord, [][]int, error) {
 	args, err := bindArgs(e, st.Call, []ArgSpec{
 		{Name: "points", Pos: 0, Required: true},
 		{Name: "paths", Pos: 1, Default: Value{}},
 		{Name: "convexity", Pos: 2, Default: Num(1)},
 	})
 	if err != nil {
-		return ShapeRep{}, err
+		return nil, nil, err
 	}
 	points, err := parsePolygonPoints(args["points"], st.pos())
 	if err != nil {
-		return ShapeRep{}, err
+		return nil, nil, err
 	}
 	if len(points) < 3 {
-		return ShapeRep{}, fmt.Errorf("polygon(): need at least 3 points")
+		return nil, nil, fmt.Errorf("polygon(): need at least 3 points")
 	}
 	paths, err := parsePolygonPaths(args["paths"], len(points), st.pos())
 	if err != nil {
-		return ShapeRep{}, err
+		return nil, nil, err
 	}
 	if len(paths) == 0 {
 		paths = [][]int{defaultPolygonPath(len(points))}
 	}
-	primary, err := polygonPathSolid(points, paths[0], st.pos())
-	if err != nil {
-		return ShapeRep{}, err
-	}
-	if len(paths) == 1 {
-		return shapeSolid2D(primary), nil
-	}
-	holes := make([]model2d.Solid, 0, len(paths)-1)
-	for _, p := range paths[1:] {
-		s, err := polygonPathSolid(points, p, st.pos())
-		if err != nil {
-			return ShapeRep{}, err
-		}
-		holes = append(holes, s)
-	}
-	return shapeSolid2D(model2d.Subtract(primary, model2d.JoinedSolid(holes))), nil
+	return points, paths, nil
 }
 
 func parseSphere(e *env, st *CallStmt) (*model3d.Sphere, error) {
@@ -531,6 +579,14 @@ func defaultPolygonPath(n int) []int {
 }
 
 func polygonPathSolid(points []model2d.Coord, path []int, pos Pos) (model2d.Solid, error) {
+	mesh, err := polygonPathMesh(points, path, pos)
+	if err != nil {
+		return nil, err
+	}
+	return mesh.Solid(), nil
+}
+
+func polygonPathMesh(points []model2d.Coord, path []int, pos Pos) (*model2d.Mesh, error) {
 	if len(path) < 3 {
 		return nil, fmt.Errorf("%v: polygon(): path must have at least 3 points", pos)
 	}
@@ -541,6 +597,5 @@ func polygonPathSolid(points []model2d.Coord, path []int, pos Pos) (model2d.Soli
 		b := points[next]
 		segs = append(segs, &model2d.Segment{a, b})
 	}
-	mesh := model2d.NewMeshSegments(segs)
-	return mesh.Solid(), nil
+	return model2d.NewMeshSegments(segs), nil
 }

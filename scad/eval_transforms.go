@@ -71,10 +71,13 @@ func handleScale(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (Shap
 		xf := &model3d.VecScale{Scale: model3d.XYZ(vec[0], vec[1], vec[2])}
 		return shapeMesh3D(childUnion.M3.Transform(xf)), nil
 	case ShapeSDF3D:
-		if vec[0] != vec[1] || vec[1] != vec[2] {
+		if math.Abs(vec[0]) != math.Abs(vec[1]) || math.Abs(vec[1]) != math.Abs(vec[2]) {
 			return ShapeRep{}, fmt.Errorf("scale(): non-uniform scaling not supported for SDFs")
 		}
-		xf := &model3d.Scale{Scale: vec[0]}
+		xf := &sdfScale3D{
+			Scale:     model3d.XYZ(vec[0], vec[1], vec[2]),
+			DistScale: math.Abs(vec[0]),
+		}
 		return shapeSDF3D(model3d.TransformSDF(xf, childUnion.SDF3)), nil
 	case ShapeSolid2D:
 		if vec[2] != 0 {
@@ -92,14 +95,67 @@ func handleScale(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (Shap
 		if vec[2] != 0 {
 			return ShapeRep{}, fmt.Errorf("scale(): z component not supported for 2D shapes")
 		}
-		if vec[0] != vec[1] {
+		if math.Abs(vec[0]) != math.Abs(vec[1]) {
 			return ShapeRep{}, fmt.Errorf("scale(): non-uniform scaling not supported for SDFs")
 		}
-		xf := &model2d.Scale{Scale: vec[0]}
+		xf := &sdfScale2D{
+			Scale:     model2d.XY(vec[0], vec[1]),
+			DistScale: math.Abs(vec[0]),
+		}
 		return shapeSDF2D(model2d.TransformSDF(xf, childUnion.SDF2)), nil
 	default:
 		return ShapeRep{}, fmt.Errorf("scale(): unsupported shape kind")
 	}
+}
+
+type sdfScale3D struct {
+	Scale     model3d.Coord3D
+	DistScale float64
+}
+
+func (s *sdfScale3D) Apply(c model3d.Coord3D) model3d.Coord3D {
+	return c.Mul(s.Scale)
+}
+
+func (s *sdfScale3D) ApplyBounds(min, max model3d.Coord3D) (model3d.Coord3D, model3d.Coord3D) {
+	min, max = min.Mul(s.Scale), max.Mul(s.Scale)
+	return min.Min(max), max.Max(min)
+}
+
+func (s *sdfScale3D) Inverse() model3d.Transform {
+	return &sdfScale3D{
+		Scale:     s.Scale.Recip(),
+		DistScale: 1 / s.DistScale,
+	}
+}
+
+func (s *sdfScale3D) ApplyDistance(d float64) float64 {
+	return d * s.DistScale
+}
+
+type sdfScale2D struct {
+	Scale     model2d.Coord
+	DistScale float64
+}
+
+func (s *sdfScale2D) Apply(c model2d.Coord) model2d.Coord {
+	return c.Mul(s.Scale)
+}
+
+func (s *sdfScale2D) ApplyBounds(min, max model2d.Coord) (model2d.Coord, model2d.Coord) {
+	min, max = min.Mul(s.Scale), max.Mul(s.Scale)
+	return min.Min(max), max.Max(min)
+}
+
+func (s *sdfScale2D) Inverse() model2d.Transform {
+	return &sdfScale2D{
+		Scale:     s.Scale.Recip(),
+		DistScale: 1 / s.DistScale,
+	}
+}
+
+func (s *sdfScale2D) ApplyDistance(d float64) float64 {
+	return d * s.DistScale
 }
 
 func handleRotate(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {

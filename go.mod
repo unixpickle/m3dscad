@@ -1,8 +1,10 @@
 module github.com/unixpickle/m3dscad
 
-go 1.24.0
+go 1.25.0
 
-require github.com/unixpickle/model3d v0.4.8
+require github.com/unixpickle/model3d v0.4.9
+
+require github.com/unixpickle/path2d v0.0.0
 
 require github.com/unixpickle/textcurve v0.1.0
 
@@ -17,3 +19,5 @@ require (
 )
 
 replace github.com/unixpickle/textcurve => ../textcurve
+
+replace github.com/unixpickle/path2d => ../path2d

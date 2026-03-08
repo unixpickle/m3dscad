@@ -210,6 +210,24 @@ func TestSolidsIntegration(t *testing.T) {
 			},
 		},
 		{
+			name: "DefinitionsThenAssignmentsThenCalls",
+			src: `
+				module b() {
+					cylinder(r=a, h=2);
+				}
+				b();
+				d=3;
+				a=d;
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(2.9, 0, 1),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(3.1, 0, 1),
+				model3d.XYZ(0, 0, 2.1),
+			},
+		},
+		{
 			name: "NestedScopes",
 			src: `
 				r = 1;
@@ -503,6 +521,62 @@ func TestCylinderArgErrors(t *testing.T) {
 			name:    "RAndDConflict",
 			src:     `cylinder(h=2, r=1, d=2);`,
 			wantErr: "cannot provide both r and d",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			prog, err := Parse(tc.src)
+			if err != nil {
+				t.Fatalf("parse failed: %v", err)
+			}
+			_, err = Eval(prog)
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("expected error containing %q, got %v", tc.wantErr, err)
+			}
+		})
+	}
+}
+
+func TestLinearExtrudeArgErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		src     string
+		wantErr string
+	}{
+		{
+			name: "MeshScaleUnsupported",
+			src: `
+				linear_extrude(height=1, scale=2)
+					path_mesh("M0,0 L1,0 L1,1 Z");
+			`,
+			wantErr: "scale != 1 is unsupported for Mesh",
+		},
+		{
+			name: "MeshTwistUnsupported",
+			src: `
+				linear_extrude(height=1, twist=10)
+					path_mesh("M0,0 L1,0 L1,1 Z");
+			`,
+			wantErr: "twist != 0 is unsupported for Mesh",
+		},
+		{
+			name: "SDFScaleUnsupported",
+			src: `
+				linear_extrude(height=1, scale=2)
+					circle_sdf(r=1);
+			`,
+			wantErr: "scale != 1 is unsupported for SDF",
+		},
+		{
+			name: "SDFTwistUnsupported",
+			src: `
+				linear_extrude(height=1, twist=10)
+					circle_sdf(r=1);
+			`,
+			wantErr: "twist != 0 is unsupported for SDF",
 		},
 	}
 	for _, tc := range tests {

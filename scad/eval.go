@@ -68,8 +68,33 @@ func Eval(p *Program) (ShapeRep, error) {
 }
 
 func evalStmts(e *env, ss []Stmt) ([]ShapeRep, error) {
+	// OpenSCAD-like ordering:
+	// 1) definitions, 2) assignments, 3) geometry/control statements.
+	for _, s := range ss {
+		switch st := s.(type) {
+		case *ModuleDefStmt:
+			e.mods[st.Name] = moduleDef{Params: st.Params, Body: st.Body}
+		case *FuncDefStmt:
+			e.funcs[st.Name] = funcDef{Params: st.Params, Body: st.Body}
+		}
+	}
+	for _, s := range ss {
+		st, ok := s.(*AssignStmt)
+		if !ok {
+			continue
+		}
+		v, err := evalExpr(e, st.Expr)
+		if err != nil {
+			return nil, err
+		}
+		e.set(st.Name, v)
+	}
 	var out []ShapeRep
 	for _, s := range ss {
+		switch s.(type) {
+		case *ModuleDefStmt, *FuncDefStmt, *AssignStmt:
+			continue
+		}
 		got, err := evalStmt(e, s)
 		if err != nil {
 			return nil, err

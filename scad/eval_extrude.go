@@ -9,7 +9,7 @@ import (
 )
 
 func handleLinearExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
-	if childUnion.Kind != ShapeSolid2D {
+	if childUnion.Kind != ShapeSolid2D && childUnion.Kind != ShapeMesh2D && childUnion.Kind != ShapeSDF2D {
 		return ShapeRep{}, fmt.Errorf("linear_extrude() requires 2D children")
 	}
 	args, err := bindArgs(e, st.Call, []ArgSpec{
@@ -41,19 +41,40 @@ func handleLinearExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRe
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	return shapeSolid3D(linearExtrude(childUnion.S2, height, center, twist, scale)), nil
+	if height < 0 {
+		height = -height
+	}
+	z0, z1 := linearExtrudeZBounds(height, center)
+	switch childUnion.Kind {
+	case ShapeSolid2D:
+		return shapeSolid3D(linearExtrude(childUnion.S2, height, center, twist, scale)), nil
+	case ShapeMesh2D:
+		if err := checkExtrudeTransform("Mesh", twist, scale); err != nil {
+			return ShapeRep{}, err
+		}
+		if !childUnion.M2.Manifold() {
+			return ShapeRep{}, fmt.Errorf("linear_extrude(): Mesh must be manifold")
+		}
+		if n := len(childUnion.M2.InconsistentVertices()); n != 0 {
+			return ShapeRep{}, fmt.Errorf("linear_extrude(): Mesh has %d inconsistent vertices", n)
+		}
+		rep, _ := childUnion.M2.RepairNormals(1e-9)
+		return shapeMesh3D(model3d.ProfileMesh(rep, z0, z1)), nil
+	case ShapeSDF2D:
+		if err := checkExtrudeTransform("SDF", twist, scale); err != nil {
+			return ShapeRep{}, err
+		}
+		return shapeSDF3D(model3d.ProfileSDF(childUnion.SDF2, z0, z1)), nil
+	default:
+		return ShapeRep{}, fmt.Errorf("linear_extrude(): unknown 2D kind")
+	}
 }
 
 func linearExtrude(s model2d.Solid, height float64, center bool, twist float64, scale [2]float64) model3d.Solid {
 	if height < 0 {
 		height = -height
 	}
-	z0 := 0.0
-	z1 := height
-	if center {
-		z0 = -height / 2
-		z1 = height / 2
-	}
+	z0, z1 := linearExtrudeZBounds(height, center)
 	min2 := s.Min()
 	max2 := s.Max()
 	maxScale := maxAbsScale(scale)
@@ -74,6 +95,27 @@ func linearExtrude(s model2d.Solid, height float64, center bool, twist float64, 
 		}
 		return s.Contains(model2d.XY(x, y))
 	})
+}
+
+func linearExtrudeZBounds(height float64, center bool) (float64, float64) {
+	z0 := 0.0
+	z1 := height
+	if center {
+		z0 = -height / 2
+		z1 = height / 2
+	}
+	return z0, z1
+}
+
+func checkExtrudeTransform(kind string, twist float64, scale [2]float64) error {
+	const eps = 1e-9
+	if math.Abs(twist) > eps {
+		return fmt.Errorf("linear_extrude(): twist != 0 is unsupported for %s", kind)
+	}
+	if math.Abs(scale[0]-1) > eps || math.Abs(scale[1]-1) > eps {
+		return fmt.Errorf("linear_extrude(): scale != 1 is unsupported for %s", kind)
+	}
+	return nil
 }
 
 func handleRotateExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {

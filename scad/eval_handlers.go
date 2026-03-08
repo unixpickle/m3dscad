@@ -129,6 +129,21 @@ var builtinHandlers = map[string]callHandler{
 	"polygon": {
 		Eval: handlePolygon,
 	},
+	"polygon_sdf": {
+		Eval: handlePolygonSDF,
+	},
+	"polygon_mesh": {
+		Eval: handlePolygonMesh,
+	},
+	"path": {
+		Eval: handlePath,
+	},
+	"path_sdf": {
+		Eval: handlePathSDF,
+	},
+	"path_mesh": {
+		Eval: handlePathMesh,
+	},
 	"text": {
 		Eval: handleText,
 	},

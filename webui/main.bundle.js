@@ -22359,8 +22359,11 @@ difference() {
   function getSource() {
     return editorView ? editorView.state.doc.toString() : "";
   }
-  function initWorker() {
-    setOverlay("Loading WASM...");
+  function initWorker(options = {}) {
+    const silent = Boolean(options.silent);
+    if (!silent) {
+      setOverlay("Loading WASM...");
+    }
     workerReady = false;
     if (worker) {
       worker.terminate();
@@ -22373,7 +22376,9 @@ difference() {
       if (msg.type === "ready") {
         workerReady = true;
         setOverlay("", true);
-        statusEl.textContent = "WASM ready. Press Command+S to compile.";
+        if (!silent) {
+          statusEl.textContent = "WASM ready. Press Command+S to compile.";
+        }
         return;
       }
       if (msg.type === "result") {
@@ -22434,7 +22439,7 @@ difference() {
     statusEl.textContent = "Compilation canceled.";
     setOverlay(statusEl.textContent, true);
     pendingRequest = null;
-    initWorker();
+    initWorker({ silent: true });
   });
   downloadBtn.addEventListener("click", () => {
     if (!lastMesh || lastMesh.positions.length === 0) return;

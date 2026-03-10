@@ -15,6 +15,14 @@ func handleSphere(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, er
 	return shapeSolid3D(sphere), nil
 }
 
+func handleSphereMetaball(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
+	sphere, err := parseSphere(e, st)
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	return shapeMetaball3D(sphere), nil
+}
+
 func handleSphereSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
 	sphere, err := parseSphere(e, st)
 	if err != nil {
@@ -29,6 +37,14 @@ func handleCube(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, erro
 		return ShapeRep{}, err
 	}
 	return shapeSolid3D(rect), nil
+}
+
+func handleCubeMetaball(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
+	rect, err := parseCube(e, st)
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	return shapeMetaball3D(rect), nil
 }
 
 func handleCubeSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -47,6 +63,18 @@ func handleCylinder(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, 
 	return shapeSolid3D(cyl), nil
 }
 
+func handleCylinderMetaball(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
+	cyl, err := parseCylinder(e, st)
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	metaball, ok := cyl.(model3d.Metaball)
+	if !ok {
+		return ShapeRep{}, fmt.Errorf("cylinder_metaball(): primitive does not implement metaball")
+	}
+	return shapeMetaball3D(metaball), nil
+}
+
 func handleCylinderSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
 	cyl, err := parseCylinder(e, st)
 	if err != nil {
@@ -63,6 +91,14 @@ func handleCircle(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, er
 	return shapeSolid2D(circle), nil
 }
 
+func handleCircleMetaball(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
+	circle, err := parseCircle(e, st)
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	return shapeMetaball2D(circle), nil
+}
+
 func handleCircleSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
 	circle, err := parseCircle(e, st)
 	if err != nil {
@@ -77,6 +113,14 @@ func handleSquare(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, er
 		return ShapeRep{}, err
 	}
 	return shapeSolid2D(rect), nil
+}
+
+func handleSquareMetaball(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
+	rect, err := parseSquare(e, st)
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	return shapeMetaball2D(rect), nil
 }
 
 func handleSquareSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {

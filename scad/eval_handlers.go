@@ -96,8 +96,27 @@ var builtinHandlers = map[string]callHandler{
 		NeedsChildUnion: true,
 		Eval:            handleSolid,
 	},
+	"metaball": {
+		AllowChildren:   true,
+		RequireChildren: true,
+		NeedsChildUnion: true,
+		Eval:            handleMetaball,
+	},
+	"negate_metaball": {
+		AllowChildren:   true,
+		RequireChildren: true,
+		Eval:            handleNegateMetaball,
+	},
+	"metaball_solid": {
+		AllowChildren:   true,
+		RequireChildren: true,
+		Eval:            handleMetaballSolid,
+	},
 	"sphere": {
 		Eval: handleSphere,
+	},
+	"sphere_metaball": {
+		Eval: handleSphereMetaball,
 	},
 	"sphere_sdf": {
 		Eval: handleSphereSDF,
@@ -105,11 +124,17 @@ var builtinHandlers = map[string]callHandler{
 	"cube": {
 		Eval: handleCube,
 	},
+	"cube_metaball": {
+		Eval: handleCubeMetaball,
+	},
 	"cube_sdf": {
 		Eval: handleCubeSDF,
 	},
 	"cylinder": {
 		Eval: handleCylinder,
+	},
+	"cylinder_metaball": {
+		Eval: handleCylinderMetaball,
 	},
 	"cylinder_sdf": {
 		Eval: handleCylinderSDF,
@@ -117,11 +142,17 @@ var builtinHandlers = map[string]callHandler{
 	"circle": {
 		Eval: handleCircle,
 	},
+	"circle_metaball": {
+		Eval: handleCircleMetaball,
+	},
 	"circle_sdf": {
 		Eval: handleCircleSDF,
 	},
 	"square": {
 		Eval: handleSquare,
+	},
+	"square_metaball": {
+		Eval: handleSquareMetaball,
 	},
 	"square_sdf": {
 		Eval: handleSquareSDF,

@@ -17,7 +17,19 @@ const (
 	ShapeMesh3D
 	ShapeSDF2D
 	ShapeSDF3D
+	ShapeMetaball2D
+	ShapeMetaball3D
 )
+
+type Metaball2D struct {
+	Metaball model2d.Metaball
+	Sign     bool
+}
+
+type Metaball3D struct {
+	Metaball model3d.Metaball
+	Sign     bool
+}
 
 type ShapeRep struct {
 	Kind ShapeKind
@@ -27,6 +39,8 @@ type ShapeRep struct {
 	M3   *model3d.Mesh
 	SDF2 model2d.SDF
 	SDF3 model3d.SDF
+	MB2  *Metaball2D
+	MB3  *Metaball3D
 }
 
 func shapeSolid2D(s model2d.Solid) ShapeRep { return ShapeRep{Kind: ShapeSolid2D, S2: s} }
@@ -35,6 +49,24 @@ func shapeMesh2D(m *model2d.Mesh) ShapeRep  { return ShapeRep{Kind: ShapeMesh2D,
 func shapeMesh3D(m *model3d.Mesh) ShapeRep  { return ShapeRep{Kind: ShapeMesh3D, M3: m} }
 func shapeSDF2D(s model2d.SDF) ShapeRep     { return ShapeRep{Kind: ShapeSDF2D, SDF2: s} }
 func shapeSDF3D(s model3d.SDF) ShapeRep     { return ShapeRep{Kind: ShapeSDF3D, SDF3: s} }
+func shapeMetaball2D(m model2d.Metaball) ShapeRep {
+	return ShapeRep{
+		Kind: ShapeMetaball2D,
+		MB2: &Metaball2D{
+			Metaball: m,
+			Sign:     true,
+		},
+	}
+}
+func shapeMetaball3D(m model3d.Metaball) ShapeRep {
+	return ShapeRep{
+		Kind: ShapeMetaball3D,
+		MB3: &Metaball3D{
+			Metaball: m,
+			Sign:     true,
+		},
+	}
+}
 
 func handleSolid(_ *env, _ *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
 	switch childUnion.Kind {

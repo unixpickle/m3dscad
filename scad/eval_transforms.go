@@ -29,6 +29,14 @@ func handleTranslate(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (
 	case ShapeSDF3D:
 		xf := &model3d.Translate{Offset: model3d.XYZ(vec[0], vec[1], vec[2])}
 		return shapeSDF3D(model3d.TransformSDF(xf, childUnion.SDF3)), nil
+	case ShapeMetaball3D:
+		return ShapeRep{
+			Kind: ShapeMetaball3D,
+			MB3: &Metaball3D{
+				Metaball: model3d.TranslateMetaball(childUnion.MB3.Metaball, model3d.XYZ(vec[0], vec[1], vec[2])),
+				Sign:     childUnion.MB3.Sign,
+			},
+		}, nil
 	case ShapeSolid2D:
 		if vec[2] != 0 {
 			return ShapeRep{}, fmt.Errorf("translate(): z component not supported for 2D shapes")
@@ -47,6 +55,17 @@ func handleTranslate(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (
 		}
 		xf := &model2d.Translate{Offset: model2d.XY(vec[0], vec[1])}
 		return shapeSDF2D(model2d.TransformSDF(xf, childUnion.SDF2)), nil
+	case ShapeMetaball2D:
+		if vec[2] != 0 {
+			return ShapeRep{}, fmt.Errorf("translate(): z component not supported for 2D shapes")
+		}
+		return ShapeRep{
+			Kind: ShapeMetaball2D,
+			MB2: &Metaball2D{
+				Metaball: model2d.TranslateMetaball(childUnion.MB2.Metaball, model2d.XY(vec[0], vec[1])),
+				Sign:     childUnion.MB2.Sign,
+			},
+		}, nil
 	default:
 		return ShapeRep{}, fmt.Errorf("translate(): unsupported shape kind")
 	}
@@ -79,6 +98,14 @@ func handleScale(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (Shap
 			DistScale: math.Abs(vec[0]),
 		}
 		return shapeSDF3D(model3d.TransformSDF(xf, childUnion.SDF3)), nil
+	case ShapeMetaball3D:
+		return ShapeRep{
+			Kind: ShapeMetaball3D,
+			MB3: &Metaball3D{
+				Metaball: model3d.VecScaleMetaball(childUnion.MB3.Metaball, model3d.XYZ(vec[0], vec[1], vec[2])),
+				Sign:     childUnion.MB3.Sign,
+			},
+		}, nil
 	case ShapeSolid2D:
 		if vec[2] != 0 {
 			return ShapeRep{}, fmt.Errorf("scale(): z component not supported for 2D shapes")
@@ -103,6 +130,17 @@ func handleScale(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (Shap
 			DistScale: math.Abs(vec[0]),
 		}
 		return shapeSDF2D(model2d.TransformSDF(xf, childUnion.SDF2)), nil
+	case ShapeMetaball2D:
+		if vec[2] != 0 {
+			return ShapeRep{}, fmt.Errorf("scale(): z component not supported for 2D shapes")
+		}
+		return ShapeRep{
+			Kind: ShapeMetaball2D,
+			MB2: &Metaball2D{
+				Metaball: model2d.VecScaleMetaball(childUnion.MB2.Metaball, model2d.XY(vec[0], vec[1])),
+				Sign:     childUnion.MB2.Sign,
+			},
+		}, nil
 	default:
 		return ShapeRep{}, fmt.Errorf("scale(): unsupported shape kind")
 	}
@@ -182,6 +220,18 @@ func handleRotate(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (Sha
 			return ShapeRep{}, err
 		}
 		return shapeSDF3D(model3d.TransformSDF(xf, childUnion.SDF3)), nil
+	case ShapeMetaball3D:
+		xf, err := rotateTransform3D(spec)
+		if err != nil {
+			return ShapeRep{}, err
+		}
+		return ShapeRep{
+			Kind: ShapeMetaball3D,
+			MB3: &Metaball3D{
+				Metaball: model3d.TransformMetaball(xf, childUnion.MB3.Metaball),
+				Sign:     childUnion.MB3.Sign,
+			},
+		}, nil
 	case ShapeSolid2D:
 		angle, err := rotateAngle2D(spec)
 		if err != nil {
@@ -203,6 +253,18 @@ func handleRotate(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (Sha
 		}
 		xf := model2d.Rotation(angle)
 		return shapeSDF2D(model2d.TransformSDF(xf, childUnion.SDF2)), nil
+	case ShapeMetaball2D:
+		angle, err := rotateAngle2D(spec)
+		if err != nil {
+			return ShapeRep{}, err
+		}
+		return ShapeRep{
+			Kind: ShapeMetaball2D,
+			MB2: &Metaball2D{
+				Metaball: model2d.RotateMetaball(childUnion.MB2.Metaball, angle),
+				Sign:     childUnion.MB2.Sign,
+			},
+		}, nil
 	default:
 		return ShapeRep{}, fmt.Errorf("rotate(): unsupported shape kind")
 	}

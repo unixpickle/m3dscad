@@ -69,6 +69,15 @@ func TestSolidConversions(t *testing.T) {
 			`,
 		},
 		{
+			name: "TranslatedCapsuleSDF",
+			a: `
+				solid() translate([2, -1, 3]) capsule_sdf(h=4, r=1.5, center=true);
+			`,
+			b: `
+				translate([2, -1, 3]) capsule(h=4, r=1.5, center=true);
+			`,
+		},
+		{
 			name: "RotatedCircleExtrudeSDF",
 			a: `
 				linear_extrude(height=4)
@@ -112,6 +121,63 @@ func TestSolidConversions(t *testing.T) {
 
 			compareMeshes(t, "a_vs_b", meshA, meshB, threshold, rng)
 			compareMeshes(t, "b_vs_a", meshB, meshA, threshold, rng)
+		})
+	}
+}
+
+func TestCapsuleEquivalentToCylinderWithSpheres(t *testing.T) {
+	tests := []struct {
+		name string
+		a    string
+		b    string
+	}{
+		{
+			name: "CenterFalse",
+			a: `
+				capsule(h=6, r=1.25, center=false);
+			`,
+			b: `
+				union() {
+					cylinder(h=6, r=1.25, center=false);
+					translate([0, 0, 0]) sphere(r=1.25);
+					translate([0, 0, 6]) sphere(r=1.25);
+				}
+			`,
+		},
+		{
+			name: "CenterTrue",
+			a: `
+				capsule(h=6, r=1.25, center=true);
+			`,
+			b: `
+				union() {
+					cylinder(h=6, r=1.25, center=true);
+					translate([0, 0, -3]) sphere(r=1.25);
+					translate([0, 0, 3]) sphere(r=1.25);
+				}
+			`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			solidA := mustEvalSolid(t, tc.a)
+			solidB := mustEvalSolid(t, tc.b)
+
+			deltaA := marchingDelta(solidA, openscadTestMaxGridSide)
+			deltaB := marchingDelta(solidB, openscadTestMaxGridSide)
+			delta := math.Max(deltaA, deltaB)
+			if delta <= 0 {
+				t.Fatalf("invalid marching delta: %v", delta)
+			}
+
+			meshA := model3d.MarchingCubesSearch(solidA, delta, openscadTestMCIters)
+			meshB := model3d.MarchingCubesSearch(solidB, delta, openscadTestMCIters)
+
+			threshold := math.Max(3*delta, 0.02)
+			rng := rand.New(rand.NewSource(int64(len(tc.name)) * 173))
+			compareMeshes(t, "capsule_vs_constructed", meshA, meshB, threshold, rng)
+			compareMeshes(t, "constructed_vs_capsule", meshB, meshA, threshold, rng)
 		})
 	}
 }

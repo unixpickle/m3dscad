@@ -174,6 +174,20 @@ func TestSolidsIntegration(t *testing.T) {
 			},
 		},
 		{
+			name: "CapsuleCenterAlongZ",
+			src: `
+				translate([2,3,4]) capsule(h=4, r=1, center=true);
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(2, 3, 6.9),
+				model3d.XYZ(2.9, 3, 4),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(2, 3, 7.1),
+				model3d.XYZ(3.1, 3, 4),
+			},
+		},
+		{
 			name: "Module",
 			src: `
 				module make_ring(r, h) {

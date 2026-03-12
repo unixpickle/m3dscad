@@ -139,6 +139,15 @@ var builtinHandlers = map[string]callHandler{
 	"cylinder_sdf": {
 		Eval: handleCylinderSDF,
 	},
+	"capsule": {
+		Eval: handleCapsule,
+	},
+	"capsule_metaball": {
+		Eval: handleCapsuleMetaball,
+	},
+	"capsule_sdf": {
+		Eval: handleCapsuleSDF,
+	},
 	"circle": {
 		Eval: handleCircle,
 	},

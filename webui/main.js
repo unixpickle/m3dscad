@@ -69,6 +69,7 @@ let workerReady = false;
 let requestId = 0;
 let pendingRequest = null;
 let lastMesh = null;
+const goExitedError = "Go program has already exited";
 
 function createEditor(source) {
   editorView = new EditorView({
@@ -129,7 +130,14 @@ function initWorker(options = {}) {
     }
     pendingRequest = null;
     if (!msg.ok) {
-      statusEl.textContent = msg.error || "Unknown error.";
+      const errText = msg.error || "Unknown error.";
+      if (errText.includes(goExitedError)) {
+        statusEl.textContent = "WASM runtime exited. Reinitializing...";
+        setOverlay(statusEl.textContent, true);
+        initWorker({ silent: true });
+        return;
+      }
+      statusEl.textContent = errText;
       setOverlay(statusEl.textContent, true);
       lastMesh = null;
       downloadBtn.disabled = true;

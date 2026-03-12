@@ -23,6 +23,14 @@ func TestMetaballPrimitiveKindsAndDefaultSign(t *testing.T) {
 	if shape2D.MB2 == nil || !shape2D.MB2.Sign {
 		t.Fatalf("expected positive 2D metaball sign")
 	}
+
+	capsuleShape := mustEvalShape(t, `capsule_metaball(h=2, r=1, center=true);`)
+	if capsuleShape.Kind != ShapeMetaball3D {
+		t.Fatalf("expected ShapeMetaball3D, got %v", capsuleShape.Kind)
+	}
+	if capsuleShape.MB3 == nil || !capsuleShape.MB3.Sign {
+		t.Fatalf("expected positive 3D metaball sign")
+	}
 }
 
 func TestMetaballFromSDF(t *testing.T) {

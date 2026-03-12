@@ -83,6 +83,30 @@ func handleCylinderSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRe
 	return shapeSDF3D(cyl), nil
 }
 
+func handleCapsule(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
+	capsule, err := parseCapsule(e, st)
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	return shapeSolid3D(capsule), nil
+}
+
+func handleCapsuleMetaball(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
+	capsule, err := parseCapsule(e, st)
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	return shapeMetaball3D(capsule), nil
+}
+
+func handleCapsuleSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
+	capsule, err := parseCapsule(e, st)
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	return shapeSDF3D(capsule), nil
+}
+
 func handleCircle(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
 	circle, err := parseCircle(e, st)
 	if err != nil {
@@ -269,6 +293,7 @@ func parseCube(e *env, st *CallStmt) (*model3d.Rect, error) {
 type SolidSDF interface {
 	model3d.SDF
 	model3d.Solid
+	model3d.Metaball
 }
 
 func parseCylinder(e *env, st *CallStmt) (SolidSDF, error) {
@@ -496,6 +521,48 @@ func parseCylinderArgs(e *env, st *CallStmt) (h, r1, r2 float64, center bool, er
 		return
 	}
 	return
+}
+
+func parseCapsule(e *env, st *CallStmt) (*model3d.Capsule, error) {
+	args, err := bindArgs(e, st.Call, []ArgSpec{
+		{Name: "h", Pos: 0, Default: Num(1.0)},
+		{Name: "r", Pos: 1, Default: Num(1.0)},
+		{Name: "center", Pos: 2, Default: Bool(false)},
+	})
+	if err != nil {
+		return nil, err
+	}
+	h, err := argNum(args, "h", st.pos())
+	if err != nil {
+		return nil, err
+	}
+	if h < 0 {
+		return nil, fmt.Errorf("capsule(): h must be non-negative")
+	}
+	r, err := argNum(args, "r", st.pos())
+	if err != nil {
+		return nil, err
+	}
+	if r < 0 {
+		return nil, fmt.Errorf("capsule(): r must be non-negative")
+	}
+	center, err := argBool(args, "center", st.pos())
+	if err != nil {
+		return nil, err
+	}
+	z0 := 0.0
+	z1 := h
+	if center {
+		z0 = -h / 2
+		z1 = h / 2
+	}
+	p1 := model3d.XYZ(0, 0, z0)
+	p2 := model3d.XYZ(0, 0, z1)
+	return &model3d.Capsule{
+		P1:     p1,
+		P2:     p2,
+		Radius: r,
+	}, nil
 }
 
 func parseCircle(e *env, st *CallStmt) (*model2d.Circle, error) {

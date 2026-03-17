@@ -13,8 +13,7 @@ import (
 func main() {
 	inPath := flag.String("in", "", "Input .scad-like file")
 	outPath := flag.String("out", "out.stl", "Output STL path")
-	delta := flag.Float64("delta", 0.02, "Marching cubes resolution (smaller = finer)")
-	subdiv := flag.Int("subdiv", 8, "Marching cubes search subdivisions")
+	delta := flag.Float64("delta", 0.02, "DC resolution (smaller = finer)")
 	flag.Parse()
 
 	if *inPath == "" {
@@ -62,8 +61,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// model3d: solid -> mesh via marching cubes, then save STL. :contentReference[oaicite:1]{index=1}
-	mesh := model3d.MarchingCubesSearch(solid, *delta, *subdiv)
+	mesh := model3d.DualContour(solid, *delta, true, false)
 	if err := mesh.SaveGroupedSTL(*outPath); err != nil {
 		fmt.Fprintln(os.Stderr, "save stl:", err)
 		os.Exit(1)

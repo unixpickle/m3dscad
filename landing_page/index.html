@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>m3dscad</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body class="home-page">
+    <header class="hero">
+      <div class="container">
+        <div class="topbar">
+          <a class="brand" href="./index.html">m3dscad</a>
+          <nav class="nav">
+            <a class="btn" href="./docs/index.html">Documentation</a>
+            <a class="btn primary" href="https://app.m3dscad.com" target="_blank" rel="noreferrer">Try demo</a>
+          </nav>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="section">
+        <div class="container">
+          <div class="headline">
+            <h1>Scriptable CAD with familiar syntax</h1>
+            <p>
+              <b>m3dscad</b> is a language for creating 2D and 3D
+              models using the familiar syntax of OpenSCAD with
+              a broader set of primitives.
+            </p>
+          </div>
+        </div>
+      </section>
+      <section class="section">
+        <div class="container">
+          <h2>Examples</h2>
+          <p>In the following examples, we display the result of compiling the code into a triangle mesh.</p>
+          <div id="examplesGrid" class="examples-grid">
+            <article class="example-card" data-example-id="csg">
+              <header>
+                <h3>CSG</h3>
+                <p>You can use difference(), union(), and intersection() to combine shapes.</p>
+              </header>
+              <div class="viewer-wrap">
+                <canvas class="example-canvas" aria-label="CSG STL preview"></canvas>
+                <div class="viewer-status">Loading...</div>
+              </div>
+              <div class="example-actions">
+                <button type="button" class="reset-view">Reset view</button>
+                <a href="./assets/examples/csg.stl" download>Download STL</a>
+              </div>
+              <pre class="example-code">difference() {
+  cube(2, center=true);
+  translate([1, 1, 1]) sphere(1);
+}</pre>
+            </article>
+
+            <article class="example-card" data-example-id="path">
+              <header>
+                <h3>Path</h3>
+                <p>Create 2D shapes using SVG paths, and extrude 2D shapes into 3D solids.</p>
+              </header>
+              <div class="viewer-wrap">
+                <canvas class="example-canvas" aria-label="Path STL preview"></canvas>
+                <div class="viewer-status">Loading...</div>
+              </div>
+              <div class="example-actions">
+                <button type="button" class="reset-view">Reset view</button>
+                <a href="./assets/examples/path.stl" download>Download STL</a>
+              </div>
+              <pre class="example-code">linear_extrude(1)
+  scale([0.01, 0.01])
+  path("
+    M0 200 v-200 h200
+    a100,100 90 0,1 0,200
+    a100,100 90 0,1 -200,0
+  z");</pre>
+            </article>
+
+            <article class="example-card" data-example-id="text">
+              <header>
+                <h3>Text</h3>
+                <p>Create extruded 3D text from built-in font outlines.</p>
+              </header>
+              <div class="viewer-wrap">
+                <canvas class="example-canvas" aria-label="Text STL preview"></canvas>
+                <div class="viewer-status">Loading...</div>
+              </div>
+              <div class="example-actions">
+                <button type="button" class="reset-view">Reset view</button>
+                <a href="./assets/examples/text.stl" download>Download STL</a>
+              </div>
+              <pre class="example-code">linear_extrude(0.5)
+  rotate(180) union() {
+    text("Hello,", size=1.5, valign="center", halign="center");
+    translate([0, -2, 0])
+      text("World!", size=1.5, valign="center", halign="center");
+  }</pre>
+            </article>
+
+            <article class="example-card" data-example-id="sdf">
+              <header>
+                <h3>SDF</h3>
+                <p>Transform and perform booleans on SDFs.</p>
+              </header>
+              <div class="viewer-wrap">
+                <canvas class="example-canvas" aria-label="SDF STL preview"></canvas>
+                <div class="viewer-status">Loading...</div>
+              </div>
+              <div class="example-actions">
+                <button type="button" class="reset-view">Reset view</button>
+                <a href="./assets/examples/sdf.stl" download>Download STL</a>
+              </div>
+              <pre class="example-code">solid()
+  outset_sdf(0.1) // biases the field
+  union() {
+    translate([0, 0, 0.5])
+        cylinder_sdf(r=0.2, h=0.5);
+    cube_sdf(1, center=true);
+  }</pre>
+            </article>
+
+            <article class="example-card" data-example-id="dual_contour">
+              <header>
+                <h3>Dual Contour</h3>
+                <p>Round trip through intermediate meshes using dual contouring.</p>
+              </header>
+              <div class="viewer-wrap">
+                <canvas class="example-canvas" aria-label="Dual Contour STL preview"></canvas>
+                <div class="viewer-status">Loading...</div>
+              </div>
+              <div class="example-actions">
+                <button type="button" class="reset-view">Reset view</button>
+                <a href="./assets/examples/dual_contour.stl" download>Download STL</a>
+              </div>
+              <pre class="example-code">solid() // back to a solid
+  outset_sdf(0.2) // add to the SDF
+  mesh_to_sdf() // create an SDF
+  dual_contour(delta=0.02) // meshify
+  difference() {
+    // Imagine some complex shape here which
+    // can't be expressed as an SDF directly.
+    cube(2, center=true);
+    translate([1, 1, 1]) sphere(1);
+  }</pre>
+            </article>
+
+            <article class="example-card" data-example-id="metaball">
+              <header>
+                <h3>Metaball</h3>
+                <p>Create smooth blends using metaballs.</p>
+              </header>
+              <div class="viewer-wrap">
+                <canvas class="example-canvas" aria-label="Metaball STL preview"></canvas>
+                <div class="viewer-status">Loading...</div>
+              </div>
+              <div class="example-actions">
+                <button type="button" class="reset-view">Reset view</button>
+                <a href="./assets/examples/metaball.stl" download>Download STL</a>
+              </div>
+              <pre class="example-code">metaball_solid(1, falloff="gaussian") {
+  // Sofa body
+  cube_metaball([4, 2, 2], center=true);
+
+  // Sofa cutout
+  negate_metaball()
+    translate([0, 1, 1.3])
+    cube_metaball([2.8, 2, 2], center=true);
+}</pre>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="container">
+        m3dscad project landing page. For the interactive editor, use
+        <a href="https://app.m3dscad.com" target="_blank" rel="noreferrer">app.m3dscad.com</a>.
+      </div>
+    </footer>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

@@ -71,7 +71,7 @@ func handleDualContour(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep)
 	}
 	args, err := bindArgs(e, st.Call, []ArgSpec{
 		{Name: "delta", Pos: 0, Default: Num(0.02)},
-		{Name: "repair", Pos: 1, Default: Bool(false)},
+		{Name: "repair", Pos: 1, Default: Bool(true)},
 		{Name: "clip", Pos: 2, Default: Bool(false)},
 	})
 	if err != nil {

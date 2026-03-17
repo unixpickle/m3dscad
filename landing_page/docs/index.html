@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>m3dscad docs</title>
+    <link rel="stylesheet" href="../style.css" />
+  </head>
+  <body class="docs-page">
+    <header class="hero">
+      <div class="container">
+        <div class="topbar">
+          <a class="brand" href="../index.html">m3dscad</a>
+          <nav class="nav">
+            <button class="btn toc-toggle" id="tocToggle" type="button" aria-expanded="false" aria-controls="docsTocSidebar">☰</button>
+            <a class="btn" href="../index.html">Home</a>
+            <a class="btn primary" href="https://app.m3dscad.com" target="_blank" rel="noreferrer">Try demo</a>
+          </nav>
+        </div>
+      </div>
+    </header>
+
+    <main class="section docs-section">
+      <div class="container">
+        <div class="docs-layout">
+        <aside class="toc-sidebar" id="docsTocSidebar" aria-label="Table of contents">
+        <div class="toc">
+          <h2>Table Of Contents</h2>
+
+        <h3><a href="#language-overview">Language Overview</a></h3>
+        <ul>
+          <li><a href="#calls-and-modifiers">Calls And Modifiers</a></li>
+          <li><a href="#variables">Variables</a></li>
+          <li><a href="#functions">Functions</a></li>
+          <li><a href="#modules">Modules</a></li>
+          <li><a href="#if-else">If / Else</a></li>
+          <li><a href="#for-loops">For Loops</a></li>
+          <li><a href="#list-comprehension">List Comprehension</a></li>
+        </ul>
+
+        <h3><a href="#primitives-3d">3D Primitives</a></h3>
+        <ul>
+          <li><a href="#sphere">sphere</a>, <a href="#sphere_metaball">sphere_metaball</a>, <a href="#sphere_sdf">sphere_sdf</a></li>
+          <li><a href="#cube">cube</a>, <a href="#cube_metaball">cube_metaball</a>, <a href="#cube_sdf">cube_sdf</a></li>
+          <li><a href="#cylinder">cylinder</a>, <a href="#cylinder_metaball">cylinder_metaball</a>, <a href="#cylinder_sdf">cylinder_sdf</a></li>
+          <li><a href="#capsule">capsule</a>, <a href="#capsule_metaball">capsule_metaball</a>, <a href="#capsule_sdf">capsule_sdf</a></li>
+        </ul>
+
+        <h3><a href="#primitives-2d">2D Primitives</a></h3>
+        <ul>
+          <li><a href="#circle">circle</a>, <a href="#circle_metaball">circle_metaball</a>, <a href="#circle_sdf">circle_sdf</a></li>
+          <li><a href="#square">square</a>, <a href="#square_metaball">square_metaball</a>, <a href="#square_sdf">square_sdf</a></li>
+          <li><a href="#polygon">polygon</a>, <a href="#polygon_mesh">polygon_mesh</a>, <a href="#polygon_sdf">polygon_sdf</a></li>
+          <li><a href="#path">path</a>, <a href="#path_mesh">path_mesh</a>, <a href="#path_sdf">path_sdf</a></li>
+          <li><a href="#text">text</a>, <a href="#text_mesh">text_mesh</a></li>
+        </ul>
+
+        <h3><a href="#csg">CSG</a></h3>
+        <ul>
+          <li><a href="#union">union</a></li>
+          <li><a href="#difference">difference</a></li>
+          <li><a href="#intersection">intersection</a></li>
+        </ul>
+
+        <h3><a href="#transforms-and-extrusion">Transforms And Extrusion</a></h3>
+        <ul>
+          <li><a href="#translate">translate</a></li>
+          <li><a href="#scale">scale</a></li>
+          <li><a href="#rotate">rotate</a></li>
+          <li><a href="#linear_extrude">linear_extrude</a></li>
+          <li><a href="#rotate_extrude">rotate_extrude</a></li>
+        </ul>
+
+        <h3><a href="#meshing-and-sdf">Meshing And SDF</a></h3>
+        <ul>
+          <li><a href="#marching_squares">marching_squares</a></li>
+          <li><a href="#marching_cubes">marching_cubes</a></li>
+          <li><a href="#dual_contour">dual_contour</a></li>
+          <li><a href="#mesh_to_sdf">mesh_to_sdf</a></li>
+          <li><a href="#inset_sdf">inset_sdf</a></li>
+          <li><a href="#outset_sdf">outset_sdf</a></li>
+          <li><a href="#solid">solid</a></li>
+        </ul>
+
+        <h3><a href="#metaball-section">Metaball</a></h3>
+        <ul>
+          <li><a href="#metaball">metaball</a></li>
+          <li><a href="#negate_metaball">negate_metaball</a></li>
+          <li><a href="#metaball_solid">metaball_solid</a></li>
+        </ul>
+
+        </div>
+        </aside>
+        <button class="toc-backdrop" id="tocBackdrop" type="button" aria-label="Close table of contents"></button>
+        <div class="docs-content">
+        <h2 id="language-overview">Language Overview</h2>
+        <p>m3dscad uses an OpenSCAD-like syntax with expression evaluation, user-defined symbols, and block-based geometry composition.</p>
+
+        <h3 id="calls-and-modifiers">Calls And Modifiers</h3>
+        <p>Function/module calls use parentheses. Modifiers like <code>translate()</code> can wrap a single call directly or a block of children.</p>
+        <pre class="example-code">sphere(r=1);
+translate([2, 0, 0]) sphere(r=1);
+
+translate([0, 0, 3]) {
+  sphere(r=1);
+}</pre>
+
+        <h3 id="variables">Variables</h3>
+        <p>Variables are assigned with <code>=</code> and then referenced in later expressions.</p>
+        <pre class="example-code">radius = 1.5;
+height = 4;
+
+cylinder(r=radius, h=height, center=true);</pre>
+
+        <h3 id="functions">Functions</h3>
+        <p>User-defined functions return a single expression and can be used in parameters and other expressions.</p>
+        <pre class="example-code">function ring_r(base, wall) = base - wall;
+
+difference() {
+  cylinder(h=2, r=2);
+  cylinder(h=2, r=ring_r(2, 0.4));
+}</pre>
+
+        <h3 id="modules">Modules</h3>
+        <p>User-defined modules package reusable geometry statements.</p>
+        <pre class="example-code">module post(z, r=0.6) {
+  translate([0, 0, z]) sphere(r=r);
+}
+
+post(0);
+post(3);</pre>
+
+        <h3 id="if-else">If / Else</h3>
+        <p>Conditionals choose which branch of geometry (or assignments) to evaluate.</p>
+        <pre class="example-code">use_big = true;
+
+if (use_big)
+  sphere(r=2);
+else
+  sphere(r=1);</pre>
+
+        <h3 id="for-loops">For Loops</h3>
+        <p><code>for</code> loops iterate ranges/lists and emit geometry each iteration.</p>
+        <pre class="example-code">for (i = [0:3])
+  translate([i * 3, 0, 0]) sphere(r=1);</pre>
+
+        <h3 id="list-comprehension">List Comprehension</h3>
+        <p>List comprehensions build arrays from iteration expressions, which can then be indexed or reused.</p>
+        <pre class="example-code">values = [for (a = [1:4]) a * a];
+radius = values[2];
+
+sphere(r=radius);</pre>
+        <h2 id="primitives-3d">3D Primitives</h2>
+
+        <h3 id="sphere"><code>sphere</code></h3>
+        <p>Creates a sphere solid centered at the origin.</p>
+        <pre class="example-code">sphere(r=1)</pre>
+        <ul><li><code>r</code>: Sphere radius.</li></ul>
+
+        <h3 id="sphere_metaball"><code>sphere_metaball</code></h3>
+        <p>Creates a spherical metaball field contribution.</p>
+        <pre class="example-code">sphere_metaball(r=1)</pre>
+        <ul><li><code>r</code>: Sphere radius.</li></ul>
+
+        <h3 id="sphere_sdf"><code>sphere_sdf</code></h3>
+        <p>Creates a sphere represented as an SDF.</p>
+        <pre class="example-code">sphere_sdf(r=1)</pre>
+        <ul><li><code>r</code>: Sphere radius.</li></ul>
+
+        <h3 id="cube"><code>cube</code></h3>
+        <p>Creates an axis-aligned box solid.</p>
+        <pre class="example-code">cube(size=1, center=false)</pre>
+        <ul>
+          <li><code>size</code>: Edge length or per-axis size vector.</li>
+          <li><code>center</code>: If true, centers the cube at the origin.</li>
+        </ul>
+
+        <h3 id="cube_metaball"><code>cube_metaball</code></h3>
+        <p>Creates an axis-aligned box as a metaball primitive.</p>
+        <pre class="example-code">cube_metaball(size=1, center=false)</pre>
+        <ul>
+          <li><code>size</code>: Edge length or per-axis size vector.</li>
+          <li><code>center</code>: If true, centers the box at the origin.</li>
+        </ul>
+
+        <h3 id="cube_sdf"><code>cube_sdf</code></h3>
+        <p>Creates an axis-aligned box represented as an SDF.</p>
+        <pre class="example-code">cube_sdf(size=1, center=false)</pre>
+        <ul>
+          <li><code>size</code>: Edge length or per-axis size vector.</li>
+          <li><code>center</code>: If true, centers the box at the origin.</li>
+        </ul>
+
+        <h3 id="cylinder"><code>cylinder</code></h3>
+        <p>Creates a cylinder, cone, or frustum solid along the Z axis.</p>
+        <pre class="example-code">cylinder(h=1, r | d | r1/r2 | d1/d2, center=false)</pre>
+        <ul>
+          <li><code>h</code>: Height along Z.</li>
+          <li><code>r</code>: Uniform radius for both ends.</li>
+          <li><code>d</code>: Uniform diameter for both ends.</li>
+          <li><code>r1</code>: Radius at the first end (low Z if not centered).</li>
+          <li><code>r2</code>: Radius at the second end (high Z if not centered).</li>
+          <li><code>d1</code>: Diameter at the first end.</li>
+          <li><code>d2</code>: Diameter at the second end.</li>
+          <li><code>center</code>: If true, centers height around Z=0.</li>
+        </ul>
+
+        <h3 id="cylinder_metaball"><code>cylinder_metaball</code></h3>
+        <p>Creates a cylinder-family primitive as a metaball.</p>
+        <pre class="example-code">cylinder_metaball(h=1, r | d | r1/r2 | d1/d2, center=false)</pre>
+        <ul>
+          <li><code>h</code>: Height along Z.</li>
+          <li><code>r</code>: Uniform radius for both ends.</li>
+          <li><code>d</code>: Uniform diameter for both ends.</li>
+          <li><code>r1</code>: Radius at the first end.</li>
+          <li><code>r2</code>: Radius at the second end.</li>
+          <li><code>d1</code>: Diameter at the first end.</li>
+          <li><code>d2</code>: Diameter at the second end.</li>
+          <li><code>center</code>: If true, centers height around Z=0.</li>
+        </ul>
+
+        <h3 id="cylinder_sdf"><code>cylinder_sdf</code></h3>
+        <p>Creates a cylinder-family primitive as an SDF.</p>
+        <pre class="example-code">cylinder_sdf(h=1, r | d | r1/r2 | d1/d2, center=false)</pre>
+        <ul>
+          <li><code>h</code>: Height along Z.</li>
+          <li><code>r</code>: Uniform radius for both ends.</li>
+          <li><code>d</code>: Uniform diameter for both ends.</li>
+          <li><code>r1</code>: Radius at the first end.</li>
+          <li><code>r2</code>: Radius at the second end.</li>
+          <li><code>d1</code>: Diameter at the first end.</li>
+          <li><code>d2</code>: Diameter at the second end.</li>
+          <li><code>center</code>: If true, centers height around Z=0.</li>
+        </ul>
+
+        <h3 id="capsule"><code>capsule</code></h3>
+        <p>Creates a capsule solid with hemispherical end caps.</p>
+        <pre class="example-code">capsule(h=1, r=1, center=false)</pre>
+        <ul>
+          <li><code>h</code>: Distance between cap centers along Z.</li>
+          <li><code>r</code>: Capsule radius.</li>
+          <li><code>center</code>: If true, centers the capsule around Z=0.</li>
+        </ul>
+
+        <h3 id="capsule_metaball"><code>capsule_metaball</code></h3>
+        <p>Creates a capsule as a metaball primitive.</p>
+        <pre class="example-code">capsule_metaball(h=1, r=1, center=false)</pre>
+        <ul>
+          <li><code>h</code>: Distance between cap centers along Z.</li>
+          <li><code>r</code>: Capsule radius.</li>
+          <li><code>center</code>: If true, centers the capsule around Z=0.</li>
+        </ul>
+
+        <h3 id="capsule_sdf"><code>capsule_sdf</code></h3>
+        <p>Creates a capsule represented as an SDF.</p>
+        <pre class="example-code">capsule_sdf(h=1, r=1, center=false)</pre>
+        <ul>
+          <li><code>h</code>: Distance between cap centers along Z.</li>
+          <li><code>r</code>: Capsule radius.</li>
+          <li><code>center</code>: If true, centers the capsule around Z=0.</li>
+        </ul>
+
+        <h2 id="primitives-2d">2D Primitives</h2>
+
+        <h3 id="circle"><code>circle</code></h3>
+        <p>Creates a circle solid centered at the origin.</p>
+        <pre class="example-code">circle(r=1)</pre>
+        <ul><li><code>r</code>: Circle radius.</li></ul>
+
+        <h3 id="circle_metaball"><code>circle_metaball</code></h3>
+        <p>Creates a circle as a 2D metaball primitive.</p>
+        <pre class="example-code">circle_metaball(r=1)</pre>
+        <ul><li><code>r</code>: Circle radius.</li></ul>
+
+        <h3 id="circle_sdf"><code>circle_sdf</code></h3>
+        <p>Creates a circle represented as a 2D SDF.</p>
+        <pre class="example-code">circle_sdf(r=1)</pre>
+        <ul><li><code>r</code>: Circle radius.</li></ul>
+
+        <h3 id="square"><code>square</code></h3>
+        <p>Creates an axis-aligned rectangle solid in 2D.</p>
+        <pre class="example-code">square(size=1, center=false)</pre>
+        <ul>
+          <li><code>size</code>: Edge length or per-axis size vector.</li>
+          <li><code>center</code>: If true, centers the rectangle at the origin.</li>
+        </ul>
+
+        <h3 id="square_metaball"><code>square_metaball</code></h3>
+        <p>Creates an axis-aligned rectangle as a 2D metaball primitive.</p>
+        <pre class="example-code">square_metaball(size=1, center=false)</pre>
+        <ul>
+          <li><code>size</code>: Edge length or per-axis size vector.</li>
+          <li><code>center</code>: If true, centers the rectangle at the origin.</li>
+        </ul>
+
+        <h3 id="square_sdf"><code>square_sdf</code></h3>
+        <p>Creates an axis-aligned rectangle represented as a 2D SDF.</p>
+        <pre class="example-code">square_sdf(size=1, center=false)</pre>
+        <ul>
+          <li><code>size</code>: Edge length or per-axis size vector.</li>
+          <li><code>center</code>: If true, centers the rectangle at the origin.</li>
+        </ul>
+
+        <h3 id="polygon"><code>polygon</code></h3>
+        <p>Creates a 2D polygon solid from points and optional path indices.</p>
+        <pre class="example-code">polygon(points, paths, convexity=1)</pre>
+        <ul>
+          <li><code>points</code>: Vertex list used by the polygon.</li>
+          <li><code>paths</code>: Optional index list(s) describing outer ring and holes.</li>
+          <li><code>convexity</code>: Compatibility parameter (currently unused for evaluation behavior).</li>
+        </ul>
+
+        <h3 id="polygon_mesh"><code>polygon_mesh</code></h3>
+        <p>Creates a 2D polygon boundary mesh from points and optional path indices.</p>
+        <pre class="example-code">polygon_mesh(points, paths, convexity=1)</pre>
+        <ul>
+          <li><code>points</code>: Vertex list used by the polygon.</li>
+          <li><code>paths</code>: Optional index list(s) describing contours.</li>
+          <li><code>convexity</code>: Compatibility parameter (currently unused for evaluation behavior).</li>
+        </ul>
+
+        <h3 id="polygon_sdf"><code>polygon_sdf</code></h3>
+        <p>Creates a polygon as a 2D SDF by converting polygon mesh to SDF.</p>
+        <pre class="example-code">polygon_sdf(points, paths, convexity=1)</pre>
+        <ul>
+          <li><code>points</code>: Vertex list used by the polygon.</li>
+          <li><code>paths</code>: Optional index list(s) describing contours.</li>
+          <li><code>convexity</code>: Compatibility parameter (currently unused for evaluation behavior).</li>
+        </ul>
+
+        <h3 id="path"><code>path</code></h3>
+        <p>Parses an SVG path and creates a solid from its sampled curve mesh.</p>
+        <pre class="example-code">path(path, segments=1000)</pre>
+        <ul>
+          <li><code>path</code>: SVG path string.</li>
+          <li><code>segments</code>: Number of line segments used for curve sampling.</li>
+        </ul>
+
+        <h3 id="path_mesh"><code>path_mesh</code></h3>
+        <p>Parses an SVG path and returns the sampled 2D mesh.</p>
+        <pre class="example-code">path_mesh(path, segments=1000)</pre>
+        <ul>
+          <li><code>path</code>: SVG path string.</li>
+          <li><code>segments</code>: Number of line segments used for curve sampling.</li>
+        </ul>
+
+        <h3 id="path_sdf"><code>path_sdf</code></h3>
+        <p>Parses an SVG path and returns a 2D SDF.</p>
+        <pre class="example-code">path_sdf(path, segments=1000)</pre>
+        <ul>
+          <li><code>path</code>: SVG path string.</li>
+          <li><code>segments</code>: Number of line segments used for curve sampling.</li>
+        </ul>
+
+        <h3 id="text"><code>text</code></h3>
+        <p>Creates filled 2D glyph outlines using the embedded Liberation Sans font.</p>
+        <pre class="example-code">text(text, size=10, font="Liberation Sans", halign="left", valign="baseline", spacing=1, segments=8)</pre>
+        <ul>
+          <li><code>text</code>: Input text content to render.</li>
+          <li><code>size</code>: Font size scale.</li>
+          <li><code>font</code>: Font name; currently only Liberation Sans regular is supported.</li>
+          <li><code>halign</code>: Horizontal alignment (<code>left</code>, <code>center</code>, <code>right</code>).</li>
+          <li><code>valign</code>: Vertical alignment (<code>baseline</code>, <code>top</code>, <code>center</code>, <code>bottom</code>).</li>
+          <li><code>spacing</code>: Additional spacing multiplier between glyphs.</li>
+          <li><code>segments</code>: Curve tessellation segments per glyph curve.</li>
+        </ul>
+
+        <h3 id="text_mesh"><code>text_mesh</code></h3>
+        <p>Creates text outlines as a 2D mesh using the embedded Liberation Sans font.</p>
+        <pre class="example-code">text_mesh(text, size=10, font="Liberation Sans", halign="left", valign="baseline", spacing=1, segments=8)</pre>
+        <ul>
+          <li><code>text</code>: Input text content to render.</li>
+          <li><code>size</code>: Font size scale.</li>
+          <li><code>font</code>: Font name; currently only Liberation Sans regular is supported.</li>
+          <li><code>halign</code>: Horizontal alignment (<code>left</code>, <code>center</code>, <code>right</code>).</li>
+          <li><code>valign</code>: Vertical alignment (<code>baseline</code>, <code>top</code>, <code>center</code>, <code>bottom</code>).</li>
+          <li><code>spacing</code>: Additional spacing multiplier between glyphs.</li>
+          <li><code>segments</code>: Curve tessellation segments per glyph curve.</li>
+        </ul>
+
+        <h2 id="csg">CSG</h2>
+
+        <h3 id="union"><code>union</code></h3>
+        <p>Combines child shapes of the same kind into one shape.</p>
+        <pre class="example-code">union() { ... }</pre>
+        <ul><li><code>children</code>: One or more child shapes; all children must share the same shape kind.</li></ul>
+
+        <h3 id="difference"><code>difference</code></h3>
+        <p>Subtracts the union of later children from the first child.</p>
+        <pre class="example-code">difference() { a; b; ... }</pre>
+        <ul><li><code>children</code>: At least one child shape; first is minuend, rest are subtrahends.</li></ul>
+
+        <h3 id="intersection"><code>intersection</code></h3>
+        <p>Keeps only the volume/area shared by all children.</p>
+        <pre class="example-code">intersection() { ... }</pre>
+        <ul><li><code>children</code>: One or more child shapes of the same kind.</li></ul>
+
+        <h2 id="transforms-and-extrusion">Transforms And Extrusion</h2>
+
+        <h3 id="translate"><code>translate</code></h3>
+        <p>Moves child geometry by a translation vector.</p>
+        <pre class="example-code">translate(v=[0,0,0]) { child }</pre>
+        <ul>
+          <li><code>v</code>: Translation vector; for 2D children, Z must be 0.</li>
+          <li><code>children</code>: Exactly one child branch (or multiple children that union first).</li>
+        </ul>
+
+        <h3 id="scale"><code>scale</code></h3>
+        <p>Scales child geometry per axis.</p>
+        <pre class="example-code">scale(v=[0,0,0]) { child }</pre>
+        <ul>
+          <li><code>v</code>: Scale vector; for 2D children, Z must be 0.</li>
+          <li><code>children</code>: Exactly one child branch (or multiple children that union first).</li>
+        </ul>
+
+        <h3 id="rotate"><code>rotate</code></h3>
+        <p>Rotates child geometry using Euler angles or axis-angle form.</p>
+        <pre class="example-code">rotate(a, v) { child }</pre>
+        <ul>
+          <li><code>a</code>: Either a scalar angle (degrees) or a 3-angle vector.</li>
+          <li><code>v</code>: Optional axis vector for axis-angle mode.</li>
+          <li><code>children</code>: Exactly one child branch (or multiple children that union first).</li>
+        </ul>
+
+        <h3 id="linear_extrude"><code>linear_extrude</code></h3>
+        <p>Extrudes 2D geometry along Z, with optional twist and scale.</p>
+        <pre class="example-code">linear_extrude(height=1, center=false, twist=0, scale=1) { child2d }</pre>
+        <ul>
+          <li><code>height</code>: Extrusion distance; alias <code>h</code>.</li>
+          <li><code>center</code>: If true, centers extrusion around Z=0.</li>
+          <li><code>twist</code>: Total twist in degrees across extrusion height.</li>
+          <li><code>scale</code>: End scale factor (scalar or 2D vector).</li>
+          <li><code>children</code>: 2D child geometry to extrude.</li>
+        </ul>
+
+        <h3 id="rotate_extrude"><code>rotate_extrude</code></h3>
+        <p>Revolves 2D solid geometry around the Z axis.</p>
+        <pre class="example-code">rotate_extrude(angle=360, start=0) { child2d }</pre>
+        <ul>
+          <li><code>angle</code>: Sweep angle in degrees.</li>
+          <li><code>start</code>: Start angle in degrees.</li>
+          <li><code>children</code>: 2D solid child geometry to revolve.</li>
+        </ul>
+
+        <h2 id="meshing-and-sdf">Meshing And SDF</h2>
+
+        <h3 id="marching_squares"><code>marching_squares</code></h3>
+        <p>Converts a 2D solid into a mesh using marching squares search.</p>
+        <pre class="example-code">marching_squares(delta=0.02, subdiv=8) { child2d }</pre>
+        <ul>
+          <li><code>delta</code>: Grid spacing for contour extraction.</li>
+          <li><code>subdiv</code>: Search subdivisions per cell.</li>
+          <li><code>children</code>: 2D solid child geometry to mesh.</li>
+        </ul>
+
+        <h3 id="marching_cubes"><code>marching_cubes</code></h3>
+        <p>Converts a 3D solid into a mesh using marching cubes search.</p>
+        <pre class="example-code">marching_cubes(delta=0.02, subdiv=8) { child3d }</pre>
+        <ul>
+          <li><code>delta</code>: Grid spacing for surface extraction.</li>
+          <li><code>subdiv</code>: Search subdivisions per cell.</li>
+          <li><code>children</code>: 3D solid child geometry to mesh.</li>
+        </ul>
+
+        <h3 id="dual_contour"><code>dual_contour</code></h3>
+        <p>Converts a 3D solid into a mesh using dual contouring.</p>
+        <pre class="example-code">dual_contour(delta=0.02, repair=true, clip=false) { child3d }</pre>
+        <ul>
+          <li><code>delta</code>: Cell size for contouring.</li>
+          <li><code>repair</code>: Enables additional mesh repair pass.</li>
+          <li><code>clip</code>: Enables clipping behavior in contouring.</li>
+          <li><code>children</code>: 3D solid child geometry to mesh.</li>
+        </ul>
+
+        <h3 id="mesh_to_sdf"><code>mesh_to_sdf</code></h3>
+        <p>Converts a 2D or 3D mesh to an SDF of matching dimensionality.</p>
+        <pre class="example-code">mesh_to_sdf() { mesh }</pre>
+        <ul><li><code>children</code>: Mesh child geometry to convert.</li></ul>
+
+        <h3 id="inset_sdf"><code>inset_sdf</code></h3>
+        <p>Shrinks an SDF shape by an inward field offset.</p>
+        <pre class="example-code">inset_sdf(delta) { sdf }</pre>
+        <ul>
+          <li><code>delta</code>: Inset amount.</li>
+          <li><code>children</code>: SDF child geometry.</li>
+        </ul>
+
+        <h3 id="outset_sdf"><code>outset_sdf</code></h3>
+        <p>Expands an SDF shape by an outward field offset.</p>
+        <pre class="example-code">outset_sdf(delta) { sdf }</pre>
+        <ul>
+          <li><code>delta</code>: Outset amount.</li>
+          <li><code>children</code>: SDF child geometry.</li>
+        </ul>
+
+        <h3 id="solid"><code>solid</code></h3>
+        <p>Converts child mesh/SDF geometry back to solid representation.</p>
+        <pre class="example-code">solid() { child }</pre>
+        <ul><li><code>children</code>: Child geometry to convert to solid.</li></ul>
+
+        <h2 id="metaball-section">Metaball</h2>
+
+        <h3 id="metaball"><code>metaball</code></h3>
+        <p>Converts an SDF into metaball form.</p>
+        <pre class="example-code">metaball() { sdf }</pre>
+        <ul><li><code>children</code>: SDF child geometry to convert.</li></ul>
+
+        <h3 id="negate_metaball"><code>negate_metaball</code></h3>
+        <p>Flips metaball sign so it subtracts during metaball composition.</p>
+        <pre class="example-code">negate_metaball() { metaball }</pre>
+        <ul><li><code>children</code>: Exactly one metaball child whose sign is inverted.</li></ul>
+
+        <h3 id="metaball_solid"><code>metaball_solid</code></h3>
+        <p>Combines signed metaballs into a solid using a thresholded falloff field.</p>
+        <pre class="example-code">metaball_solid(threshold, falloff="quartic") { metaballs... }</pre>
+        <ul>
+          <li><code>threshold</code>: Isosurface threshold for solid extraction.</li>
+          <li><code>falloff</code>: Falloff kernel name (linear, quadratic, cubic, quartic, quintic, exponential, gaussian).</li>
+          <li><code>children</code>: One or more metaball child primitives.</li>
+        </ul>
+      </div>
+      </div>
+      </div>
+    </main>
+    <script>
+      const docBody = document.body;
+      const docsHero = document.querySelector(".docs-page .hero");
+      const tocToggle = document.getElementById("tocToggle");
+      const tocBackdrop = document.getElementById("tocBackdrop");
+      const tocSidebar = document.getElementById("docsTocSidebar");
+
+      const updateHeaderOffset = () => {
+        if (!docsHero) return;
+        docBody.style.setProperty("--docs-header-offset", `${docsHero.offsetHeight}px`);
+      };
+
+      const updateScrolledState = () => {
+        docBody.classList.toggle("docs-scrolled", window.scrollY > 8);
+      };
+
+      const closeToc = () => {
+        docBody.classList.remove("toc-open");
+        if (tocToggle) tocToggle.setAttribute("aria-expanded", "false");
+      };
+
+      updateHeaderOffset();
+      updateScrolledState();
+      if (tocToggle) {
+        tocToggle.addEventListener("click", () => {
+          const open = docBody.classList.toggle("toc-open");
+          tocToggle.setAttribute("aria-expanded", open ? "true" : "false");
+        });
+      }
+      if (tocBackdrop) {
+        tocBackdrop.addEventListener("click", closeToc);
+      }
+      if (tocSidebar) {
+        tocSidebar.querySelectorAll("a[href^='#']").forEach((link) => {
+          link.addEventListener("click", () => {
+            if (window.matchMedia("(max-width: 900px)").matches) closeToc();
+          });
+        });
+      }
+      window.addEventListener("resize", () => {
+        updateHeaderOffset();
+        updateScrolledState();
+        if (!window.matchMedia("(max-width: 900px)").matches) closeToc();
+      });
+      window.addEventListener("scroll", updateScrolledState, { passive: true });
+
+      document.querySelectorAll("h2[id], h3[id]").forEach((heading) => {
+        const label = heading.textContent.trim();
+        const anchor = document.createElement("a");
+        anchor.className = "heading-anchor";
+        anchor.href = `#${heading.id}`;
+        anchor.setAttribute("aria-label", `Link to ${label}`);
+        anchor.textContent = "#";
+        heading.prepend(anchor);
+      });
+    </script>
+  </body>
+</html>

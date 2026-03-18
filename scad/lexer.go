@@ -1,7 +1,6 @@
 package scad
 
 import (
-	"fmt"
 	"strconv"
 	"unicode"
 )
@@ -72,7 +71,7 @@ func (l *Lexer) Next() (Token, error) {
 		txt := l.s[start:l.i]
 		f, err := strconv.ParseFloat(txt, 64)
 		if err != nil {
-			return Token{}, fmt.Errorf("%v: invalid number %q: %w", startPos, txt, err)
+			return Token{}, PosErrorf(startPos, "invalid number %q: %w", txt, err)
 		}
 		return Token{Kind: TokNumber, Lexeme: txt, Num: f, Pos: startPos}, nil
 	}
@@ -88,7 +87,7 @@ func (l *Lexer) Next() (Token, error) {
 			l.advance()
 		}
 		if l.i >= len(l.s) {
-			return Token{}, fmt.Errorf("%v: unterminated string", startPos)
+			return Token{}, PosErrorf(startPos, "unterminated string")
 		}
 		txt := l.s[start:l.i]
 		l.advance() // closing quote
@@ -159,7 +158,7 @@ func (l *Lexer) Next() (Token, error) {
 	case ':':
 		return Token{Kind: TokColon, Lexeme: ":", Pos: startPos}, nil
 	default:
-		return Token{}, fmt.Errorf("%v: unexpected character %q", startPos, ch)
+		return Token{}, PosErrorf(startPos, "unexpected character %q", ch)
 	}
 }
 

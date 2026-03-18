@@ -15,7 +15,7 @@ func handleTranslate(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	vec, err := argVec3(args, "v", st.pos())
+	vec, err := argVec3(args, "v")
 	if err != nil {
 		return ShapeRep{}, err
 	}
@@ -78,7 +78,7 @@ func handleScale(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (Shap
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	vec, err := argVec3(args, "v", st.pos())
+	vec, err := argVec3(args, "v")
 	if err != nil {
 		return ShapeRep{}, err
 	}
@@ -314,7 +314,7 @@ func parseRotateSpec(e *env, st *CallStmt) (rotateSpec, error) {
 		if vVal.Kind != ValList {
 			return rotateSpec{}, fmt.Errorf("rotate(): expected vector for \"v\"")
 		}
-		axis, err := vVal.AsVec3(st.pos())
+		axis, err := vVal.AsVec3()
 		if err != nil {
 			return rotateSpec{}, err
 		}
@@ -322,7 +322,7 @@ func parseRotateSpec(e *env, st *CallStmt) (rotateSpec, error) {
 	}
 
 	if aVal.Kind == ValList {
-		angles, err := aVal.AsVec3(st.pos())
+		angles, err := aVal.AsVec3()
 		if err != nil {
 			return rotateSpec{}, err
 		}
@@ -377,7 +377,7 @@ func parseInsetDelta(e *env, st *CallStmt) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return argNum(args, "delta", st.pos())
+	return argNum(args, "delta")
 }
 
 func insetSDF(opName string, childUnion *ShapeRep, delta float64) (ShapeRep, error) {

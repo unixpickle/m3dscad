@@ -21,15 +21,15 @@ func handleLinearExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRe
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	height, err := argNum(args, "height", st.pos())
+	height, err := argNum(args, "height")
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	center, err := argBool(args, "center", st.pos())
+	center, err := argBool(args, "center")
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	twist, err := argNum(args, "twist", st.pos())
+	twist, err := argNum(args, "twist")
 	if err != nil {
 		return ShapeRep{}, err
 	}
@@ -37,7 +37,7 @@ func handleLinearExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRe
 	if !ok {
 		return ShapeRep{}, fmt.Errorf("missing parameter \"scale\"")
 	}
-	scale, err := scaleV.AsVec2(st.pos())
+	scale, err := scaleV.AsVec2()
 	if err != nil {
 		return ShapeRep{}, err
 	}
@@ -129,11 +129,11 @@ func handleRotateExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRe
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	angle, err := argNum(args, "angle", st.pos())
+	angle, err := argNum(args, "angle")
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	start, err := argNum(args, "start", st.pos())
+	start, err := argNum(args, "start")
 	if err != nil {
 		return ShapeRep{}, err
 	}

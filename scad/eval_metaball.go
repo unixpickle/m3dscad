@@ -34,11 +34,11 @@ func handleMetaballSolid(e *env, st *CallStmt, children []ShapeRep, _ *ShapeRep)
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	threshold, err := argNum(args, "threshold", st.pos())
+	threshold, err := argNum(args, "threshold")
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	falloffName, err := argString(args, "falloff", st.pos())
+	falloffName, err := argString(args, "falloff")
 	if err != nil {
 		return ShapeRep{}, err
 	}

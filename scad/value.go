@@ -45,42 +45,42 @@ type Range struct {
 	Step  float64
 }
 
-func (v Value) AsNum(pos Pos) (float64, error) {
+func (v Value) AsNum() (float64, error) {
 	if v.Kind != ValNum {
-		return 0, fmt.Errorf("%v: expected number", pos)
+		return 0, fmt.Errorf("expected number")
 	}
 	return v.Num, nil
 }
 
-func (v Value) AsBool(pos Pos) (bool, error) {
+func (v Value) AsBool() (bool, error) {
 	if v.Kind != ValBool {
-		return false, fmt.Errorf("%v: expected bool", pos)
+		return false, fmt.Errorf("expected bool")
 	}
 	return v.Bool, nil
 }
 
-func (v Value) AsString(pos Pos) (string, error) {
+func (v Value) AsString() (string, error) {
 	if v.Kind != ValString {
-		return "", fmt.Errorf("%v: expected string", pos)
+		return "", fmt.Errorf("expected string")
 	}
 	return v.Str, nil
 }
 
-func (v Value) AsVec3(pos Pos) ([3]float64, error) {
+func (v Value) AsVec3() ([3]float64, error) {
 	// Accept [x,y,z] or [x,y] (z=0) or scalar -> [s,s,s]
 	if v.Kind == ValNum {
 		return [3]float64{v.Num, v.Num, v.Num}, nil
 	}
 	if v.Kind != ValList {
-		return [3]float64{}, fmt.Errorf("%v: expected vector/list", pos)
+		return [3]float64{}, fmt.Errorf("expected vector/list")
 	}
 	if len(v.List) == 0 {
-		return [3]float64{}, fmt.Errorf("%v: expected non-empty vector", pos)
+		return [3]float64{}, fmt.Errorf("expected non-empty vector")
 	}
 	var out [3]float64
 	for i := 0; i < 3; i++ {
 		if i < len(v.List) {
-			n, err := v.List[i].AsNum(pos)
+			n, err := v.List[i].AsNum()
 			if err != nil {
 				return [3]float64{}, err
 			}
@@ -92,21 +92,21 @@ func (v Value) AsVec3(pos Pos) ([3]float64, error) {
 	return out, nil
 }
 
-func (v Value) AsVec2(pos Pos) ([2]float64, error) {
+func (v Value) AsVec2() ([2]float64, error) {
 	// Accept [x,y] or [x] (y=0) or scalar -> [s,s]
 	if v.Kind == ValNum {
 		return [2]float64{v.Num, v.Num}, nil
 	}
 	if v.Kind != ValList {
-		return [2]float64{}, fmt.Errorf("%v: expected vector/list", pos)
+		return [2]float64{}, fmt.Errorf("expected vector/list")
 	}
 	if len(v.List) == 0 {
-		return [2]float64{}, fmt.Errorf("%v: expected non-empty vector", pos)
+		return [2]float64{}, fmt.Errorf("expected non-empty vector")
 	}
 	var out [2]float64
 	for i := 0; i < 2; i++ {
 		if i < len(v.List) {
-			n, err := v.List[i].AsNum(pos)
+			n, err := v.List[i].AsNum()
 			if err != nil {
 				return [2]float64{}, err
 			}
@@ -118,63 +118,63 @@ func (v Value) AsVec2(pos Pos) ([2]float64, error) {
 	return out, nil
 }
 
-func (v Value) IterableElems(pos Pos) ([]Value, error) {
+func (v Value) IterableElems() ([]Value, error) {
 	switch v.Kind {
 	case ValList:
 		return append([]Value(nil), v.List...), nil
 	case ValRange:
-		return v.Rng.Values(pos)
+		return v.Rng.Values()
 	case ValEach:
 		if v.Each == nil {
-			return nil, fmt.Errorf("%v: invalid each value", pos)
+			return nil, fmt.Errorf("invalid each value")
 		}
-		return v.Each.IterableElems(pos)
+		return v.Each.IterableElems()
 	default:
-		return nil, fmt.Errorf("%v: expected vector or range", pos)
+		return nil, fmt.Errorf("expected vector or range")
 	}
 }
 
-func (v Value) ElemAt(idx int, pos Pos) (Value, error) {
+func (v Value) ElemAt(idx int) (Value, error) {
 	if idx < 0 {
-		return Value{}, fmt.Errorf("%v: index out of range", pos)
+		return Value{}, fmt.Errorf("index out of range")
 	}
 	switch v.Kind {
 	case ValList:
 		if idx >= len(v.List) {
-			return Value{}, fmt.Errorf("%v: index out of range", pos)
+			return Value{}, fmt.Errorf("index out of range")
 		}
 		return v.List[idx], nil
 	case ValRange:
-		return v.Rng.ValueAt(idx, pos)
+		return v.Rng.ValueAt(idx)
 	case ValEach:
 		if v.Each == nil {
-			return Value{}, fmt.Errorf("%v: invalid each value", pos)
+			return Value{}, fmt.Errorf("invalid each value")
 		}
-		return v.Each.ElemAt(idx, pos)
+		return v.Each.ElemAt(idx)
 	default:
-		return Value{}, fmt.Errorf("%v: expected vector or range", pos)
+		return Value{}, fmt.Errorf("expected vector or range")
 	}
 }
 
-func (v Value) Len(pos Pos) (int, error) {
+func (v Value) Len() (int, error) {
 	switch v.Kind {
 	case ValList:
 		return len(v.List), nil
 	case ValRange:
-		return v.Rng.Len(pos)
+		return v.Rng.Len()
 	case ValEach:
 		if v.Each == nil {
-			return 0, fmt.Errorf("%v: invalid each value", pos)
+			return 0, fmt.Errorf("invalid each value")
 		}
-		return v.Each.Len(pos)
+		return v.Each.Len()
 	default:
-		return 0, fmt.Errorf("%v: expected vector or range", pos)
+		return 0, fmt.Errorf("expected vector or range")
 	}
 }
 
-func (r Range) Values(pos Pos) ([]Value, error) {
+func (r Range) Values() ([]Value, error) {
 	if r.Step == 0 {
-		return nil, fmt.Errorf("%v: range step cannot be zero", pos)
+		return nil, fmt.Errorf("range step cannot be zero")
 	}
 	var out []Value
 	const eps = 1e-9
@@ -184,7 +184,7 @@ func (r Range) Values(pos Pos) ([]Value, error) {
 			out = append(out, Num(cur))
 			cur += r.Step
 			if len(out) > 1_000_000 {
-				return nil, fmt.Errorf("%v: range produced too many elements", pos)
+				return nil, fmt.Errorf("range produced too many elements")
 			}
 		}
 	} else {
@@ -192,7 +192,7 @@ func (r Range) Values(pos Pos) ([]Value, error) {
 			out = append(out, Num(cur))
 			cur += r.Step
 			if len(out) > 1_000_000 {
-				return nil, fmt.Errorf("%v: range produced too many elements", pos)
+				return nil, fmt.Errorf("range produced too many elements")
 			}
 		}
 	}
@@ -205,22 +205,22 @@ func (r Range) Values(pos Pos) ([]Value, error) {
 	return out, nil
 }
 
-func (r Range) ValueAt(idx int, pos Pos) (Value, error) {
+func (r Range) ValueAt(idx int) (Value, error) {
 	if idx < 0 {
-		return Value{}, fmt.Errorf("%v: index out of range", pos)
+		return Value{}, fmt.Errorf("index out of range")
 	}
 	if r.Step == 0 {
-		return Value{}, fmt.Errorf("%v: range step cannot be zero", pos)
+		return Value{}, fmt.Errorf("range step cannot be zero")
 	}
 	const eps = 1e-9
 	val := r.Start + r.Step*float64(idx)
 	if r.Step > 0 {
 		if val > r.End+eps {
-			return Value{}, fmt.Errorf("%v: index out of range", pos)
+			return Value{}, fmt.Errorf("index out of range")
 		}
 	} else {
 		if val < r.End-eps {
-			return Value{}, fmt.Errorf("%v: index out of range", pos)
+			return Value{}, fmt.Errorf("index out of range")
 		}
 	}
 	if math.Abs(val-r.End) < eps {
@@ -229,9 +229,9 @@ func (r Range) ValueAt(idx int, pos Pos) (Value, error) {
 	return Num(val), nil
 }
 
-func (r Range) Len(pos Pos) (int, error) {
+func (r Range) Len() (int, error) {
 	if r.Step == 0 {
-		return 0, fmt.Errorf("%v: range step cannot be zero", pos)
+		return 0, fmt.Errorf("range step cannot be zero")
 	}
 	const eps = 1e-9
 	if r.Step > 0 {

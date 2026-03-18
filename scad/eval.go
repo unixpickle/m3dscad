@@ -95,7 +95,7 @@ func evalStmts(e *env, ss []Stmt) ([]ShapeRep, error) {
 		case *ModuleDefStmt, *FuncDefStmt, *AssignStmt:
 			continue
 		}
-		got, err := evalStmt(e, s)
+		got, err := evalStmtWithPos(e, s)
 		if err != nil {
 			return nil, err
 		}
@@ -104,6 +104,14 @@ func evalStmts(e *env, ss []Stmt) ([]ShapeRep, error) {
 		}
 	}
 	return out, nil
+}
+
+func evalStmtWithPos(e *env, s Stmt) (*ShapeRep, error) {
+	got, err := evalStmt(e, s)
+	if err != nil {
+		return nil, WithPos(err, s.pos())
+	}
+	return got, nil
 }
 
 func evalStmt(e *env, s Stmt) (*ShapeRep, error) {
@@ -126,19 +134,19 @@ func evalStmt(e *env, s Stmt) (*ShapeRep, error) {
 		if err != nil {
 			return nil, err
 		}
-		b, err := condV.AsBool(st.Cond.pos())
+		b, err := condV.AsBool()
 		if err != nil {
 			return nil, err
 		}
 		if b {
 			e.push()
 			defer e.pop()
-			return evalStmt(e, st.Then)
+			return evalStmtWithPos(e, st.Then)
 		}
 		if st.Else != nil {
 			e.push()
 			defer e.pop()
-			return evalStmt(e, st.Else)
+			return evalStmtWithPos(e, st.Else)
 		}
 		return nil, nil
 
@@ -157,7 +165,7 @@ func evalStmt(e *env, s Stmt) (*ShapeRep, error) {
 		return evalCallStmt(e, st)
 
 	default:
-		return nil, fmt.Errorf("%v: unknown stmt type", s.pos())
+		return nil, fmt.Errorf("unknown stmt type")
 	}
 }
 
@@ -166,10 +174,10 @@ func evalCallStmt(e *env, st *CallStmt) (*ShapeRep, error) {
 
 	if handler, ok := builtinHandlers[name]; ok {
 		if len(st.Children) == 0 && handler.RequireChildren {
-			return nil, fmt.Errorf("%v: %s() requires children", st.pos(), name)
+			return nil, fmt.Errorf("%s() requires children", name)
 		}
 		if len(st.Children) > 0 && !handler.AllowChildren {
-			return nil, fmt.Errorf("%v: %s() does not take children", st.pos(), name)
+			return nil, fmt.Errorf("%s() does not take children", name)
 		}
 		var children []ShapeRep
 		var childUnion *ShapeRep
@@ -189,7 +197,7 @@ func evalCallStmt(e *env, st *CallStmt) (*ShapeRep, error) {
 		}
 		res, err := handler.Eval(e, st, children, childUnion)
 		if err != nil {
-			return nil, fmt.Errorf("%v: %w", st.pos(), err)
+			return nil, err
 		}
 		return &res, nil
 	}
@@ -197,7 +205,7 @@ func evalCallStmt(e *env, st *CallStmt) (*ShapeRep, error) {
 	// User-defined module call (solids)
 	if md, ok := e.mods[name]; ok {
 		if len(st.Children) > 0 {
-			return nil, fmt.Errorf("%v: module %s does not support children in this MVP", st.pos(), name)
+			return nil, fmt.Errorf("module %s does not support children in this MVP", name)
 		}
 		e.push()
 		defer e.pop()
@@ -216,7 +224,7 @@ func evalCallStmt(e *env, st *CallStmt) (*ShapeRep, error) {
 		return &u, nil
 	}
 
-	return nil, fmt.Errorf("%v: unknown module/primitive %q", st.pos(), name)
+	return nil, fmt.Errorf("unknown module/primitive %q", name)
 }
 
 func evalStmtsAsOne(e *env, ss []Stmt) (*ShapeRep, error) {
@@ -245,7 +253,7 @@ func evalExpr(e *env, ex Expr) (Value, error) {
 	case *VarExpr:
 		v, ok := e.get(x.Name)
 		if !ok {
-			return Value{}, fmt.Errorf("%v: undefined variable %q", x.pos(), x.Name)
+			return Value{}, PosErrorf(x.pos(), "undefined variable %q", x.Name)
 		}
 		return v, nil
 	case *ArrayLit:
@@ -256,7 +264,7 @@ func evalExpr(e *env, ex Expr) (Value, error) {
 				return Value{}, err
 			}
 			if _, ok := el.(*ForExpr); ok {
-				elems, err := v.IterableElems(el.pos())
+				elems, err := v.IterableElems()
 				if err != nil {
 					return Value{}, err
 				}
@@ -264,7 +272,7 @@ func evalExpr(e *env, ex Expr) (Value, error) {
 				continue
 			}
 			if v.Kind == ValEach {
-				elems, err := v.IterableElems(el.pos())
+				elems, err := v.IterableElems()
 				if err != nil {
 					return Value{}, err
 				}
@@ -283,11 +291,11 @@ func evalExpr(e *env, ex Expr) (Value, error) {
 		if err != nil {
 			return Value{}, err
 		}
-		start, err := startV.AsNum(x.Start.pos())
+		start, err := startV.AsNum()
 		if err != nil {
 			return Value{}, err
 		}
-		end, err := endV.AsNum(x.End.pos())
+		end, err := endV.AsNum()
 		if err != nil {
 			return Value{}, err
 		}
@@ -300,7 +308,7 @@ func evalExpr(e *env, ex Expr) (Value, error) {
 			if err != nil {
 				return Value{}, err
 			}
-			step, err = stepV.AsNum(x.Step.pos())
+			step, err = stepV.AsNum()
 			if err != nil {
 				return Value{}, err
 			}
@@ -319,15 +327,15 @@ func evalExpr(e *env, ex Expr) (Value, error) {
 		if err != nil {
 			return Value{}, err
 		}
-		idxNum, err := idxV.AsNum(x.Index.pos())
+		idxNum, err := idxV.AsNum()
 		if err != nil {
 			return Value{}, err
 		}
 		idx := int(idxNum)
 		if float64(idx) != idxNum {
-			return Value{}, fmt.Errorf("%v: index must be an integer", x.Index.pos())
+			return Value{}, PosErrorf(x.Index.pos(), "index must be an integer")
 		}
-		return base.ElemAt(idx, x.Index.pos())
+		return base.ElemAt(idx)
 	case *ForExpr:
 		var out []Value
 		err := evalForBindsExpr(e, x.Binds, 0, func() error {
@@ -336,7 +344,7 @@ func evalExpr(e *env, ex Expr) (Value, error) {
 				return err
 			}
 			if v.Kind == ValEach {
-				elems, err := v.IterableElems(x.Body.pos())
+				elems, err := v.IterableElems()
 				if err != nil {
 					return err
 				}
@@ -374,25 +382,25 @@ func evalExpr(e *env, ex Expr) (Value, error) {
 		}
 		switch x.Op {
 		case TokNot:
-			b, err := v.AsBool(x.pos())
+			b, err := v.AsBool()
 			if err != nil {
 				return Value{}, err
 			}
 			return Bool(!b), nil
 		case TokMinus:
-			n, err := v.AsNum(x.pos())
+			n, err := v.AsNum()
 			if err != nil {
 				return Value{}, err
 			}
 			return Num(-n), nil
 		case TokPlus:
-			n, err := v.AsNum(x.pos())
+			n, err := v.AsNum()
 			if err != nil {
 				return Value{}, err
 			}
 			return Num(n), nil
 		default:
-			return Value{}, fmt.Errorf("%v: unknown unary op", x.pos())
+			return Value{}, PosErrorf(x.pos(), "unknown unary op")
 		}
 	case *BinaryExpr:
 		lv, err := evalExpr(e, x.L)
@@ -407,11 +415,11 @@ func evalExpr(e *env, ex Expr) (Value, error) {
 		// boolean ops short-circuit not implemented in MVP (easy to add).
 		switch x.Op {
 		case TokPlus, TokMinus, TokStar, TokSlash, TokPercent, TokCaret:
-			a, err := lv.AsNum(x.pos())
+			a, err := lv.AsNum()
 			if err != nil {
 				return Value{}, err
 			}
-			b, err := rv.AsNum(x.pos())
+			b, err := rv.AsNum()
 			if err != nil {
 				return Value{}, err
 			}
@@ -449,11 +457,11 @@ func evalExpr(e *env, ex Expr) (Value, error) {
 				return Bool(ord >= 0), nil
 			}
 		case TokAnd, TokOr:
-			a, err := lv.AsBool(x.pos())
+			a, err := lv.AsBool()
 			if err != nil {
 				return Value{}, err
 			}
-			b, err := rv.AsBool(x.pos())
+			b, err := rv.AsBool()
 			if err != nil {
 				return Value{}, err
 			}
@@ -462,14 +470,14 @@ func evalExpr(e *env, ex Expr) (Value, error) {
 			}
 			return Bool(a || b), nil
 		default:
-			return Value{}, fmt.Errorf("%v: unknown binary op", x.pos())
+			return Value{}, PosErrorf(x.pos(), "unknown binary op")
 		}
 	case *TernaryExpr:
 		cv, err := evalExpr(e, x.Cond)
 		if err != nil {
 			return Value{}, err
 		}
-		b, err := cv.AsBool(x.Cond.pos())
+		b, err := cv.AsBool()
 		if err != nil {
 			return Value{}, err
 		}
@@ -480,15 +488,15 @@ func evalExpr(e *env, ex Expr) (Value, error) {
 	case *CallExpr:
 		return evalFuncCall(e, x.Call)
 	default:
-		return Value{}, fmt.Errorf("%v: unknown expr type", ex.pos())
+		return Value{}, PosErrorf(ex.pos(), "unknown expr type")
 	}
-	return Value{}, fmt.Errorf("%v: unreachable", ex.pos())
+	return Value{}, PosErrorf(ex.pos(), "unreachable")
 }
 
 func evalForStmt(e *env, st *ForStmt) (*ShapeRep, error) {
 	var results []ShapeRep
 	err := evalForBindsExpr(e, st.Binds, 0, func() error {
-		res, err := evalStmt(e, st.Body)
+		res, err := evalStmtWithPos(e, st.Body)
 		if err != nil {
 			return err
 		}
@@ -524,7 +532,7 @@ func evalForBindsExpr(e *env, binds []ForBind, idx int, fn func() error) error {
 	if err != nil {
 		return err
 	}
-	elems, err := iterVal.IterableElems(b.P)
+	elems, err := iterVal.IterableElems()
 	if err != nil {
 		return err
 	}
@@ -544,20 +552,20 @@ func evalFuncCall(e *env, c Call) (Value, error) {
 	switch c.Name {
 	case "len":
 		if len(c.Args) != 1 {
-			return Value{}, fmt.Errorf("%v: len() takes exactly 1 argument", c.P)
+			return Value{}, PosErrorf(c.P, "len() takes exactly 1 argument")
 		}
 		arg0, err := evalExpr(e, c.Args[0].Expr)
 		if err != nil {
 			return Value{}, err
 		}
-		n, err := arg0.Len(c.P)
+		n, err := arg0.Len()
 		if err != nil {
 			return Value{}, err
 		}
 		return Num(float64(n)), nil
 	case "concat":
 		if len(c.Args) == 0 {
-			return Value{}, fmt.Errorf("%v: concat() needs at least 1 argument", c.P)
+			return Value{}, PosErrorf(c.P, "concat() needs at least 1 argument")
 		}
 		var out []Value
 		for _, a := range c.Args {
@@ -565,7 +573,7 @@ func evalFuncCall(e *env, c Call) (Value, error) {
 			if err != nil {
 				return Value{}, err
 			}
-			elems, err := v.IterableElems(c.P)
+			elems, err := v.IterableElems()
 			if err != nil {
 				return Value{}, err
 			}
@@ -702,13 +710,13 @@ func evalFuncCall(e *env, c Call) (Value, error) {
 		return Num(m), nil
 	case "norm":
 		if len(c.Args) != 1 {
-			return Value{}, fmt.Errorf("%v: norm() needs exactly 1 argument", c.P)
+			return Value{}, PosErrorf(c.P, "norm() needs exactly 1 argument")
 		}
 		v, err := evalExpr(e, c.Args[0].Expr)
 		if err != nil {
 			return Value{}, err
 		}
-		xs, err := iterableAsNums(v, c.P)
+		xs, err := iterableAsNums(v)
 		if err != nil {
 			return Value{}, err
 		}
@@ -719,7 +727,7 @@ func evalFuncCall(e *env, c Call) (Value, error) {
 		return Num(math.Sqrt(sum)), nil
 	case "cross":
 		if len(c.Args) != 2 {
-			return Value{}, fmt.Errorf("%v: cross() needs exactly 2 arguments", c.P)
+			return Value{}, PosErrorf(c.P, "cross() needs exactly 2 arguments")
 		}
 		aV, err := evalExpr(e, c.Args[0].Expr)
 		if err != nil {
@@ -729,16 +737,16 @@ func evalFuncCall(e *env, c Call) (Value, error) {
 		if err != nil {
 			return Value{}, err
 		}
-		a, err := iterableAsNums(aV, c.P)
+		a, err := iterableAsNums(aV)
 		if err != nil {
 			return Value{}, err
 		}
-		b, err := iterableAsNums(bV, c.P)
+		b, err := iterableAsNums(bV)
 		if err != nil {
 			return Value{}, err
 		}
 		if len(a) != len(b) {
-			return Value{}, fmt.Errorf("%v: cross() vectors must have matching dimensions", c.P)
+			return Value{}, PosErrorf(c.P, "cross() vectors must have matching dimensions")
 		}
 		if len(a) == 2 {
 			return Num(a[0]*b[1] - a[1]*b[0]), nil
@@ -750,10 +758,10 @@ func evalFuncCall(e *env, c Call) (Value, error) {
 				Num(a[0]*b[1] - a[1]*b[0]),
 			}), nil
 		}
-		return Value{}, fmt.Errorf("%v: cross() only supports 2D or 3D vectors", c.P)
+		return Value{}, PosErrorf(c.P, "cross() only supports 2D or 3D vectors")
 	case "rands":
 		if len(c.Args) != 3 && len(c.Args) != 4 {
-			return Value{}, fmt.Errorf("%v: rands() needs 3 or 4 arguments", c.P)
+			return Value{}, PosErrorf(c.P, "rands() needs 3 or 4 arguments")
 		}
 		minV, err := evalExpr(e, c.Args[0].Expr)
 		if err != nil {
@@ -767,21 +775,21 @@ func evalFuncCall(e *env, c Call) (Value, error) {
 		if err != nil {
 			return Value{}, err
 		}
-		minX, err := minV.AsNum(c.P)
+		minX, err := minV.AsNum()
 		if err != nil {
 			return Value{}, err
 		}
-		maxX, err := maxV.AsNum(c.P)
+		maxX, err := maxV.AsNum()
 		if err != nil {
 			return Value{}, err
 		}
-		countF, err := countV.AsNum(c.P)
+		countF, err := countV.AsNum()
 		if err != nil {
 			return Value{}, err
 		}
 		count := int(countF)
 		if float64(count) != countF || count < 0 {
-			return Value{}, fmt.Errorf("%v: rands() count must be a non-negative integer", c.P)
+			return Value{}, PosErrorf(c.P, "rands() count must be a non-negative integer")
 		}
 		var rng *rand.Rand
 		if len(c.Args) == 4 {
@@ -789,7 +797,7 @@ func evalFuncCall(e *env, c Call) (Value, error) {
 			if err != nil {
 				return Value{}, err
 			}
-			seedF, err := seedV.AsNum(c.P)
+			seedF, err := seedV.AsNum()
 			if err != nil {
 				return Value{}, err
 			}
@@ -805,7 +813,7 @@ func evalFuncCall(e *env, c Call) (Value, error) {
 		return List(out), nil
 	case "lookup":
 		if len(c.Args) != 2 {
-			return Value{}, fmt.Errorf("%v: lookup() needs exactly 2 arguments", c.P)
+			return Value{}, PosErrorf(c.P, "lookup() needs exactly 2 arguments")
 		}
 		keyV, err := evalExpr(e, c.Args[0].Expr)
 		if err != nil {
@@ -815,12 +823,12 @@ func evalFuncCall(e *env, c Call) (Value, error) {
 		if err != nil {
 			return Value{}, err
 		}
-		key, err := keyV.AsNum(c.P)
+		key, err := keyV.AsNum()
 		if err != nil {
 			return Value{}, err
 		}
 		if tableV.Kind != ValList || len(tableV.List) == 0 {
-			return Value{}, fmt.Errorf("%v: lookup() table must be a non-empty list of [key,value] pairs", c.P)
+			return Value{}, PosErrorf(c.P, "lookup() table must be a non-empty list of [key,value] pairs")
 		}
 		type kv struct {
 			K float64
@@ -829,13 +837,13 @@ func evalFuncCall(e *env, c Call) (Value, error) {
 		pairs := make([]kv, 0, len(tableV.List))
 		for _, p := range tableV.List {
 			if p.Kind != ValList || len(p.List) != 2 {
-				return Value{}, fmt.Errorf("%v: lookup() table entries must be [key, value]", c.P)
+				return Value{}, PosErrorf(c.P, "lookup() table entries must be [key, value]")
 			}
-			k, err := p.List[0].AsNum(c.P)
+			k, err := p.List[0].AsNum()
 			if err != nil {
 				return Value{}, err
 			}
-			v, err := p.List[1].AsNum(c.P)
+			v, err := p.List[1].AsNum()
 			if err != nil {
 				return Value{}, err
 			}
@@ -873,17 +881,17 @@ func evalFuncCall(e *env, c Call) (Value, error) {
 		return evalExpr(e, fd.Body)
 	}
 
-	return Value{}, fmt.Errorf("%v: unknown function %q", c.P, c.Name)
+	return Value{}, PosErrorf(c.P, "unknown function %q", c.Name)
 }
 
-func iterableAsNums(v Value, pos Pos) ([]float64, error) {
-	elems, err := v.IterableElems(pos)
+func iterableAsNums(v Value) ([]float64, error) {
+	elems, err := v.IterableElems()
 	if err != nil {
 		return nil, err
 	}
 	out := make([]float64, 0, len(elems))
 	for _, x := range elems {
-		n, err := x.AsNum(pos)
+		n, err := x.AsNum()
 		if err != nil {
 			return nil, err
 		}
@@ -894,7 +902,7 @@ func iterableAsNums(v Value, pos Pos) ([]float64, error) {
 
 func evalMinMaxArgs(e *env, c Call) ([]float64, error) {
 	if len(c.Args) == 0 {
-		return nil, fmt.Errorf("%v: function %s needs at least 1 argument", c.P, c.Name)
+		return nil, PosErrorf(c.P, "function %s needs at least 1 argument", c.Name)
 	}
 	if len(c.Args) == 1 {
 		v, err := evalExpr(e, c.Args[0].Expr)
@@ -902,16 +910,16 @@ func evalMinMaxArgs(e *env, c Call) ([]float64, error) {
 			return nil, err
 		}
 		if v.Kind == ValList || v.Kind == ValRange || v.Kind == ValEach {
-			xs, err := iterableAsNums(v, c.P)
+			xs, err := iterableAsNums(v)
 			if err != nil {
 				return nil, err
 			}
 			if len(xs) == 0 {
-				return nil, fmt.Errorf("%v: function %s needs a non-empty vector/range", c.P, c.Name)
+				return nil, PosErrorf(c.P, "function %s needs a non-empty vector/range", c.Name)
 			}
 			return xs, nil
 		}
-		x, err := v.AsNum(c.P)
+		x, err := v.AsNum()
 		if err != nil {
 			return nil, err
 		}
@@ -923,7 +931,7 @@ func evalMinMaxArgs(e *env, c Call) ([]float64, error) {
 		if err != nil {
 			return nil, err
 		}
-		x, err := v.AsNum(c.P)
+		x, err := v.AsNum()
 		if err != nil {
 			return nil, err
 		}
@@ -934,18 +942,18 @@ func evalMinMaxArgs(e *env, c Call) ([]float64, error) {
 
 func evalUnaryNumericFuncArg(e *env, c Call) (float64, error) {
 	if len(c.Args) != 1 {
-		return 0, fmt.Errorf("%v: function %s needs exactly 1 argument", c.P, c.Name)
+		return 0, PosErrorf(c.P, "function %s needs exactly 1 argument", c.Name)
 	}
 	arg0, err := evalExpr(e, c.Args[0].Expr)
 	if err != nil {
 		return 0, err
 	}
-	return arg0.AsNum(c.P)
+	return arg0.AsNum()
 }
 
 func evalBinaryNumericFuncArgs(e *env, c Call) (float64, float64, error) {
 	if len(c.Args) != 2 {
-		return 0, 0, fmt.Errorf("%v: function %s needs exactly 2 arguments", c.P, c.Name)
+		return 0, 0, PosErrorf(c.P, "function %s needs exactly 2 arguments", c.Name)
 	}
 	arg0, err := evalExpr(e, c.Args[0].Expr)
 	if err != nil {
@@ -955,11 +963,11 @@ func evalBinaryNumericFuncArgs(e *env, c Call) (float64, float64, error) {
 	if err != nil {
 		return 0, 0, err
 	}
-	x, err := arg0.AsNum(c.P)
+	x, err := arg0.AsNum()
 	if err != nil {
 		return 0, 0, err
 	}
-	y, err := arg1.AsNum(c.P)
+	y, err := arg1.AsNum()
 	if err != nil {
 		return 0, 0, err
 	}
@@ -988,7 +996,7 @@ func bindParams(e *env, params []Param, args []Arg) error {
 	for _, a := range args {
 		if a.Name == "" {
 			if posi >= len(params) {
-				return fmt.Errorf("%v: too many positional args", a.P)
+				return PosErrorf(a.P, "too many positional args")
 			}
 			v, err := evalExpr(e, a.Expr)
 			if err != nil {
@@ -1002,7 +1010,7 @@ func bindParams(e *env, params []Param, args []Arg) error {
 	for _, a := range args {
 		if a.Name != "" {
 			if _, ok := paramNames[a.Name]; !ok {
-				return fmt.Errorf("%v: unknown named argument %q", a.P, a.Name)
+				return PosErrorf(a.P, "unknown named argument %q", a.Name)
 			}
 			v, err := evalExpr(e, a.Expr)
 			if err != nil {
@@ -1014,7 +1022,7 @@ func bindParams(e *env, params []Param, args []Arg) error {
 	// Check required
 	for _, p := range params {
 		if _, ok := values[p.Name]; !ok {
-			return fmt.Errorf("%v: missing parameter %q", p.P, p.Name)
+			return PosErrorf(p.P, "missing parameter %q", p.Name)
 		}
 	}
 	for k, v := range values {

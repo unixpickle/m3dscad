@@ -39,11 +39,11 @@ func parsePathMesh(e *env, st *CallStmt) (*model2d.Mesh, error) {
 	if err != nil {
 		return nil, err
 	}
-	path, err := argString(args, "path", st.pos())
+	path, err := argString(args, "path")
 	if err != nil {
 		return nil, err
 	}
-	segments, err := argNum(args, "segments", st.pos())
+	segments, err := argNum(args, "segments")
 	if err != nil {
 		return nil, err
 	}

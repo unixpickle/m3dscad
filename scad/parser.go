@@ -1,7 +1,5 @@
 package scad
 
-import "fmt"
-
 type Parser struct {
 	lx   *Lexer
 	cur  Token
@@ -107,7 +105,7 @@ func (p *Parser) parseStmt() (Stmt, error) {
 		return &CallStmt{Call: call, Children: []Stmt{child}, P: call.P}, nil
 	}
 
-	return nil, fmt.Errorf("%v: expected statement", p.cur.Pos)
+	return nil, PosErrorf(p.cur.Pos, "expected statement")
 }
 
 func (p *Parser) parseBlock() (*BlockStmt, error) {
@@ -187,7 +185,7 @@ func (p *Parser) parseModuleDef() (Stmt, error) {
 		return nil, err
 	}
 	if p.cur.Kind != TokIdent {
-		return nil, fmt.Errorf("%v: expected module name", p.cur.Pos)
+		return nil, PosErrorf(p.cur.Pos, "expected module name")
 	}
 	name := p.cur.Lexeme
 	p.advance()
@@ -210,7 +208,7 @@ func (p *Parser) parseFuncDef() (Stmt, error) {
 		return nil, err
 	}
 	if p.cur.Kind != TokIdent {
-		return nil, fmt.Errorf("%v: expected function name", p.cur.Pos)
+		return nil, PosErrorf(p.cur.Pos, "expected function name")
 	}
 	name := p.cur.Lexeme
 	p.advance()
@@ -241,7 +239,7 @@ func (p *Parser) parseParamList() ([]Param, error) {
 	if p.cur.Kind != TokRParen {
 		for {
 			if p.cur.Kind != TokIdent {
-				return nil, fmt.Errorf("%v: expected parameter name", p.cur.Pos)
+				return nil, PosErrorf(p.cur.Pos, "expected parameter name")
 			}
 			paramPos := p.cur.Pos
 			name := p.cur.Lexeme
@@ -593,7 +591,7 @@ func (p *Parser) parseAtom() (Expr, error) {
 		}
 		return ex, nil
 	default:
-		return nil, fmt.Errorf("%v: expected expression", p.cur.Pos)
+		return nil, PosErrorf(p.cur.Pos, "expected expression")
 	}
 }
 
@@ -683,7 +681,7 @@ func (p *Parser) parseNamedExprBinds(openErr, nameErr, assignErr, closeErr strin
 	if p.cur.Kind != TokRParen {
 		for {
 			if p.cur.Kind != TokIdent {
-				return nil, fmt.Errorf("%v: %s", p.cur.Pos, nameErr)
+				return nil, PosErrorf(p.cur.Pos, "%s", nameErr)
 			}
 			name := p.cur.Lexeme
 			pos := p.cur.Pos
@@ -719,14 +717,14 @@ func (p *Parser) advance() error {
 
 func (p *Parser) expect(k TokenKind, msg string) error {
 	if p.cur.Kind != k {
-		return fmt.Errorf("%v: %s", p.cur.Pos, msg)
+		return PosErrorf(p.cur.Pos, "%s", msg)
 	}
 	return p.advance()
 }
 
 func (p *Parser) expectIdent(want string) error {
 	if p.cur.Kind != TokIdent || p.cur.Lexeme != want {
-		return fmt.Errorf("%v: expected %q", p.cur.Pos, want)
+		return PosErrorf(p.cur.Pos, "expected %q", want)
 	}
 	return p.advance()
 }

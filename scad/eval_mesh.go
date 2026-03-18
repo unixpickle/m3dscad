@@ -18,11 +18,11 @@ func handleMarchingSquares(e *env, st *CallStmt, _ []ShapeRep, childUnion *Shape
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	delta, err := argNum(args, "delta", st.pos())
+	delta, err := argNum(args, "delta")
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	subdiv, err := argNum(args, "subdiv", st.pos())
+	subdiv, err := argNum(args, "subdiv")
 	if err != nil {
 		return ShapeRep{}, err
 	}
@@ -47,11 +47,11 @@ func handleMarchingCubes(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRe
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	delta, err := argNum(args, "delta", st.pos())
+	delta, err := argNum(args, "delta")
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	subdiv, err := argNum(args, "subdiv", st.pos())
+	subdiv, err := argNum(args, "subdiv")
 	if err != nil {
 		return ShapeRep{}, err
 	}
@@ -77,15 +77,15 @@ func handleDualContour(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep)
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	delta, err := argNum(args, "delta", st.pos())
+	delta, err := argNum(args, "delta")
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	repair, err := argBool(args, "repair", st.pos())
+	repair, err := argBool(args, "repair")
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	clip, err := argBool(args, "clip", st.pos())
+	clip, err := argBool(args, "clip")
 	if err != nil {
 		return ShapeRep{}, err
 	}

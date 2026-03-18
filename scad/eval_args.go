@@ -28,7 +28,7 @@ func bindArgs(e *env, c Call, specs []ArgSpec) (map[string]Value, error) {
 		}
 		if a.Name != "" {
 			if _, ok := allowedNames[a.Name]; !ok {
-				return nil, fmt.Errorf("%v: %s(): unknown argument %q", a.P, c.Name, a.Name)
+				return nil, fmt.Errorf("%s(): unknown argument %q", c.Name, a.Name)
 			}
 			named[a.Name] = v
 		} else {
@@ -54,7 +54,7 @@ func bindArgs(e *env, c Call, specs []ArgSpec) (map[string]Value, error) {
 		}
 		if !ok {
 			if spec.Required {
-				return nil, fmt.Errorf("%v: missing parameter %q", c.P, spec.Name)
+				return nil, fmt.Errorf("missing parameter %q", spec.Name)
 			}
 			v = spec.Default
 		}
@@ -63,42 +63,42 @@ func bindArgs(e *env, c Call, specs []ArgSpec) (map[string]Value, error) {
 	return out, nil
 }
 
-func argNum(args map[string]Value, name string, pos Pos) (float64, error) {
+func argNum(args map[string]Value, name string) (float64, error) {
 	v, ok := args[name]
 	if !ok {
-		return 0, fmt.Errorf("%v: missing parameter %q", pos, name)
+		return 0, fmt.Errorf("missing parameter %q", name)
 	}
-	return v.AsNum(pos)
+	return v.AsNum()
 }
 
-func argBool(args map[string]Value, name string, pos Pos) (bool, error) {
+func argBool(args map[string]Value, name string) (bool, error) {
 	v, ok := args[name]
 	if !ok {
-		return false, fmt.Errorf("%v: missing parameter %q", pos, name)
+		return false, fmt.Errorf("missing parameter %q", name)
 	}
-	return v.AsBool(pos)
+	return v.AsBool()
 }
 
-func argString(args map[string]Value, name string, pos Pos) (string, error) {
+func argString(args map[string]Value, name string) (string, error) {
 	v, ok := args[name]
 	if !ok {
-		return "", fmt.Errorf("%v: missing parameter %q", pos, name)
+		return "", fmt.Errorf("missing parameter %q", name)
 	}
-	return v.AsString(pos)
+	return v.AsString()
 }
 
-func argVec3(args map[string]Value, name string, pos Pos) ([3]float64, error) {
+func argVec3(args map[string]Value, name string) ([3]float64, error) {
 	v, ok := args[name]
 	if !ok {
-		return [3]float64{}, fmt.Errorf("%v: missing parameter %q", pos, name)
+		return [3]float64{}, fmt.Errorf("missing parameter %q", name)
 	}
-	return v.AsVec3(pos)
+	return v.AsVec3()
 }
 
-func argVec2(args map[string]Value, name string, pos Pos) ([2]float64, error) {
+func argVec2(args map[string]Value, name string) ([2]float64, error) {
 	v, ok := args[name]
 	if !ok {
-		return [2]float64{}, fmt.Errorf("%v: missing parameter %q", pos, name)
+		return [2]float64{}, fmt.Errorf("missing parameter %q", name)
 	}
-	return v.AsVec2(pos)
+	return v.AsVec2()
 }

@@ -45,31 +45,31 @@ func parseTextMesh(e *env, st *CallStmt) (*model2d.Mesh, error) {
 		return nil, err
 	}
 
-	text, err := argString(args, "text", st.pos())
+	text, err := argString(args, "text")
 	if err != nil {
 		return nil, err
 	}
-	size, err := argNum(args, "size", st.pos())
+	size, err := argNum(args, "size")
 	if err != nil {
 		return nil, err
 	}
-	font, err := argString(args, "font", st.pos())
+	font, err := argString(args, "font")
 	if err != nil {
 		return nil, err
 	}
-	halign, err := argString(args, "halign", st.pos())
+	halign, err := argString(args, "halign")
 	if err != nil {
 		return nil, err
 	}
-	valign, err := argString(args, "valign", st.pos())
+	valign, err := argString(args, "valign")
 	if err != nil {
 		return nil, err
 	}
-	spacing, err := argNum(args, "spacing", st.pos())
+	spacing, err := argNum(args, "spacing")
 	if err != nil {
 		return nil, err
 	}
-	segments, err := argNum(args, "segments", st.pos())
+	segments, err := argNum(args, "segments")
 	if err != nil {
 		return nil, err
 	}

@@ -184,7 +184,7 @@ func parsePolygonSolid(e *env, st *CallStmt) (model2d.Solid, error) {
 	if err != nil {
 		return nil, err
 	}
-	primary, err := polygonPathSolid(points, paths[0], st.pos())
+	primary, err := polygonPathSolid(points, paths[0])
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +193,7 @@ func parsePolygonSolid(e *env, st *CallStmt) (model2d.Solid, error) {
 	}
 	holes := make([]model2d.Solid, 0, len(paths)-1)
 	for _, p := range paths[1:] {
-		s, err := polygonPathSolid(points, p, st.pos())
+		s, err := polygonPathSolid(points, p)
 		if err != nil {
 			return nil, err
 		}
@@ -209,7 +209,7 @@ func parsePolygonMesh(e *env, st *CallStmt) (*model2d.Mesh, error) {
 	}
 	mesh := model2d.NewMesh()
 	for _, path := range paths {
-		pathMesh, err := polygonPathMesh(points, path, st.pos())
+		pathMesh, err := polygonPathMesh(points, path)
 		if err != nil {
 			return nil, err
 		}
@@ -227,14 +227,14 @@ func parsePolygonData(e *env, st *CallStmt) ([]model2d.Coord, [][]int, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	points, err := parsePolygonPoints(args["points"], st.pos())
+	points, err := parsePolygonPoints(args["points"])
 	if err != nil {
 		return nil, nil, err
 	}
 	if len(points) < 3 {
 		return nil, nil, fmt.Errorf("polygon(): need at least 3 points")
 	}
-	paths, err := parsePolygonPaths(args["paths"], len(points), st.pos())
+	paths, err := parsePolygonPaths(args["paths"], len(points))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -251,7 +251,7 @@ func parseSphere(e *env, st *CallStmt) (*model3d.Sphere, error) {
 	if err != nil {
 		return nil, err
 	}
-	r, err := argNum(args, "r", st.pos())
+	r, err := argNum(args, "r")
 	if err != nil {
 		return nil, err
 	}
@@ -270,11 +270,11 @@ func parseCube(e *env, st *CallStmt) (*model3d.Rect, error) {
 	if !ok {
 		return nil, fmt.Errorf("missing parameter \"size\"")
 	}
-	vec, err := sizeV.AsVec3(st.pos())
+	vec, err := sizeV.AsVec3()
 	if err != nil {
 		return nil, err
 	}
-	center, err := argBool(args, "center", st.pos())
+	center, err := argBool(args, "center")
 	if err != nil {
 		return nil, err
 	}
@@ -386,38 +386,38 @@ func parseCylinderArgs(e *env, st *CallStmt) (h, r1, r2 float64, center bool, er
 	}
 
 	if len(positional) >= 1 {
-		h, err = positional[0].AsNum(st.pos())
+		h, err = positional[0].AsNum()
 		if err != nil {
 			return
 		}
 	}
 	if len(positional) >= 2 {
-		r1, err = positional[1].AsNum(st.pos())
+		r1, err = positional[1].AsNum()
 		if err != nil {
 			return
 		}
 	}
 	if len(positional) >= 3 {
-		r2, err = positional[2].AsNum(st.pos())
+		r2, err = positional[2].AsNum()
 		if err != nil {
 			return
 		}
 	}
 	if len(positional) >= 4 {
-		center, err = positional[3].AsBool(st.pos())
+		center, err = positional[3].AsBool()
 		if err != nil {
 			return
 		}
 	}
 
 	if v, ok := named["h"]; ok {
-		h, err = v.AsNum(st.pos())
+		h, err = v.AsNum()
 		if err != nil {
 			return
 		}
 	}
 	if v, ok := named["center"]; ok {
-		center, err = v.AsBool(st.pos())
+		center, err = v.AsBool()
 		if err != nil {
 			return
 		}
@@ -452,7 +452,7 @@ func parseCylinderArgs(e *env, st *CallStmt) (h, r1, r2 float64, center bool, er
 
 	if usesUniform {
 		if rv, ok := named["r"]; ok {
-			r, convErr := rv.AsNum(st.pos())
+			r, convErr := rv.AsNum()
 			if convErr != nil {
 				err = convErr
 				return
@@ -465,7 +465,7 @@ func parseCylinderArgs(e *env, st *CallStmt) (h, r1, r2 float64, center bool, er
 				err = fmt.Errorf("cylinder(): cannot provide both r and d")
 				return
 			}
-			d, convErr := dv.AsNum(st.pos())
+			d, convErr := dv.AsNum()
 			if convErr != nil {
 				err = convErr
 				return
@@ -475,13 +475,13 @@ func parseCylinderArgs(e *env, st *CallStmt) (h, r1, r2 float64, center bool, er
 		}
 	} else {
 		if rv, ok := named["r1"]; ok {
-			r1, err = rv.AsNum(st.pos())
+			r1, err = rv.AsNum()
 			if err != nil {
 				return
 			}
 		}
 		if rv, ok := named["r2"]; ok {
-			r2, err = rv.AsNum(st.pos())
+			r2, err = rv.AsNum()
 			if err != nil {
 				return
 			}
@@ -491,7 +491,7 @@ func parseCylinderArgs(e *env, st *CallStmt) (h, r1, r2 float64, center bool, er
 				err = fmt.Errorf("cylinder(): cannot provide both r1 and d1")
 				return
 			}
-			d, convErr := dv.AsNum(st.pos())
+			d, convErr := dv.AsNum()
 			if convErr != nil {
 				err = convErr
 				return
@@ -503,7 +503,7 @@ func parseCylinderArgs(e *env, st *CallStmt) (h, r1, r2 float64, center bool, er
 				err = fmt.Errorf("cylinder(): cannot provide both r2 and d2")
 				return
 			}
-			d, convErr := dv.AsNum(st.pos())
+			d, convErr := dv.AsNum()
 			if convErr != nil {
 				err = convErr
 				return
@@ -532,21 +532,21 @@ func parseCapsule(e *env, st *CallStmt) (*model3d.Capsule, error) {
 	if err != nil {
 		return nil, err
 	}
-	h, err := argNum(args, "h", st.pos())
+	h, err := argNum(args, "h")
 	if err != nil {
 		return nil, err
 	}
 	if h < 0 {
 		return nil, fmt.Errorf("capsule(): h must be non-negative")
 	}
-	r, err := argNum(args, "r", st.pos())
+	r, err := argNum(args, "r")
 	if err != nil {
 		return nil, err
 	}
 	if r < 0 {
 		return nil, fmt.Errorf("capsule(): r must be non-negative")
 	}
-	center, err := argBool(args, "center", st.pos())
+	center, err := argBool(args, "center")
 	if err != nil {
 		return nil, err
 	}
@@ -572,7 +572,7 @@ func parseCircle(e *env, st *CallStmt) (*model2d.Circle, error) {
 	if err != nil {
 		return nil, err
 	}
-	r, err := argNum(args, "r", st.pos())
+	r, err := argNum(args, "r")
 	if err != nil {
 		return nil, err
 	}
@@ -591,11 +591,11 @@ func parseSquare(e *env, st *CallStmt) (*model2d.Rect, error) {
 	if !ok {
 		return nil, fmt.Errorf("missing parameter \"size\"")
 	}
-	vec, err := sizeV.AsVec2(st.pos())
+	vec, err := sizeV.AsVec2()
 	if err != nil {
 		return nil, err
 	}
-	center, err := argBool(args, "center", st.pos())
+	center, err := argBool(args, "center")
 	if err != nil {
 		return nil, err
 	}
@@ -611,16 +611,16 @@ func parseSquare(e *env, st *CallStmt) (*model2d.Rect, error) {
 	), nil
 }
 
-func parsePolygonPoints(val Value, pos Pos) ([]model2d.Coord, error) {
+func parsePolygonPoints(val Value) ([]model2d.Coord, error) {
 	if val.Kind != ValList {
-		return nil, fmt.Errorf("%v: polygon(): points must be a list", pos)
+		return nil, fmt.Errorf("polygon(): points must be a list")
 	}
 	points := make([]model2d.Coord, 0, len(val.List))
 	for _, v := range val.List {
 		if v.Kind != ValList {
-			return nil, fmt.Errorf("%v: polygon(): points must be a list of [x, y] pairs", pos)
+			return nil, fmt.Errorf("polygon(): points must be a list of [x, y] pairs")
 		}
-		vec, err := v.AsVec2(pos)
+		vec, err := v.AsVec2()
 		if err != nil {
 			return nil, err
 		}
@@ -629,18 +629,18 @@ func parsePolygonPoints(val Value, pos Pos) ([]model2d.Coord, error) {
 	return points, nil
 }
 
-func parsePolygonPaths(val Value, numPoints int, pos Pos) ([][]int, error) {
+func parsePolygonPaths(val Value, numPoints int) ([][]int, error) {
 	if val.Kind == ValNull {
 		return nil, nil
 	}
 	if val.Kind != ValList {
-		return nil, fmt.Errorf("%v: polygon(): paths must be a list", pos)
+		return nil, fmt.Errorf("polygon(): paths must be a list")
 	}
 	if len(val.List) == 0 {
 		return nil, nil
 	}
 	if val.List[0].Kind != ValList {
-		path, err := parsePolygonPath(val.List, numPoints, pos)
+		path, err := parsePolygonPath(val.List, numPoints)
 		if err != nil {
 			return nil, err
 		}
@@ -649,9 +649,9 @@ func parsePolygonPaths(val Value, numPoints int, pos Pos) ([][]int, error) {
 	paths := make([][]int, 0, len(val.List))
 	for _, p := range val.List {
 		if p.Kind != ValList {
-			return nil, fmt.Errorf("%v: polygon(): paths must be a list of lists", pos)
+			return nil, fmt.Errorf("polygon(): paths must be a list of lists")
 		}
-		path, err := parsePolygonPath(p.List, numPoints, pos)
+		path, err := parsePolygonPath(p.List, numPoints)
 		if err != nil {
 			return nil, err
 		}
@@ -660,21 +660,21 @@ func parsePolygonPaths(val Value, numPoints int, pos Pos) ([][]int, error) {
 	return paths, nil
 }
 
-func parsePolygonPath(vals []Value, numPoints int, pos Pos) ([]int, error) {
+func parsePolygonPath(vals []Value, numPoints int) ([]int, error) {
 	if len(vals) < 3 {
-		return nil, fmt.Errorf("%v: polygon(): path must have at least 3 points", pos)
+		return nil, fmt.Errorf("polygon(): path must have at least 3 points")
 	}
 	path := make([]int, 0, len(vals))
 	for _, v := range vals {
 		if v.Kind != ValNum {
-			return nil, fmt.Errorf("%v: polygon(): path indices must be numbers", pos)
+			return nil, fmt.Errorf("polygon(): path indices must be numbers")
 		}
 		idx := int(v.Num)
 		if float64(idx) != v.Num {
-			return nil, fmt.Errorf("%v: polygon(): path indices must be integers", pos)
+			return nil, fmt.Errorf("polygon(): path indices must be integers")
 		}
 		if idx < 0 || idx >= numPoints {
-			return nil, fmt.Errorf("%v: polygon(): path index %d out of range", pos, idx)
+			return nil, fmt.Errorf("polygon(): path index %d out of range", idx)
 		}
 		path = append(path, idx)
 	}
@@ -689,17 +689,17 @@ func defaultPolygonPath(n int) []int {
 	return path
 }
 
-func polygonPathSolid(points []model2d.Coord, path []int, pos Pos) (model2d.Solid, error) {
-	mesh, err := polygonPathMesh(points, path, pos)
+func polygonPathSolid(points []model2d.Coord, path []int) (model2d.Solid, error) {
+	mesh, err := polygonPathMesh(points, path)
 	if err != nil {
 		return nil, err
 	}
 	return mesh.Solid(), nil
 }
 
-func polygonPathMesh(points []model2d.Coord, path []int, pos Pos) (*model2d.Mesh, error) {
+func polygonPathMesh(points []model2d.Coord, path []int) (*model2d.Mesh, error) {
 	if len(path) < 3 {
-		return nil, fmt.Errorf("%v: polygon(): path must have at least 3 points", pos)
+		return nil, fmt.Errorf("polygon(): path must have at least 3 points")
 	}
 	segs := make([]*model2d.Segment, 0, len(path))
 	for i, idx := range path {

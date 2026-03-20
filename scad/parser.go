@@ -481,17 +481,31 @@ func (p *Parser) parsePrimary() (Expr, error) {
 	if err != nil {
 		return nil, err
 	}
-	for p.cur.Kind == TokLBrack {
-		pos := p.cur.Pos
-		p.advance()
-		idx, err := p.parseExpr()
-		if err != nil {
-			return nil, err
+	for {
+		if p.cur.Kind == TokLBrack {
+			pos := p.cur.Pos
+			p.advance()
+			idx, err := p.parseExpr()
+			if err != nil {
+				return nil, err
+			}
+			if err := p.expect(TokRBrack, "expected ']' after index"); err != nil {
+				return nil, err
+			}
+			expr = &IndexExpr{X: expr, Index: idx, P: pos}
+			continue
 		}
-		if err := p.expect(TokRBrack, "expected ']' after index"); err != nil {
-			return nil, err
+		if p.cur.Kind == TokDot {
+			pos := p.cur.Pos
+			p.advance()
+			if p.cur.Kind != TokIdent {
+				return nil, PosErrorf(p.cur.Pos, "expected identifier after '.'")
+			}
+			expr = &DotExpr{X: expr, Name: p.cur.Lexeme, P: pos}
+			p.advance()
+			continue
 		}
-		expr = &IndexExpr{X: expr, Index: idx, P: pos}
+		break
 	}
 	return expr, nil
 }

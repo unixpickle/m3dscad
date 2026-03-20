@@ -38,6 +38,16 @@ func handleDifference(_ *env, _ *CallStmt, children []ShapeRep, _ *ShapeRep) (Sh
 		return shapeSDF3D(sdfSubtract3D(children[0], subUnion)), nil
 	case ShapeSDF2D:
 		return shapeSDF2D(sdfSubtract2D(children[0], subUnion)), nil
+	case ShapeMetaball2D:
+		return ShapeRep{
+			Kind: ShapeMetaball2D,
+			MB2:  children[0].MB2.Join(subUnion.MB2.Scale(-1)),
+		}, nil
+	case ShapeMetaball3D:
+		return ShapeRep{
+			Kind: ShapeMetaball3D,
+			MB3:  children[0].MB3.Join(subUnion.MB3.Scale(-1)),
+		}, nil
 	case ShapeMesh2D, ShapeMesh3D:
 		return ShapeRep{}, fmt.Errorf("difference() not supported for meshes")
 	default:

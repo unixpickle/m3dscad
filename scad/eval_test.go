@@ -786,6 +786,15 @@ func TestExpressionAssignments(t *testing.T) {
 			}),
 		},
 		{
+			name: "VectorXYZAccessors",
+			src: `
+				v = [11, 22, 33, 44];
+				out = [v.x, v.y, v.z, [0:2:10].z];
+			`,
+			var_: "out",
+			want: List([]Value{Num(11), Num(22), Num(33), Num(4)}),
+		},
+		{
 			name: "ComparisonSemantics",
 			src: `
 					out = [
@@ -827,6 +836,49 @@ func TestExpressionAssignments(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, tc.want) {
 				t.Fatalf("value mismatch for %q:\n got: %#v\nwant: %#v", tc.var_, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestVectorAccessorErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		src     string
+		wantErr string
+	}{
+		{
+			name:    "UnknownAccessor",
+			src:     `v=[1,2,3]; out=v.w;`,
+			wantErr: `unknown vector accessor "w"`,
+		},
+		{
+			name:    "AccessorAfterDotNeedsIdentifier",
+			src:     `v=[1,2,3]; out=v.;`,
+			wantErr: "expected identifier after '.'",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			prog, err := Parse(tc.src)
+			if strings.Contains(tc.wantErr, "expected identifier") {
+				if err == nil {
+					t.Fatal("expected parse error")
+				}
+				if !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("expected error containing %q, got %v", tc.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parse failed: %v", err)
+			}
+			_, err = Eval(prog)
+			if err == nil {
+				t.Fatal("expected eval error")
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("expected error containing %q, got %v", tc.wantErr, err)
 			}
 		})
 	}

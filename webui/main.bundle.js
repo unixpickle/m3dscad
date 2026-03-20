@@ -22817,15 +22817,28 @@ difference() {
   function setupResizer() {
     if (!resizer) return;
     const app = document.querySelector(".app");
+    if (!app) return;
+    const minLeft = 260;
+    const minRight = 320;
+    const mobileBreakpoint = 900;
     let dragging = false;
+    let preferredLeft = null;
+    const clampLeft = (left, width) => Math.min(Math.max(left, minLeft), Math.max(minLeft, width - minRight));
+    const applyLayout = (left) => {
+      if (window.innerWidth <= mobileBreakpoint) {
+        app.style.gridTemplateColumns = "";
+        return;
+      }
+      const rect = app.getBoundingClientRect();
+      const clampedLeft = clampLeft(left, rect.width);
+      preferredLeft = clampedLeft;
+      const right = rect.width - clampedLeft;
+      app.style.gridTemplateColumns = `${clampedLeft}px 8px ${right}px`;
+    };
     const onMove = (event) => {
       if (!dragging) return;
       const rect = app.getBoundingClientRect();
-      const minLeft = 260;
-      const minRight = 320;
-      const x = Math.min(Math.max(event.clientX - rect.left, minLeft), rect.width - minRight);
-      const right = rect.width - x;
-      app.style.gridTemplateColumns = `${x}px 8px ${right}px`;
+      applyLayout(event.clientX - rect.left);
     };
     resizer.addEventListener("mousedown", (event) => {
       dragging = true;
@@ -22839,6 +22852,10 @@ difference() {
       dragging = false;
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
+    });
+    window.addEventListener("resize", () => {
+      if (preferredLeft == null) return;
+      applyLayout(preferredLeft);
     });
   }
 })();

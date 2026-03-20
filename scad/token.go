@@ -19,6 +19,7 @@ const (
 	TokRBrack
 	TokComma
 	TokSemi
+	TokDot
 
 	// Operators
 	TokAssign // =

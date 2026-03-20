@@ -2,9 +2,9 @@ module github.com/unixpickle/m3dscad
 
 go 1.25.0
 
-require github.com/unixpickle/model3d v0.4.10
+require github.com/unixpickle/model3d v0.4.14
 
-require github.com/unixpickle/path2d v0.0.0
+require github.com/unixpickle/path2d v0.1.0
 
 require github.com/unixpickle/textcurve v0.1.0
 
@@ -17,7 +17,3 @@ require (
 	golang.org/x/image v0.36.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
 )
-
-replace github.com/unixpickle/textcurve => ../textcurve
-
-replace github.com/unixpickle/path2d => ../path2d

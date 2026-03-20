@@ -21,14 +21,53 @@ const (
 	ShapeMetaball3D
 )
 
-type Metaball2D struct {
-	Metaball model2d.Metaball
-	Sign     bool
+type WeightedMetaballs[T any] struct {
+	Balls   []T
+	Weights []float64
 }
 
-type Metaball3D struct {
-	Metaball model3d.Metaball
-	Sign     bool
+type Metaball2D = WeightedMetaballs[model2d.Metaball]
+type Metaball3D = WeightedMetaballs[model3d.Metaball]
+
+func (m *WeightedMetaballs[T]) Map(fn func(T) T) *WeightedMetaballs[T] {
+	if m == nil {
+		return &WeightedMetaballs[T]{}
+	}
+	out := &WeightedMetaballs[T]{
+		Balls:   make([]T, len(m.Balls)),
+		Weights: append([]float64{}, m.Weights...),
+	}
+	for i, mb := range m.Balls {
+		out.Balls[i] = fn(mb)
+	}
+	return out
+}
+
+func (m *WeightedMetaballs[T]) Scale(weight float64) *WeightedMetaballs[T] {
+	if m == nil {
+		return &WeightedMetaballs[T]{}
+	}
+	out := &WeightedMetaballs[T]{
+		Balls:   append([]T{}, m.Balls...),
+		Weights: make([]float64, len(m.Weights)),
+	}
+	for i, w := range m.Weights {
+		out.Weights[i] = w * weight
+	}
+	return out
+}
+
+func (m *WeightedMetaballs[T]) Join(other *WeightedMetaballs[T]) *WeightedMetaballs[T] {
+	out := &WeightedMetaballs[T]{}
+	if m != nil {
+		out.Balls = append(out.Balls, m.Balls...)
+		out.Weights = append(out.Weights, m.Weights...)
+	}
+	if other != nil {
+		out.Balls = append(out.Balls, other.Balls...)
+		out.Weights = append(out.Weights, other.Weights...)
+	}
+	return out
 }
 
 type ShapeRep struct {
@@ -53,8 +92,8 @@ func shapeMetaball2D(m model2d.Metaball) ShapeRep {
 	return ShapeRep{
 		Kind: ShapeMetaball2D,
 		MB2: &Metaball2D{
-			Metaball: m,
-			Sign:     true,
+			Balls:   []model2d.Metaball{m},
+			Weights: []float64{1},
 		},
 	}
 }
@@ -62,8 +101,8 @@ func shapeMetaball3D(m model3d.Metaball) ShapeRep {
 	return ShapeRep{
 		Kind: ShapeMetaball3D,
 		MB3: &Metaball3D{
-			Metaball: m,
-			Sign:     true,
+			Balls:   []model3d.Metaball{m},
+			Weights: []float64{1},
 		},
 	}
 }
@@ -113,6 +152,18 @@ func unionAll(children []ShapeRep) (ShapeRep, error) {
 		return shapeSDF3D(sdfUnion3D(children)), nil
 	case ShapeSDF2D:
 		return shapeSDF2D(sdfUnion2D(children)), nil
+	case ShapeMetaball2D:
+		var out *Metaball2D
+		for _, ch := range children {
+			out = out.Join(ch.MB2)
+		}
+		return ShapeRep{Kind: ShapeMetaball2D, MB2: out}, nil
+	case ShapeMetaball3D:
+		var out *Metaball3D
+		for _, ch := range children {
+			out = out.Join(ch.MB3)
+		}
+		return ShapeRep{Kind: ShapeMetaball3D, MB3: out}, nil
 	case ShapeMesh3D, ShapeMesh2D:
 		return ShapeRep{}, fmt.Errorf("cannot union meshes")
 	default:

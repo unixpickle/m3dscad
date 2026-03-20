@@ -204,6 +204,15 @@ type IndexExpr struct {
 func (*IndexExpr) exprNode()  {}
 func (e *IndexExpr) pos() Pos { return e.P }
 
+type DotExpr struct {
+	X    Expr
+	Name string
+	P    Pos
+}
+
+func (*DotExpr) exprNode()  {}
+func (e *DotExpr) pos() Pos { return e.P }
+
 type ForExpr struct {
 	Binds []ForBind
 	Body  Expr

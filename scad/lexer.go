@@ -133,6 +133,8 @@ func (l *Lexer) Next() (Token, error) {
 		return Token{Kind: TokComma, Lexeme: ",", Pos: startPos}, nil
 	case ';':
 		return Token{Kind: TokSemi, Lexeme: ";", Pos: startPos}, nil
+	case '.':
+		return Token{Kind: TokDot, Lexeme: ".", Pos: startPos}, nil
 	case '=':
 		return Token{Kind: TokAssign, Lexeme: "=", Pos: startPos}, nil
 	case '+':

@@ -336,6 +336,23 @@ func evalExpr(e *env, ex Expr) (Value, error) {
 			return Value{}, PosErrorf(x.Index.pos(), "index must be an integer")
 		}
 		return base.ElemAt(idx)
+	case *DotExpr:
+		base, err := evalExpr(e, x.X)
+		if err != nil {
+			return Value{}, err
+		}
+		idx := -1
+		switch x.Name {
+		case "x":
+			idx = 0
+		case "y":
+			idx = 1
+		case "z":
+			idx = 2
+		default:
+			return Value{}, PosErrorf(x.P, "unknown vector accessor %q", x.Name)
+		}
+		return base.ElemAt(idx)
 	case *ForExpr:
 		var out []Value
 		err := evalForBindsExpr(e, x.Binds, 0, func() error {

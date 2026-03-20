@@ -102,10 +102,10 @@ var builtinHandlers = map[string]callHandler{
 		NeedsChildUnion: true,
 		Eval:            handleMetaball,
 	},
-	"negate_metaball": {
+	"weight_metaball": {
 		AllowChildren:   true,
 		RequireChildren: true,
-		Eval:            handleNegateMetaball,
+		Eval:            handleWeightMetaball,
 	},
 	"metaball_solid": {
 		AllowChildren:   true,

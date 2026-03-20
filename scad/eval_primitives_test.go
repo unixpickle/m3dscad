@@ -288,3 +288,18 @@ func TestPolygonMeshAndSDFOutputKinds(t *testing.T) {
 		t.Fatalf("expected ShapeSDF2D, got %v", sdfShape.Kind)
 	}
 }
+
+func assertSolids3DEqual(t *testing.T, a, b model3d.Solid) {
+	t.Helper()
+	min := a.Min().Min(b.Min())
+	max := a.Max().Max(b.Max())
+	rng := rand.New(rand.NewSource(1337))
+	for i := 0; i < 2000; i++ {
+		p := model3d.NewCoord3DRandBounds(min, max, rng)
+		av := a.Contains(p)
+		bv := b.Contains(p)
+		if av != bv {
+			t.Fatalf("contains mismatch at %v: %v != %v", p, av, bv)
+		}
+	}
+}

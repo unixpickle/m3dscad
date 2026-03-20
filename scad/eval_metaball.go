@@ -19,17 +19,27 @@ func handleMetaball(_ *env, _ *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (Sh
 	}
 }
 
-func handleNegateMetaball(_ *env, _ *CallStmt, children []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
-	if len(children) != 1 {
-		return ShapeRep{}, fmt.Errorf("negate_metaball(): requires exactly 1 child")
+func handleWeightMetaball(e *env, st *CallStmt, children []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
+	args, err := bindArgs(e, st.Call, []ArgSpec{
+		{Name: "weight", Pos: 0, Required: true},
+	})
+	if err != nil {
+		return ShapeRep{}, err
 	}
-	return negateMetaball(children[0])
+	weight, err := argNum(args, "weight")
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	if len(children) != 1 {
+		return ShapeRep{}, fmt.Errorf("weight_metaball(): requires exactly 1 child")
+	}
+	return weightMetaball(children[0], weight)
 }
 
 func handleMetaballSolid(e *env, st *CallStmt, children []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
 	args, err := bindArgs(e, st.Call, []ArgSpec{
 		{Name: "threshold", Pos: 0, Required: true},
-		{Name: "falloff", Pos: 1, Default: String("quartic")},
+		{Name: "falloff", Pos: 1, Default: String("gaussian")},
 	})
 	if err != nil {
 		return ShapeRep{}, err
@@ -52,54 +62,40 @@ func handleMetaballSolid(e *env, st *CallStmt, children []ShapeRep, _ *ShapeRep)
 		if err != nil {
 			return ShapeRep{}, err
 		}
-		var pos, neg []model2d.Metaball
+		var coll *Metaball2D
 		for _, child := range children {
-			if child.MB2.Sign {
-				pos = append(pos, child.MB2.Metaball)
-			} else {
-				neg = append(neg, child.MB2.Metaball)
-			}
+			coll = coll.Join(child.MB2)
 		}
-		return shapeSolid2D(model2d.SignedMetaballSolid(f, threshold, pos, neg)), nil
+		return shapeSolid2D(model2d.WeightedMetaballSolid(f, threshold, coll.Balls, coll.Weights)), nil
 	case ShapeMetaball3D:
 		f, err := metaballFalloff3D(falloffName)
 		if err != nil {
 			return ShapeRep{}, err
 		}
-		var pos, neg []model3d.Metaball
+		var coll *Metaball3D
 		for _, child := range children {
-			if child.MB3.Sign {
-				pos = append(pos, child.MB3.Metaball)
-			} else {
-				neg = append(neg, child.MB3.Metaball)
-			}
+			coll = coll.Join(child.MB3)
 		}
-		return shapeSolid3D(model3d.SignedMetaballSolid(f, threshold, pos, neg)), nil
+		return shapeSolid3D(model3d.WeightedMetaballSolid(f, threshold, coll.Balls, coll.Weights)), nil
 	default:
 		return ShapeRep{}, fmt.Errorf("metaball_solid(): requires metaball children")
 	}
 }
 
-func negateMetaball(shape ShapeRep) (ShapeRep, error) {
+func weightMetaball(shape ShapeRep, weight float64) (ShapeRep, error) {
 	switch shape.Kind {
 	case ShapeMetaball2D:
 		return ShapeRep{
 			Kind: ShapeMetaball2D,
-			MB2: &Metaball2D{
-				Metaball: shape.MB2.Metaball,
-				Sign:     !shape.MB2.Sign,
-			},
+			MB2:  shape.MB2.Scale(weight),
 		}, nil
 	case ShapeMetaball3D:
 		return ShapeRep{
 			Kind: ShapeMetaball3D,
-			MB3: &Metaball3D{
-				Metaball: shape.MB3.Metaball,
-				Sign:     !shape.MB3.Sign,
-			},
+			MB3:  shape.MB3.Scale(weight),
 		}, nil
 	default:
-		return ShapeRep{}, fmt.Errorf("negate_metaball(): requires a metaball")
+		return ShapeRep{}, fmt.Errorf("weight_metaball(): requires a metaball")
 	}
 }
 

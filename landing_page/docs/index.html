@@ -85,7 +85,7 @@
         <h3><a href="#metaball-section">Metaball</a></h3>
         <ul>
           <li><a href="#metaball">metaball</a></li>
-          <li><a href="#negate_metaball">negate_metaball</a></li>
+          <li><a href="#weight_metaball">weight_metaball</a></li>
           <li><a href="#metaball_solid">metaball_solid</a></li>
         </ul>
 
@@ -505,13 +505,16 @@ sphere(r=radius);</pre>
         <pre class="example-code">metaball() { sdf }</pre>
         <ul><li><code>children</code>: SDF child geometry to convert.</li></ul>
 
-        <h3 id="negate_metaball"><code>negate_metaball</code></h3>
-        <p>Flips metaball sign so it subtracts during metaball composition.</p>
-        <pre class="example-code">negate_metaball() { metaball }</pre>
-        <ul><li><code>children</code>: Exactly one metaball child whose sign is inverted.</li></ul>
+        <h3 id="weight_metaball"><code>weight_metaball</code></h3>
+        <p>Scales metaball weights during metaball composition.</p>
+        <pre class="example-code">weight_metaball(weight) { metaball }</pre>
+        <ul>
+          <li><code>weight</code>: Multiplier for all child metaball weights (for negation, use <code>-1</code>).</li>
+          <li><code>children</code>: Exactly one metaball child to scale.</li>
+        </ul>
 
         <h3 id="metaball_solid"><code>metaball_solid</code></h3>
-        <p>Combines signed metaballs into a solid using a thresholded falloff field.</p>
+        <p>Combines weighted metaballs into a solid using a thresholded falloff field.</p>
         <pre class="example-code">metaball_solid(threshold, falloff="quartic") { metaballs... }</pre>
         <ul>
           <li><code>threshold</code>: Isosurface threshold for solid extraction.</li>

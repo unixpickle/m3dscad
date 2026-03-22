@@ -45,6 +45,7 @@
           <li><a href="#cube">cube</a>, <a href="#cube_metaball">cube_metaball</a>, <a href="#cube_sdf">cube_sdf</a></li>
           <li><a href="#cylinder">cylinder</a>, <a href="#cylinder_metaball">cylinder_metaball</a>, <a href="#cylinder_sdf">cylinder_sdf</a></li>
           <li><a href="#capsule">capsule</a>, <a href="#capsule_metaball">capsule_metaball</a>, <a href="#capsule_sdf">capsule_sdf</a></li>
+          <li><a href="#line_join">line_join</a></li>
           <li><a href="#fn_solid">fn_solid</a></li>
         </ul>
 
@@ -275,6 +276,16 @@ sphere(r=radius);</pre>
           <li><code>center</code>: If true, centers the capsule around Z=0.</li>
         </ul>
 
+        <h3 id="line_join"><code>line_join</code></h3>
+        <p>Creates a rounded 3D tube-like solid around a polyline path.</p>
+        <pre class="example-code">line_join(points, r=1, norm="l2")</pre>
+        <ul>
+          <li><code>points</code>: List of 3D points <code>[[x, y, z], ...]</code> (at least two points).</li>
+          <li><code>r</code>: Join radius (non-negative).</li>
+          <li><code>norm</code>: Distance norm, either <code>"l2"</code> (euclidean) or <code>"l1"</code> (manhattan).</li>
+        </ul>
+        <pre class="example-code">line_join(points=[[0,0,0], [2,0,0], [2,2,0]], r=0.25, norm="l2");</pre>
+
         <h3 id="fn_solid"><code>fn_solid</code></h3>
         <p>Creates a 3D solid by evaluating a function over bounded 3D coordinates.</p>
         <pre class="example-code">fn_solid(min, max, fn)</pre>
@@ -469,12 +480,13 @@ sphere(r=radius);</pre>
         </ul>
 
         <h3 id="rotate_extrude"><code>rotate_extrude</code></h3>
-        <p>Revolves 2D solid geometry around the Z axis.</p>
+        <p>Revolves 2D solid geometry around the Z axis. For SDF children, a full 360-degree revolve preserves SDF output.</p>
         <pre class="example-code">rotate_extrude(angle=360, start=0) { child2d }</pre>
         <ul>
           <li><code>angle</code>: Sweep angle in degrees.</li>
           <li><code>start</code>: Start angle in degrees.</li>
-          <li><code>children</code>: 2D solid child geometry to revolve.</li>
+          <li><code>children</code>: 2D solid or 2D SDF child geometry to revolve.</li>
+          <li><code>SDF behavior</code>: SDF children require a full 360-degree sweep; partial sweeps are unsupported.</li>
         </ul>
 
         <h2 id="meshing-and-sdf">Meshing And SDF</h2>

@@ -119,7 +119,7 @@ func checkExtrudeTransform(kind string, twist float64, scale [2]float64) error {
 }
 
 func handleRotateExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
-	if childUnion.Kind != ShapeSolid2D {
+	if childUnion.Kind != ShapeSolid2D && childUnion.Kind != ShapeSDF2D {
 		return ShapeRep{}, fmt.Errorf("rotate_extrude() requires 2D children")
 	}
 	args, err := bindArgs(e, st.Call, []ArgSpec{
@@ -137,11 +137,32 @@ func handleRotateExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRe
 	if err != nil {
 		return ShapeRep{}, err
 	}
+	full := math.Abs(angle) >= 360-1e-9
+	if childUnion.Kind == ShapeSDF2D {
+		if !full {
+			return ShapeRep{}, fmt.Errorf("rotate_extrude(): SDF input requires full 360 angle")
+		}
+		return shapeSDF3D(rotateExtrudeSDF(childUnion.SDF2)), nil
+	}
 	solid, err := rotateExtrude(childUnion.S2, angle, start)
 	if err != nil {
 		return ShapeRep{}, err
 	}
 	return shapeSolid3D(solid), nil
+}
+
+func rotateExtrudeSDF(s model2d.SDF) model3d.SDF {
+	min2 := s.Min()
+	max2 := s.Max()
+	rMax := math.Max(math.Abs(min2.X), math.Abs(max2.X))
+	min := model3d.XYZ(-rMax, -rMax, min2.Y)
+	max := model3d.XYZ(rMax, rMax, max2.Y)
+	return model3d.FuncSDF(min, max, func(c model3d.Coord3D) float64 {
+		r := math.Hypot(c.X, c.Y)
+		dPos := s.SDF(model2d.XY(r, c.Z))
+		dNeg := s.SDF(model2d.XY(-r, c.Z))
+		return math.Max(dPos, dNeg)
+	})
 }
 
 func rotateExtrude(s model2d.Solid, angleDeg float64, startDeg float64) (model3d.Solid, error) {

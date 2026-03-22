@@ -43,10 +43,7 @@ func assertSolids2DEqual(t *testing.T, a, b model2d.Solid) {
 	max := a.Max().Max(b.Max())
 	rng := rand.New(rand.NewSource(1337))
 	for i := 0; i < 2000; i++ {
-		p := model2d.XY(
-			min.X+rng.Float64()*(max.X-min.X),
-			min.Y+rng.Float64()*(max.Y-min.Y),
-		)
+		p := model2d.NewCoordRandBounds(min, max, rng)
 		av := a.Contains(p)
 		bv := b.Contains(p)
 		if av != bv {

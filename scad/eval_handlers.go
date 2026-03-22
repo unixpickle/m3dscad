@@ -148,6 +148,9 @@ var builtinHandlers = map[string]callHandler{
 	"capsule_sdf": {
 		Eval: handleCapsuleSDF,
 	},
+	"line_join": {
+		Eval: handleLineJoin,
+	},
 	"circle": {
 		Eval: handleCircle,
 	},

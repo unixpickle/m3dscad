@@ -5,6 +5,7 @@ import (
 
 	"github.com/unixpickle/model3d/model2d"
 	"github.com/unixpickle/model3d/model3d"
+	"github.com/unixpickle/model3d/toolbox3d"
 )
 
 func handleFnSolid(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -182,6 +183,47 @@ func handleSquareSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep,
 		return ShapeRep{}, err
 	}
 	return shapeSDF2D(rect), nil
+}
+
+func handleLineJoin(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
+	args, err := bindArgs(e, st.Call, []ArgSpec{
+		{Name: "points", Pos: 0, Required: true},
+		{Name: "r", Pos: 1, Default: Num(1)},
+		{Name: "norm", Pos: 2, Default: String("l2")},
+	})
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	points, err := parseLineJoinPoints(args["points"])
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	if len(points) < 2 {
+		return ShapeRep{}, fmt.Errorf("line_join(): need at least 2 points")
+	}
+	r, err := argNum(args, "r")
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	if r < 0 {
+		return ShapeRep{}, fmt.Errorf("line_join(): r must be non-negative")
+	}
+	norm, err := argString(args, "norm")
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	segs := make([]model3d.Segment, 0, len(points)-1)
+	for i := 0; i < len(points)-1; i++ {
+		segs = append(segs, model3d.NewSegment(points[i], points[i+1]))
+	}
+	switch norm {
+	case "l2":
+		return shapeSolid3D(toolbox3d.LineJoin(r, segs...)), nil
+	case "l1":
+		return shapeSolid3D(toolbox3d.L1LineJoin(r, segs...)), nil
+	default:
+		return ShapeRep{}, fmt.Errorf(`line_join(): norm must be "l2" or "l1"`)
+	}
 }
 
 func handlePolygon(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -743,6 +785,28 @@ func parsePolygonPoints(val Value) ([]model2d.Coord, error) {
 			return nil, err
 		}
 		points = append(points, model2d.XY(vec[0], vec[1]))
+	}
+	return points, nil
+}
+
+func parseLineJoinPoints(val Value) ([]model3d.Coord3D, error) {
+	if val.Kind != ValList {
+		return nil, fmt.Errorf("line_join(): points must be a list")
+	}
+	points := make([]model3d.Coord3D, 0, len(val.List))
+	for _, v := range val.List {
+		if v.Kind != ValList || len(v.List) != 3 {
+			return nil, fmt.Errorf("line_join(): points must be a list of [x, y, z] vectors")
+		}
+		xyz := [3]float64{}
+		for i := range xyz {
+			n, err := v.List[i].AsNum()
+			if err != nil {
+				return nil, err
+			}
+			xyz[i] = n
+		}
+		points = append(points, model3d.XYZ(xyz[0], xyz[1], xyz[2]))
 	}
 	return points, nil
 }

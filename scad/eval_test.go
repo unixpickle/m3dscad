@@ -2,6 +2,8 @@ package scad
 
 import (
 	"fmt"
+	"math"
+	"math/rand"
 	"reflect"
 	"strings"
 	"testing"
@@ -564,6 +566,30 @@ func TestSolidsIntegration(t *testing.T) {
 			},
 		},
 		{
+			name: "LineJoinL2",
+			src: `
+				line_join(points=[[0,0,0], [4,0,0]], r=1, norm="l2");
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(2, 0.8, 0.3),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(2, 1.1, 0),
+			},
+		},
+		{
+			name: "LineJoinL1",
+			src: `
+				line_join(points=[[0,0,0], [4,0,0]], r=1, norm="l1");
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(2, 0.7, 0.2),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(2, 0.8, 0.3),
+			},
+		},
+		{
 			name: "ModuleScope",
 			src: `
 				module foo(x) {
@@ -840,6 +866,13 @@ func TestMissingArgError(t *testing.T) {
 				fn_solid([-1,-1], [1,1,1], function(c) true);
 			`,
 			wantErr: `max must have the same dimension as min`,
+		},
+		{
+			name: "LineJoinBadNorm",
+			src: `
+				line_join(points=[[0,0,0], [1,0,0]], norm="foo");
+			`,
+			wantErr: `line_join(): norm must be "l2" or "l1"`,
 		},
 	}
 	for _, tc := range tests {
@@ -1316,5 +1349,37 @@ func TestPassingNamedFunctionAsValueErrors(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), `undefined variable "d"`) {
 		t.Fatalf("expected undefined variable error, got %v", err)
+	}
+}
+
+func TestRotateExtrudeSDFTorusAgreement(t *testing.T) {
+	shape := mustEvalShape(t, `
+		rotate_extrude()
+			translate([3, 0, 0])
+			circle_sdf(r=1);
+	`)
+	if shape.Kind != ShapeSDF3D {
+		t.Fatalf("expected ShapeSDF3D, got %v", shape.Kind)
+	}
+	got := shape.SDF3
+	want := &model3d.Torus{
+		Center:      model3d.Coord3D{},
+		Axis:        model3d.Z(1),
+		OuterRadius: 3,
+		InnerRadius: 1,
+	}
+	min := want.Min().AddScalar(-0.5)
+	max := want.Max().AddScalar(0.5)
+	rng := rand.New(rand.NewSource(1337))
+	maxErr := 0.0
+	for i := 0; i < 10000; i++ {
+		c := model3d.NewCoord3DRandBounds(min, max, rng)
+		errAbs := math.Abs(got.SDF(c) - want.SDF(c))
+		if errAbs > maxErr {
+			maxErr = errAbs
+		}
+		if errAbs > 1e-7 {
+			t.Fatalf("sdf mismatch at %v: got=%f want=%f err=%e", c, got.SDF(c), want.SDF(c), errAbs)
+		}
 	}
 }

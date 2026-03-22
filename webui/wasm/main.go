@@ -30,7 +30,7 @@ func compile(_ js.Value, args []js.Value) any {
 	if err != nil {
 		return jsError(err.Error())
 	}
-	shape, err := scad.Eval(prog)
+	shape, err := scad.EvalWithEcho(prog, wasmEchoHandler)
 	if err != nil {
 		return jsError(err.Error())
 	}
@@ -40,6 +40,13 @@ func compile(_ js.Value, args []js.Value) any {
 		return jsError(err.Error())
 	}
 	return meshResponse(mesh)
+}
+
+func wasmEchoHandler(msg string) {
+	echoMsg := js.Global().Get("Object").New()
+	echoMsg.Set("type", "echo")
+	echoMsg.Set("message", msg)
+	js.Global().Call("postMessage", echoMsg)
 }
 
 func shapeToMesh(shape scad.ShapeRep, gridSize int) (*model3d.Mesh, error) {

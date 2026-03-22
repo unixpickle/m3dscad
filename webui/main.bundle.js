@@ -22278,6 +22278,7 @@
   var spinnerEl = document.getElementById("spinner");
   var cancelBtn = document.getElementById("cancel");
   var compileBtn = document.getElementById("compile");
+  var resetViewBtn = document.getElementById("resetView");
   var downloadBtn = document.getElementById("download");
   var gridEl = document.getElementById("grid");
   var canvas = document.getElementById("preview");
@@ -22382,6 +22383,14 @@ difference() {
         }
         return;
       }
+      if (msg.type === "echo") {
+        const text = msg.message || "";
+        statusEl.textContent = `echo: ${text}`;
+        if (typeof window.alert === "function") {
+          window.alert(text);
+        }
+        return;
+      }
       if (msg.type === "result") {
         if (!pendingRequest || msg.id !== pendingRequest) {
           return;
@@ -22408,6 +22417,7 @@ difference() {
         downloadBtn.disabled = positions.length === 0;
         statusEl.textContent = `Triangles: ${positions.length / 9}`;
         setOverlay("", true);
+        return;
       }
     };
     worker.onerror = (event) => {
@@ -22417,6 +22427,9 @@ difference() {
     };
   }
   function compile() {
+    if (pendingRequest) {
+      return;
+    }
     if (!workerReady) {
       statusEl.textContent = "WASM not ready.";
       setOverlay(statusEl.textContent, true);
@@ -22461,6 +22474,12 @@ difference() {
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
+  });
+  resetViewBtn.addEventListener("click", () => {
+    if (!renderer) return;
+    renderer.camera.theta = 0.6;
+    renderer.camera.phi = 0.9;
+    renderer.fitPending = true;
   });
   function MeshRenderer(canvas2) {
     const gl = canvas2.getContext("webgl");

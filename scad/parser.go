@@ -271,29 +271,36 @@ func (p *Parser) parseCall() (Call, error) {
 	pos := p.cur.Pos
 	name := p.cur.Lexeme
 	p.advance() // ident
-	if err := p.expect(TokLParen, "expected '(' in call"); err != nil {
+	args, err := p.parseArgList()
+	if err != nil {
 		return Call{}, err
+	}
+	return Call{Name: name, Args: args, P: pos}, nil
+}
+
+func (p *Parser) parseArgList() ([]Arg, error) {
+	if err := p.expect(TokLParen, "expected '(' in call"); err != nil {
+		return nil, err
 	}
 	var args []Arg
 	if p.cur.Kind != TokRParen {
 		for {
 			argPos := p.cur.Pos
-			// name=expr form
 			if p.cur.Kind == TokIdent && p.peek.Kind == TokAssign {
 				an := p.cur.Lexeme
-				p.advance() // ident
-				p.advance() // =
+				p.advance()
+				p.advance()
 				ex, err := p.parseExpr()
 				if err != nil {
-					return Call{}, err
+					return nil, err
 				}
 				args = append(args, Arg{Name: an, Expr: ex, P: argPos})
 			} else {
 				ex, err := p.parseExpr()
 				if err != nil {
-					return Call{}, err
+					return nil, err
 				}
-				args = append(args, Arg{Name: "", Expr: ex, P: argPos})
+				args = append(args, Arg{Expr: ex, P: argPos})
 			}
 			if p.cur.Kind == TokComma {
 				p.advance()
@@ -303,9 +310,9 @@ func (p *Parser) parseCall() (Call, error) {
 		}
 	}
 	if err := p.expect(TokRParen, "expected ')' after args"); err != nil {
-		return Call{}, err
+		return nil, err
 	}
-	return Call{Name: name, Args: args, P: pos}, nil
+	return args, nil
 }
 
 // ---- expressions (precedence climbing) ----
@@ -505,6 +512,22 @@ func (p *Parser) parsePrimary() (Expr, error) {
 			p.advance()
 			continue
 		}
+		if p.cur.Kind == TokLParen {
+			pos := p.cur.Pos
+			args, err := p.parseArgList()
+			if err != nil {
+				return nil, err
+			}
+			if v, ok := expr.(*VarExpr); ok {
+				expr = &CallExpr{
+					Call: Call{Name: v.Name, Args: args, P: pos},
+					P:    pos,
+				}
+			} else {
+				expr = &InvokeExpr{Fn: expr, Args: args, P: pos}
+			}
+			continue
+		}
 		break
 	}
 	return expr, nil
@@ -528,20 +551,14 @@ func (p *Parser) parseAtom() (Expr, error) {
 			return p.parseLetExpr()
 		case "each":
 			return p.parseEachExpr()
+		case "function":
+			return p.parseAnonFuncExpr()
 		}
 		// true/false
 		if p.cur.Lexeme == "true" || p.cur.Lexeme == "false" {
 			e := &BoolLit{V: p.cur.Lexeme == "true", P: p.cur.Pos}
 			p.advance()
 			return e, nil
-		}
-		// call expr?
-		if p.peek.Kind == TokLParen {
-			call, err := p.parseCall()
-			if err != nil {
-				return nil, err
-			}
-			return &CallExpr{Call: call, P: call.P}, nil
 		}
 		e := &VarExpr{Name: p.cur.Lexeme, P: p.cur.Pos}
 		p.advance()
@@ -607,6 +624,22 @@ func (p *Parser) parseAtom() (Expr, error) {
 	default:
 		return nil, PosErrorf(p.cur.Pos, "expected expression")
 	}
+}
+
+func (p *Parser) parseAnonFuncExpr() (Expr, error) {
+	pos := p.cur.Pos
+	if err := p.expectIdent("function"); err != nil {
+		return nil, err
+	}
+	params, err := p.parseParamList()
+	if err != nil {
+		return nil, err
+	}
+	body, err := p.parseExpr()
+	if err != nil {
+		return nil, err
+	}
+	return &FuncLitExpr{Params: params, Body: body, P: pos}, nil
 }
 
 func (p *Parser) parseForExpr() (Expr, error) {

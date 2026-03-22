@@ -32,6 +32,7 @@
           <li><a href="#calls-and-modifiers">Calls And Modifiers</a></li>
           <li><a href="#variables">Variables</a></li>
           <li><a href="#functions">Functions</a></li>
+          <li><a href="#anonymous-functions">Anonymous Functions</a></li>
           <li><a href="#modules">Modules</a></li>
           <li><a href="#if-else">If / Else</a></li>
           <li><a href="#for-loops">For Loops</a></li>
@@ -44,12 +45,14 @@
           <li><a href="#cube">cube</a>, <a href="#cube_metaball">cube_metaball</a>, <a href="#cube_sdf">cube_sdf</a></li>
           <li><a href="#cylinder">cylinder</a>, <a href="#cylinder_metaball">cylinder_metaball</a>, <a href="#cylinder_sdf">cylinder_sdf</a></li>
           <li><a href="#capsule">capsule</a>, <a href="#capsule_metaball">capsule_metaball</a>, <a href="#capsule_sdf">capsule_sdf</a></li>
+          <li><a href="#fn_solid">fn_solid</a></li>
         </ul>
 
         <h3><a href="#primitives-2d">2D Primitives</a></h3>
         <ul>
           <li><a href="#circle">circle</a>, <a href="#circle_metaball">circle_metaball</a>, <a href="#circle_sdf">circle_sdf</a></li>
           <li><a href="#square">square</a>, <a href="#square_metaball">square_metaball</a>, <a href="#square_sdf">square_sdf</a></li>
+          <li><a href="#fn_solid_2d_ref">fn_solid (2D)</a></li>
           <li><a href="#polygon">polygon</a>, <a href="#polygon_mesh">polygon_mesh</a>, <a href="#polygon_sdf">polygon_sdf</a></li>
           <li><a href="#path">path</a>, <a href="#path_mesh">path_mesh</a>, <a href="#path_sdf">path_sdf</a></li>
           <li><a href="#text">text</a>, <a href="#text_mesh">text_mesh</a></li>
@@ -121,6 +124,18 @@ difference() {
   cylinder(h=2, r=ring_r(2, 0.4));
 }</pre>
 
+        <h3 id="anonymous-functions">Anonymous Functions</h3>
+        <p>Anonymous functions are expression values created with <code>function(...)</code>. They can be assigned, passed to functions, returned, and called later.</p>
+        <pre class="example-code">add3 = function(x) x + 3;
+echo(add3(2));
+
+selector = function(which)
+  which == "add"
+  ? function(x) x + x + 1
+  : function(x) x * x + 1;
+
+echo(selector("add")(5));</pre>
+
         <h3 id="modules">Modules</h3>
         <p>User-defined modules package reusable geometry statements.</p>
         <pre class="example-code">module post(z, r=0.6) {
@@ -131,7 +146,7 @@ post(0);
 post(3);</pre>
 
         <h3 id="if-else">If / Else</h3>
-        <p>Conditionals choose which branch of geometry (or assignments) to evaluate.</p>
+        <p>Conditionals choose which branch of geometry to evaluate. Note that they introduce their own scope, so assignments cannot escape.</p>
         <pre class="example-code">use_big = true;
 
 if (use_big)
@@ -260,6 +275,16 @@ sphere(r=radius);</pre>
           <li><code>center</code>: If true, centers the capsule around Z=0.</li>
         </ul>
 
+        <h3 id="fn_solid"><code>fn_solid</code></h3>
+        <p>Creates a 3D solid by evaluating a function over bounded 3D coordinates.</p>
+        <pre class="example-code">fn_solid(min, max, fn)</pre>
+        <ul>
+          <li><code>min</code>: 3D minimum corner vector <code>[x, y, z]</code>.</li>
+          <li><code>max</code>: 3D maximum corner vector <code>[x, y, z]</code>.</li>
+          <li><code>fn</code>: Function taking one coordinate vector <code>[x, y, z]</code> and returning bool.</li>
+        </ul>
+        <pre class="example-code">fn_solid([-1,-1,-1], [1,1,1], function(c) norm(c) <= 1);</pre>
+
         <h2 id="primitives-2d">2D Primitives</h2>
 
         <h3 id="circle"><code>circle</code></h3>
@@ -300,6 +325,16 @@ sphere(r=radius);</pre>
           <li><code>size</code>: Edge length or per-axis size vector.</li>
           <li><code>center</code>: If true, centers the rectangle at the origin.</li>
         </ul>
+
+        <h3 id="fn_solid_2d_ref"><code>fn_solid</code> (2D)</h3>
+        <p>Creates a 2D solid from a boolean function over 2D coordinates.</p>
+        <pre class="example-code">fn_solid(min, max, fn)</pre>
+        <ul>
+          <li><code>min</code>: 2D minimum corner vector <code>[x, y]</code>.</li>
+          <li><code>max</code>: 2D maximum corner vector <code>[x, y]</code>.</li>
+          <li><code>fn</code>: Function taking one coordinate vector <code>[x, y]</code> and returning bool.</li>
+        </ul>
+        <pre class="example-code">fn_solid([-1,-1], [1,1], function(c) c.x*c.x + c.y*c.y <= 1);</pre>
 
         <h3 id="polygon"><code>polygon</code></h3>
         <p>Creates a 2D polygon solid from points and optional path indices.</p>

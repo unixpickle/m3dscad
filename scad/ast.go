@@ -195,6 +195,24 @@ type CallExpr struct {
 func (*CallExpr) exprNode()  {}
 func (e *CallExpr) pos() Pos { return e.P }
 
+type InvokeExpr struct {
+	Fn   Expr
+	Args []Arg
+	P    Pos
+}
+
+func (*InvokeExpr) exprNode()  {}
+func (e *InvokeExpr) pos() Pos { return e.P }
+
+type FuncLitExpr struct {
+	Params []Param
+	Body   Expr
+	P      Pos
+}
+
+func (*FuncLitExpr) exprNode()  {}
+func (e *FuncLitExpr) pos() Pos { return e.P }
+
 type IndexExpr struct {
 	X     Expr
 	Index Expr

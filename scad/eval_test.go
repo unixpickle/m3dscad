@@ -500,6 +500,179 @@ func TestSolidsIntegration(t *testing.T) {
 				model3d.XYZ(1.1, 0, 0),
 			},
 		},
+		{
+			name: "FunctionScope",
+			src: `
+				function foo(x) = x + y;
+				y = 2;
+
+				union() {
+					y = 3;
+					sphere(r=foo(2));
+				}
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(3.9, 0, 0),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(4.1, 0, 0),
+				model3d.XYZ(5.1, 0, 0),
+			},
+		},
+		{
+			name: "FunctionArgUsesCallerLocalScope",
+			src: `
+				function apply(f, v) = f(v);
+				module place(k) {
+					g = function(x) x + k;
+					sphere(r=apply(g, 2));
+				}
+				place(3);
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(4.9, 0, 0),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(5.1, 0, 0),
+			},
+		},
+		{
+			name: "FnSolid3D",
+			src: `
+				fn_solid([-1,-1,-1], [1,1,1], function(c) norm(c) <= 1);
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(0.5, 0, 0),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(1.1, 0, 0),
+				model3d.XYZ(0.8, 0.8, 0.8),
+			},
+		},
+		{
+			name: "FnSolid2D",
+			src: `
+				linear_extrude(height=2)
+					fn_solid([-1,-1], [1,1], function(c) c.x*c.x + c.y*c.y <= 1);
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(0.5, 0, 0.5),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(1.1, 0, 0.5),
+				model3d.XYZ(0.8, 0.8, 0.5),
+			},
+		},
+		{
+			name: "ModuleScope",
+			src: `
+				module foo(x) {
+					sphere(r=x + y);
+				}
+				y = 2;
+				union() {
+					y = 3;
+					foo(2);
+				}
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(3.9, 0, 0),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(4.1, 0, 0),
+				model3d.XYZ(5.1, 0, 0),
+			},
+		},
+		{
+			name: "ModuleScope2",
+			src: `
+				module foo(x) {
+					function r(x) = x + y;
+					sphere(r=r(x));
+				}
+				y = 2;
+				union() {
+					y = 3;
+					foo(2);
+				}
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(3.9, 0, 0),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(4.1, 0, 0),
+				model3d.XYZ(5.1, 0, 0),
+			},
+		},
+		{
+			name: "ModuleScope3",
+			src: `
+				module foo(x) {
+					z = y;
+					function r(x) = x + z;
+					sphere(r=r(x));
+				}
+				y = 3;
+				union() {
+					y = 4;
+					foo(2);
+				}
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(4.9, 0, 0),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(5.1, 0, 0),
+				model3d.XYZ(6.1, 0, 0),
+			},
+		},
+		{
+			name: "ModuleScope4",
+			src: `
+				module foo(x) {
+					y = 2;
+					function r(x) = x + y;
+					union() {
+						y = 7;
+						sphere(r=r(x));
+					}
+				}
+				y = 4;
+				union() {
+					y = 3;
+					foo(2);
+				}
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(3.9, 0, 0),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(4.1, 0, 0),
+				model3d.XYZ(5.1, 0, 0),
+			},
+		},
+		{
+			name: "ModuleScope5",
+			src: `
+				y = 2;
+				module foo(x) {
+					z = y+x;
+					sphere(r=z);
+					y = 3;
+					translate([10, 0, 0]) sphere(r=y+x);
+				}
+				foo(2);
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(0, 0, 3.9),
+				model3d.XYZ(10, 0, 4.9),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(0, 0, 4.1),
+				model3d.XYZ(0, 0, 5.1),
+				model3d.XYZ(10, 0, 5.1),
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -639,6 +812,35 @@ func TestMissingArgError(t *testing.T) {
 			src:     `text("hi", foo=3);`,
 			wantErr: `text(): unknown argument "foo"`,
 		},
+		{
+			name: "MissingRequiredAfterDefault",
+			src: `
+				function foo(x=2, y) = x+y;
+				out = foo(3);
+			`,
+			wantErr: `missing parameter "y"`,
+		},
+		{
+			name: "FnSolidPreflightUndefinedVar",
+			src: `
+				fn_solid([-1,-1,-1], [1,1,1], function(c) badvar > 0);
+			`,
+			wantErr: `undefined variable "badvar"`,
+		},
+		{
+			name: "FnSolidPreflightNonBool",
+			src: `
+				fn_solid([-1,-1], [1,1], function(c) c.x + c.y);
+			`,
+			wantErr: `expected bool`,
+		},
+		{
+			name: "FnSolidDimensionMismatch",
+			src: `
+				fn_solid([-1,-1], [1,1,1], function(c) true);
+			`,
+			wantErr: `max must have the same dimension as min`,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -647,6 +849,120 @@ func TestMissingArgError(t *testing.T) {
 				t.Fatalf("parse failed: %v", err)
 			}
 			_, err = Eval(prog)
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("expected error containing %q, got %v", tc.wantErr, err)
+			}
+		})
+	}
+}
+
+func TestScopeCaptureSemantics(t *testing.T) {
+	t.Run("FunctionSeesLaterSameScopeAssignment", func(t *testing.T) {
+		prog, err := Parse(`
+			function f() = a;
+			a = 7;
+			out = f();
+		`)
+		if err != nil {
+			t.Fatalf("parse failed: %v", err)
+		}
+		e := newEnv(nil)
+		if _, err := evalStmts(e, prog.Stmts); err != nil {
+			t.Fatalf("eval failed: %v", err)
+		}
+		got, ok := e.get("out")
+		if !ok {
+			t.Fatal(`missing variable "out"`)
+		}
+		if !got.Equal(Num(7)) {
+			t.Fatalf("expected out=7, got %#v", got)
+		}
+	})
+
+	t.Run("FunctionCannotSeeCallSiteChildScope", func(t *testing.T) {
+		prog, err := Parse(`
+			function f() = a;
+			if (true) { a = 7; }
+			out = f();
+		`)
+		if err != nil {
+			t.Fatalf("parse failed: %v", err)
+		}
+		_, err = Eval(prog)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !strings.Contains(err.Error(), `undefined variable "a"`) {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("ModuleSeesLaterSameScopeAssignment", func(t *testing.T) {
+		prog, err := Parse(`
+			module ball() { sphere(r=a); }
+			a = 2;
+			ball();
+		`)
+		if err != nil {
+			t.Fatalf("parse failed: %v", err)
+		}
+		_, err = Eval(prog)
+		if err != nil {
+			t.Fatalf("eval failed: %v", err)
+		}
+	})
+}
+
+func TestRedeclareErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		src     string
+		wantErr string
+	}{
+		{
+			name: "VariableRedeclare",
+			src: `
+				a = 1;
+				a = 2;
+			`,
+			wantErr: `cannot redeclare variable "a"`,
+		},
+		{
+			name: "FunctionRedeclare",
+			src: `
+				function f() = 1;
+				function f() = 2;
+				out = f();
+			`,
+			wantErr: `cannot redeclare function "f"`,
+		},
+		{
+			name: "FunctionThenVariableAllowed",
+			src: `
+				function f(x) = x;
+				f = function(x) x + 1;
+				out = f(2);
+				sphere(r=out);
+			`,
+			wantErr: ``,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			prog, err := Parse(tc.src)
+			if err != nil {
+				t.Fatalf("parse failed: %v", err)
+			}
+			_, err = Eval(prog)
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				return
+			}
 			if err == nil {
 				t.Fatal("expected error")
 			}
@@ -826,7 +1142,7 @@ func TestExpressionAssignments(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parse failed: %v", err)
 			}
-			e := newEnv()
+			e := newEnv(nil)
 			if _, err := evalStmts(e, prog.Stmts); err != nil {
 				t.Fatalf("eval failed: %v", err)
 			}
@@ -881,5 +1197,124 @@ func TestVectorAccessorErrors(t *testing.T) {
 				t.Fatalf("expected error containing %q, got %v", tc.wantErr, err)
 			}
 		})
+	}
+}
+
+func TestEchoStatementAndFunction(t *testing.T) {
+	prog, err := Parse(`
+		echo(1, "hi", v=[3,4]);
+		out = echo([1,2,3].z);
+	`)
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	var msgs []string
+	e := newEnv(func(msg string) {
+		msgs = append(msgs, msg)
+	})
+	if _, err := evalStmts(e, prog.Stmts); err != nil {
+		t.Fatalf("eval failed: %v", err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("expected 2 echo messages, got %d", len(msgs))
+	}
+	if got, want := msgs[0], "3"; got != want {
+		t.Fatalf("unexpected function echo: got %q want %q", got, want)
+	}
+	if got, want := msgs[1], `1, "hi", v = [3, 4]`; got != want {
+		t.Fatalf("unexpected statement echo: got %q want %q", got, want)
+	}
+	out, ok := e.get("out")
+	if !ok {
+		t.Fatal(`missing variable "out"`)
+	}
+	if out.Kind != ValNull {
+		t.Fatalf("expected out to be undef/null, got kind=%v", out.Kind)
+	}
+}
+
+func TestAnonymousFunctions(t *testing.T) {
+	prog, err := Parse(`
+		x = function(y) 3+y;
+		echo(x(2));
+
+		a = 1;
+		selector = function (which)
+			which == "add"
+			? function (x) x + x + a
+			: function (x) x * x + a;
+
+		echo(selector("add"));
+		echo(selector("add")(5));
+		echo(selector("mul"));
+		echo(selector("mul")(5));
+	`)
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	var msgs []string
+	e := newEnv(func(msg string) {
+		msgs = append(msgs, msg)
+	})
+	if _, err := evalStmts(e, prog.Stmts); err != nil {
+		t.Fatalf("eval failed: %v", err)
+	}
+	want := []string{
+		"5",
+		`function(x) ((x + x) + a)`,
+		"11",
+		`function(x) ((x * x) + a)`,
+		"26",
+	}
+	if !reflect.DeepEqual(msgs, want) {
+		t.Fatalf("echo mismatch:\n got: %#v\nwant: %#v", msgs, want)
+	}
+}
+
+func TestFunctionValueShadowsNamedFunctionInCalls(t *testing.T) {
+	prog, err := Parse(`
+		x = function (y) 3+y;
+		function x(y) = y;
+		function d(y) = y;
+
+		function z(f) = f(2)+1;
+		echo(z(x));
+		echo(x(2));
+		echo(d(2));
+
+		function manip(f) = function(x) 1+f(x);
+		echo((manip(x))(4));
+	`)
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	var msgs []string
+	e := newEnv(func(msg string) {
+		msgs = append(msgs, msg)
+	})
+	if _, err := evalStmts(e, prog.Stmts); err != nil {
+		t.Fatalf("eval failed: %v", err)
+	}
+	want := []string{"6", "5", "2", "8"}
+	if !reflect.DeepEqual(msgs, want) {
+		t.Fatalf("echo mismatch:\n got: %#v\nwant: %#v", msgs, want)
+	}
+}
+
+func TestPassingNamedFunctionAsValueErrors(t *testing.T) {
+	prog, err := Parse(`
+		function d(y) = y;
+		function manip(f) = function(x) 1+f(x);
+		echo((manip(d))(4));
+	`)
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	_, err = Eval(prog)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), `undefined variable "d"`) {
+		t.Fatalf("expected undefined variable error, got %v", err)
 	}
 }

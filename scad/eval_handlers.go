@@ -166,6 +166,9 @@ var builtinHandlers = map[string]callHandler{
 	"square_sdf": {
 		Eval: handleSquareSDF,
 	},
+	"fn_solid": {
+		Eval: handleFnSolid,
+	},
 	"polygon": {
 		Eval: handlePolygon,
 	},

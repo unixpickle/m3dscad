@@ -2,48 +2,133 @@ package scad
 
 import (
 	"fmt"
+	"log"
 	"math"
 	"math/rand"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 )
 
 type moduleDef struct {
-	Params []Param
-	Body   *BlockStmt
+	Params   []Param
+	Body     *BlockStmt
+	Captured []*scope
 }
 
 type funcDef struct {
-	Params []Param
-	Body   Expr
+	Params   []Param
+	Body     Expr
+	Captured []*scope
+}
+
+type scope struct {
+	vars map[string]Value
+	mods map[string]moduleDef
+	fncs map[string]funcDef
 }
 
 type env struct {
-	scopes []map[string]Value
-	mods   map[string]moduleDef
-	funcs  map[string]funcDef
+	scopes []*scope
+	echo   EchoHandler
 }
 
-func newEnv() *env {
+type EchoHandler func(msg string)
+
+func defaultEchoHandler(msg string) {
+	log.Println(msg)
+}
+
+func newEnv(echo EchoHandler) *env {
+	if echo == nil {
+		echo = defaultEchoHandler
+	}
 	return &env{
-		scopes: []map[string]Value{{}},
-		mods:   map[string]moduleDef{},
-		funcs:  map[string]funcDef{},
+		scopes: []*scope{newScope()},
+		echo:   echo,
 	}
 }
 
-func (e *env) push() { e.scopes = append(e.scopes, map[string]Value{}) }
+func newScope() *scope {
+	return &scope{
+		vars: map[string]Value{},
+		mods: map[string]moduleDef{},
+		fncs: map[string]funcDef{},
+	}
+}
+
+func (e *env) push() { e.scopes = append(e.scopes, newScope()) }
 func (e *env) pop()  { e.scopes = e.scopes[:len(e.scopes)-1] }
 
-func (e *env) set(name string, v Value) { e.scopes[len(e.scopes)-1][name] = v }
+func (e *env) currentScope() *scope {
+	return e.scopes[len(e.scopes)-1]
+}
+
+func (e *env) set(name string, v Value) error {
+	cur := e.currentScope()
+	if _, ok := cur.vars[name]; ok {
+		return fmt.Errorf("cannot redeclare variable %q in current scope", name)
+	}
+	cur.vars[name] = v
+	return nil
+}
+
+func (e *env) defineFunc(name string, f funcDef) error {
+	cur := e.currentScope()
+	if _, ok := cur.fncs[name]; ok {
+		return fmt.Errorf("cannot redeclare function %q in current scope", name)
+	}
+	cur.fncs[name] = f
+	return nil
+}
+
+func (e *env) defineModule(name string, m moduleDef) error {
+	cur := e.currentScope()
+	cur.mods[name] = m
+	return nil
+}
 
 func (e *env) get(name string) (Value, bool) {
 	for i := len(e.scopes) - 1; i >= 0; i-- {
-		if v, ok := e.scopes[i][name]; ok {
+		if v, ok := e.scopes[i].vars[name]; ok {
 			return v, true
 		}
 	}
 	return Value{}, false
+}
+
+func (e *env) getFunc(name string) (funcDef, bool) {
+	for i := len(e.scopes) - 1; i >= 0; i-- {
+		if f, ok := e.scopes[i].fncs[name]; ok {
+			return f, true
+		}
+	}
+	return funcDef{}, false
+}
+
+func (e *env) getModule(name string) (moduleDef, bool) {
+	for i := len(e.scopes) - 1; i >= 0; i-- {
+		if m, ok := e.scopes[i].mods[name]; ok {
+			return m, true
+		}
+	}
+	return moduleDef{}, false
+}
+
+func (e *env) captureScopes() []*scope {
+	out := make([]*scope, len(e.scopes))
+	copy(out, e.scopes)
+	return out
+}
+
+func (e *env) withCapturedScopes(scopes []*scope, fn func() error) error {
+	orig := e.scopes
+	e.scopes = append(append([]*scope{}, scopes...), newScope())
+	defer func() {
+		e.scopes = orig
+	}()
+	return fn()
 }
 
 func Parse(src string) (*Program, error) {
@@ -55,7 +140,11 @@ func Parse(src string) (*Program, error) {
 }
 
 func Eval(p *Program) (ShapeRep, error) {
-	e := newEnv()
+	return EvalWithEcho(p, nil)
+}
+
+func EvalWithEcho(p *Program, echo EchoHandler) (ShapeRep, error) {
+	e := newEnv(echo)
 	solids, err := evalStmts(e, p.Stmts)
 	if err != nil {
 		return ShapeRep{}, err
@@ -73,9 +162,23 @@ func evalStmts(e *env, ss []Stmt) ([]ShapeRep, error) {
 	for _, s := range ss {
 		switch st := s.(type) {
 		case *ModuleDefStmt:
-			e.mods[st.Name] = moduleDef{Params: st.Params, Body: st.Body}
+			err := e.defineModule(st.Name, moduleDef{
+				Params:   st.Params,
+				Body:     st.Body,
+				Captured: e.captureScopes(),
+			})
+			if err != nil {
+				return nil, WithPos(err, st.pos())
+			}
 		case *FuncDefStmt:
-			e.funcs[st.Name] = funcDef{Params: st.Params, Body: st.Body}
+			err := e.defineFunc(st.Name, funcDef{
+				Params:   st.Params,
+				Body:     st.Body,
+				Captured: e.captureScopes(),
+			})
+			if err != nil {
+				return nil, WithPos(err, st.pos())
+			}
 		}
 	}
 	for _, s := range ss {
@@ -87,7 +190,9 @@ func evalStmts(e *env, ss []Stmt) ([]ShapeRep, error) {
 		if err != nil {
 			return nil, err
 		}
-		e.set(st.Name, v)
+		if err := e.set(st.Name, v); err != nil {
+			return nil, WithPos(err, st.pos())
+		}
 	}
 	var out []ShapeRep
 	for _, s := range ss {
@@ -121,7 +226,9 @@ func evalStmt(e *env, s Stmt) (*ShapeRep, error) {
 		if err != nil {
 			return nil, err
 		}
-		e.set(st.Name, v)
+		if err := e.set(st.Name, v); err != nil {
+			return nil, err
+		}
 		return nil, nil
 
 	case *BlockStmt:
@@ -154,11 +261,25 @@ func evalStmt(e *env, s Stmt) (*ShapeRep, error) {
 		return evalForStmt(e, st)
 
 	case *ModuleDefStmt:
-		e.mods[st.Name] = moduleDef{Params: st.Params, Body: st.Body}
+		err := e.defineModule(st.Name, moduleDef{
+			Params:   st.Params,
+			Body:     st.Body,
+			Captured: e.captureScopes(),
+		})
+		if err != nil {
+			return nil, err
+		}
 		return nil, nil
 
 	case *FuncDefStmt:
-		e.funcs[st.Name] = funcDef{Params: st.Params, Body: st.Body}
+		err := e.defineFunc(st.Name, funcDef{
+			Params:   st.Params,
+			Body:     st.Body,
+			Captured: e.captureScopes(),
+		})
+		if err != nil {
+			return nil, err
+		}
 		return nil, nil
 
 	case *CallStmt:
@@ -172,6 +293,15 @@ func evalStmt(e *env, s Stmt) (*ShapeRep, error) {
 func evalCallStmt(e *env, st *CallStmt) (*ShapeRep, error) {
 	name := st.Call.Name
 
+	if name == "echo" {
+		args, err := evalEchoArgs(e, st.Call.Args)
+		if err != nil {
+			return nil, err
+		}
+		e.echo(strings.Join(args, ", "))
+		return nil, nil
+	}
+
 	if handler, ok := builtinHandlers[name]; ok {
 		if len(st.Children) == 0 && handler.RequireChildren {
 			return nil, fmt.Errorf("%s() requires children", name)
@@ -182,17 +312,25 @@ func evalCallStmt(e *env, st *CallStmt) (*ShapeRep, error) {
 		var children []ShapeRep
 		var childUnion *ShapeRep
 		if len(st.Children) > 0 {
-			var err error
-			children, err = evalStmts(e, st.Children)
+			e.push()
+			err := func() error {
+				var err error
+				children, err = evalStmts(e, st.Children)
+				if err != nil {
+					return err
+				}
+				if handler.NeedsChildUnion {
+					u, err := unionAll(children)
+					if err != nil {
+						return err
+					}
+					childUnion = &u
+				}
+				return nil
+			}()
+			e.pop()
 			if err != nil {
 				return nil, err
-			}
-			if handler.NeedsChildUnion {
-				u, err := unionAll(children)
-				if err != nil {
-					return nil, err
-				}
-				childUnion = &u
 			}
 		}
 		res, err := handler.Eval(e, st, children, childUnion)
@@ -203,25 +341,30 @@ func evalCallStmt(e *env, st *CallStmt) (*ShapeRep, error) {
 	}
 
 	// User-defined module call (solids)
-	if md, ok := e.mods[name]; ok {
+	if md, ok := e.getModule(name); ok {
 		if len(st.Children) > 0 {
 			return nil, fmt.Errorf("module %s does not support children in this MVP", name)
 		}
-		e.push()
-		defer e.pop()
-
-		if err := bindParams(e, md.Params, st.Call.Args); err != nil {
-			return nil, err
-		}
-		solids, err := evalStmts(e, md.Body.Stmts)
+		var out *ShapeRep
+		err := e.withCapturedScopes(md.Captured, func() error {
+			if err := bindParams(e, e, md.Params, st.Call.Args); err != nil {
+				return err
+			}
+			solids, err := evalStmts(e, md.Body.Stmts)
+			if err != nil {
+				return err
+			}
+			u, err := unionAll(solids)
+			if err != nil {
+				return err
+			}
+			out = &u
+			return nil
+		})
 		if err != nil {
 			return nil, err
 		}
-		u, err := unionAll(solids)
-		if err != nil {
-			return nil, err
-		}
-		return &u, nil
+		return out, nil
 	}
 
 	return nil, fmt.Errorf("unknown module/primitive %q", name)
@@ -353,6 +496,21 @@ func evalExpr(e *env, ex Expr) (Value, error) {
 			return Value{}, PosErrorf(x.P, "unknown vector accessor %q", x.Name)
 		}
 		return base.ElemAt(idx)
+	case *FuncLitExpr:
+		return FuncValue(FuncClosure{
+			Params:   x.Params,
+			Body:     x.Body,
+			Captured: e.captureScopes(),
+		}), nil
+	case *InvokeExpr:
+		fnV, err := evalExpr(e, x.Fn)
+		if err != nil {
+			return Value{}, err
+		}
+		if fnV.Kind != ValFunc || fnV.Func == nil {
+			return Value{}, PosErrorf(x.P, "expression is not callable")
+		}
+		return evalClosureCall(e, fnV.Func, x.Args)
 	case *ForExpr:
 		var out []Value
 		err := evalForBindsExpr(e, x.Binds, 0, func() error {
@@ -383,7 +541,9 @@ func evalExpr(e *env, ex Expr) (Value, error) {
 			if err != nil {
 				return Value{}, err
 			}
-			e.set(b.Name, v)
+			if err := e.set(b.Name, v); err != nil {
+				return Value{}, err
+			}
 		}
 		return evalExpr(e, x.Body)
 	case *EachExpr:
@@ -555,7 +715,10 @@ func evalForBindsExpr(e *env, binds []ForBind, idx int, fn func() error) error {
 	}
 	for _, val := range elems {
 		e.push()
-		e.set(b.Name, val)
+		if err := e.set(b.Name, val); err != nil {
+			e.pop()
+			return err
+		}
 		err := evalForBindsExpr(e, binds, idx+1, fn)
 		e.pop()
 		if err != nil {
@@ -566,7 +729,21 @@ func evalForBindsExpr(e *env, binds []ForBind, idx int, fn func() error) error {
 }
 
 func evalFuncCall(e *env, c Call) (Value, error) {
+	if v, ok := e.get(c.Name); ok {
+		if v.Kind != ValFunc || v.Func == nil {
+			return Value{}, PosErrorf(c.P, "%q is not callable", c.Name)
+		}
+		return evalClosureCall(e, v.Func, c.Args)
+	}
+
 	switch c.Name {
+	case "echo":
+		args, err := evalEchoArgs(e, c.Args)
+		if err != nil {
+			return Value{}, err
+		}
+		e.echo(strings.Join(args, ", "))
+		return Value{}, nil
 	case "len":
 		if len(c.Args) != 1 {
 			return Value{}, PosErrorf(c.P, "len() takes exactly 1 argument")
@@ -889,16 +1066,236 @@ func evalFuncCall(e *env, c Call) (Value, error) {
 	}
 
 	// User-defined functions.
-	if fd, ok := e.funcs[c.Name]; ok {
-		e.push()
-		defer e.pop()
-		if err := bindParams(e, fd.Params, c.Args); err != nil {
-			return Value{}, err
-		}
-		return evalExpr(e, fd.Body)
+	if fd, ok := e.getFunc(c.Name); ok {
+		return evalClosureCall(e, &FuncClosure{
+			Params:   fd.Params,
+			Body:     fd.Body,
+			Captured: fd.Captured,
+		}, c.Args)
 	}
 
 	return Value{}, PosErrorf(c.P, "unknown function %q", c.Name)
+}
+
+func evalClosureCall(e *env, fn *FuncClosure, args []Arg) (Value, error) {
+	if fn == nil {
+		return Value{}, fmt.Errorf("invalid function value")
+	}
+	caller := &env{
+		scopes: append([]*scope{}, e.scopes...),
+		echo:   e.echo,
+	}
+	var out Value
+	err := e.withCapturedScopes(fn.Captured, func() error {
+		if err := bindParams(e, caller, fn.Params, args); err != nil {
+			return err
+		}
+		v, err := evalExpr(e, fn.Body)
+		if err != nil {
+			return err
+		}
+		out = v
+		return nil
+	})
+	if err != nil {
+		return Value{}, err
+	}
+	return out, nil
+}
+
+func evalClosureCallValues(e *env, fn *FuncClosure, args []Value) (Value, error) {
+	if fn == nil {
+		return Value{}, fmt.Errorf("invalid function value")
+	}
+	var out Value
+	err := e.withCapturedScopes(fn.Captured, func() error {
+		if err := bindParamsValues(e, fn.Params, args); err != nil {
+			return err
+		}
+		v, err := evalExpr(e, fn.Body)
+		if err != nil {
+			return err
+		}
+		out = v
+		return nil
+	})
+	if err != nil {
+		return Value{}, err
+	}
+	return out, nil
+}
+
+func evalEchoArgs(e *env, args []Arg) ([]string, error) {
+	out := make([]string, 0, len(args))
+	for _, a := range args {
+		v, err := evalExpr(e, a.Expr)
+		if err != nil {
+			return nil, err
+		}
+		elem := valueString(v)
+		if a.Name != "" {
+			elem = a.Name + " = " + elem
+		}
+		out = append(out, elem)
+	}
+	return out, nil
+}
+
+func valueString(v Value) string {
+	switch v.Kind {
+	case ValNull:
+		return "undef"
+	case ValNum:
+		return strconv.FormatFloat(v.Num, 'g', -1, 64)
+	case ValBool:
+		if v.Bool {
+			return "true"
+		}
+		return "false"
+	case ValString:
+		return strconv.Quote(v.Str)
+	case ValRange:
+		return "[" + strconv.FormatFloat(v.Rng.Start, 'g', -1, 64) +
+			" : " + strconv.FormatFloat(v.Rng.Step, 'g', -1, 64) +
+			" : " + strconv.FormatFloat(v.Rng.End, 'g', -1, 64) + "]"
+	case ValEach:
+		if v.Each == nil {
+			return "each(undef)"
+		}
+		return "each(" + valueString(*v.Each) + ")"
+	case ValList:
+		parts := make([]string, 0, len(v.List))
+		for _, elem := range v.List {
+			parts = append(parts, valueString(elem))
+		}
+		return "[" + strings.Join(parts, ", ") + "]"
+	case ValFunc:
+		if v.Func == nil {
+			return "function() undef"
+		}
+		paramStrs := make([]string, 0, len(v.Func.Params))
+		for _, p := range v.Func.Params {
+			if p.Default == nil {
+				paramStrs = append(paramStrs, p.Name)
+			} else {
+				paramStrs = append(paramStrs, p.Name+"="+formatExpr(p.Default))
+			}
+		}
+		return "function(" + strings.Join(paramStrs, ", ") + ") " + formatExpr(v.Func.Body)
+	default:
+		return "undef"
+	}
+}
+
+func formatExpr(ex Expr) string {
+	switch x := ex.(type) {
+	case *NumberLit:
+		return strconv.FormatFloat(x.V, 'g', -1, 64)
+	case *BoolLit:
+		if x.V {
+			return "true"
+		}
+		return "false"
+	case *StringLit:
+		return strconv.Quote(x.V)
+	case *VarExpr:
+		return x.Name
+	case *ArrayLit:
+		parts := make([]string, 0, len(x.Elems))
+		for _, elem := range x.Elems {
+			parts = append(parts, formatExpr(elem))
+		}
+		return "[" + strings.Join(parts, ", ") + "]"
+	case *RangeLit:
+		if x.Step == nil {
+			return "[" + formatExpr(x.Start) + " : " + formatExpr(x.End) + "]"
+		}
+		return "[" + formatExpr(x.Start) + " : " + formatExpr(x.Step) + " : " + formatExpr(x.End) + "]"
+	case *UnaryExpr:
+		op := "?"
+		switch x.Op {
+		case TokNot:
+			op = "!"
+		case TokMinus:
+			op = "-"
+		case TokPlus:
+			op = "+"
+		}
+		return "(" + op + formatExpr(x.X) + ")"
+	case *BinaryExpr:
+		op := "?"
+		switch x.Op {
+		case TokPlus:
+			op = "+"
+		case TokMinus:
+			op = "-"
+		case TokStar:
+			op = "*"
+		case TokSlash:
+			op = "/"
+		case TokPercent:
+			op = "%"
+		case TokCaret:
+			op = "^"
+		case TokEq:
+			op = "=="
+		case TokNeq:
+			op = "!="
+		case TokLt:
+			op = "<"
+		case TokLte:
+			op = "<="
+		case TokGt:
+			op = ">"
+		case TokGte:
+			op = ">="
+		case TokAnd:
+			op = "&&"
+		case TokOr:
+			op = "||"
+		}
+		return "(" + formatExpr(x.L) + " " + op + " " + formatExpr(x.R) + ")"
+	case *TernaryExpr:
+		return "(" + formatExpr(x.Cond) + " ? " + formatExpr(x.Then) + " : " + formatExpr(x.Else) + ")"
+	case *CallExpr:
+		return x.Call.Name + "(" + formatArgs(x.Call.Args) + ")"
+	case *InvokeExpr:
+		return formatExpr(x.Fn) + "(" + formatArgs(x.Args) + ")"
+	case *IndexExpr:
+		return formatExpr(x.X) + "[" + formatExpr(x.Index) + "]"
+	case *DotExpr:
+		return formatExpr(x.X) + "." + x.Name
+	case *ForExpr:
+		return "for(...) " + formatExpr(x.Body)
+	case *LetExpr:
+		return "let(...) " + formatExpr(x.Body)
+	case *EachExpr:
+		return "each " + formatExpr(x.X)
+	case *FuncLitExpr:
+		paramStrs := make([]string, 0, len(x.Params))
+		for _, p := range x.Params {
+			if p.Default == nil {
+				paramStrs = append(paramStrs, p.Name)
+			} else {
+				paramStrs = append(paramStrs, p.Name+"="+formatExpr(p.Default))
+			}
+		}
+		return "function(" + strings.Join(paramStrs, ", ") + ") " + formatExpr(x.Body)
+	default:
+		return "?"
+	}
+}
+
+func formatArgs(args []Arg) string {
+	parts := make([]string, 0, len(args))
+	for _, a := range args {
+		if a.Name == "" {
+			parts = append(parts, formatExpr(a.Expr))
+		} else {
+			parts = append(parts, a.Name+"="+formatExpr(a.Expr))
+		}
+	}
+	return strings.Join(parts, ", ")
 }
 
 func iterableAsNums(v Value) ([]float64, error) {
@@ -991,7 +1388,7 @@ func evalBinaryNumericFuncArgs(e *env, c Call) (float64, float64, error) {
 	return x, y, nil
 }
 
-func bindParams(e *env, params []Param, args []Arg) error {
+func bindParams(bindEnv, evalEnv *env, params []Param, args []Arg) error {
 	paramNames := make(map[string]struct{}, len(params))
 	for _, p := range params {
 		paramNames[p.Name] = struct{}{}
@@ -1001,7 +1398,7 @@ func bindParams(e *env, params []Param, args []Arg) error {
 	values := make(map[string]Value, len(params))
 	for _, p := range params {
 		if p.Default != nil {
-			v, err := evalExpr(e, p.Default)
+			v, err := evalExpr(bindEnv, p.Default)
 			if err != nil {
 				return err
 			}
@@ -1015,7 +1412,7 @@ func bindParams(e *env, params []Param, args []Arg) error {
 			if posi >= len(params) {
 				return PosErrorf(a.P, "too many positional args")
 			}
-			v, err := evalExpr(e, a.Expr)
+			v, err := evalExpr(evalEnv, a.Expr)
 			if err != nil {
 				return err
 			}
@@ -1029,7 +1426,7 @@ func bindParams(e *env, params []Param, args []Arg) error {
 			if _, ok := paramNames[a.Name]; !ok {
 				return PosErrorf(a.P, "unknown named argument %q", a.Name)
 			}
-			v, err := evalExpr(e, a.Expr)
+			v, err := evalExpr(evalEnv, a.Expr)
 			if err != nil {
 				return err
 			}
@@ -1043,7 +1440,39 @@ func bindParams(e *env, params []Param, args []Arg) error {
 		}
 	}
 	for k, v := range values {
-		e.set(k, v)
+		if err := bindEnv.set(k, v); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func bindParamsValues(bindEnv *env, params []Param, args []Value) error {
+	values := make(map[string]Value, len(params))
+	for _, p := range params {
+		if p.Default != nil {
+			v, err := evalExpr(bindEnv, p.Default)
+			if err != nil {
+				return err
+			}
+			values[p.Name] = v
+		}
+	}
+	if len(args) > len(params) {
+		return fmt.Errorf("too many positional args")
+	}
+	for i, v := range args {
+		values[params[i].Name] = v
+	}
+	for _, p := range params {
+		if _, ok := values[p.Name]; !ok {
+			return PosErrorf(p.P, "missing parameter %q", p.Name)
+		}
+	}
+	for k, v := range values {
+		if err := bindEnv.set(k, v); err != nil {
+			return err
+		}
 	}
 	return nil
 }

@@ -11,6 +11,7 @@ const overlayText = document.getElementById("overlayText");
 const spinnerEl = document.getElementById("spinner");
 const cancelBtn = document.getElementById("cancel");
 const compileBtn = document.getElementById("compile");
+const resetViewBtn = document.getElementById("resetView");
 const downloadBtn = document.getElementById("download");
 const gridEl = document.getElementById("grid");
 const canvas = document.getElementById("preview");
@@ -124,34 +125,43 @@ function initWorker(options = {}) {
       }
       return;
     }
-  if (msg.type === "result") {
-    if (!pendingRequest || msg.id !== pendingRequest) {
+    if (msg.type === "echo") {
+      const text = msg.message || "";
+      statusEl.textContent = `echo: ${text}`;
+      if (typeof window.alert === "function") {
+        window.alert(text);
+      }
       return;
     }
-    pendingRequest = null;
-    if (!msg.ok) {
-      const errText = msg.error || "Unknown error.";
-      if (errText.includes(goExitedError)) {
-        statusEl.textContent = "WASM runtime exited. Reinitializing...";
-        setOverlay(statusEl.textContent, true);
-        initWorker({ silent: true });
+    if (msg.type === "result") {
+      if (!pendingRequest || msg.id !== pendingRequest) {
         return;
       }
-      statusEl.textContent = errText;
-      setOverlay(statusEl.textContent, true);
-      lastMesh = null;
-      downloadBtn.disabled = true;
+      pendingRequest = null;
+      if (!msg.ok) {
+        const errText = msg.error || "Unknown error.";
+        if (errText.includes(goExitedError)) {
+          statusEl.textContent = "WASM runtime exited. Reinitializing...";
+          setOverlay(statusEl.textContent, true);
+          initWorker({ silent: true });
+          return;
+        }
+        statusEl.textContent = errText;
+        setOverlay(statusEl.textContent, true);
+        lastMesh = null;
+        downloadBtn.disabled = true;
+        return;
+      }
+      const positions = new Float32Array(msg.positions);
+      const normals = new Float32Array(msg.normals);
+      renderer.setMesh(positions, normals, msg.bounds);
+      lastMesh = { positions, normals };
+      downloadBtn.disabled = positions.length === 0;
+      statusEl.textContent = `Triangles: ${positions.length / 9}`;
+      setOverlay("", true);
       return;
     }
-    const positions = new Float32Array(msg.positions);
-    const normals = new Float32Array(msg.normals);
-    renderer.setMesh(positions, normals, msg.bounds);
-    lastMesh = { positions, normals };
-    downloadBtn.disabled = positions.length === 0;
-    statusEl.textContent = `Triangles: ${positions.length / 9}`;
-    setOverlay("", true);
-  }
-};
+  };
   worker.onerror = (event) => {
     workerReady = false;
     statusEl.textContent = `Worker error: ${event.message}`;
@@ -160,6 +170,9 @@ function initWorker(options = {}) {
 }
 
 function compile() {
+  if (pendingRequest) {
+    return;
+  }
   if (!workerReady) {
     statusEl.textContent = "WASM not ready.";
     setOverlay(statusEl.textContent, true);
@@ -208,6 +221,13 @@ downloadBtn.addEventListener("click", () => {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+});
+
+resetViewBtn.addEventListener("click", () => {
+  if (!renderer) return;
+  renderer.camera.theta = 0.6;
+  renderer.camera.phi = 0.9;
+  renderer.fitPending = true;
 });
 
 function MeshRenderer(canvas) {

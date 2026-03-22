@@ -15,7 +15,14 @@ const (
 	ValRange
 	ValEach
 	ValList
+	ValFunc
 )
+
+type FuncClosure struct {
+	Params   []Param
+	Body     Expr
+	Captured []*scope
+}
 
 type Value struct {
 	Kind ValueKind
@@ -25,6 +32,7 @@ type Value struct {
 	Rng  Range
 	Each *Value
 	List []Value
+	Func *FuncClosure
 }
 
 func Num(v float64) Value   { return Value{Kind: ValNum, Num: v} }
@@ -38,6 +46,10 @@ func EachValue(v Value) Value {
 	return Value{Kind: ValEach, Each: &vCopy}
 }
 func List(v []Value) Value { return Value{Kind: ValList, List: v} }
+func FuncValue(v FuncClosure) Value {
+	vCopy := v
+	return Value{Kind: ValFunc, Func: &vCopy}
+}
 
 type Range struct {
 	Start float64

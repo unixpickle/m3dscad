@@ -7,6 +7,35 @@ import (
 	"github.com/unixpickle/model3d/model3d"
 )
 
+func handleFnSolid(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
+	dim, min, max, fn, err := parseFnSolidArgs(e, st)
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	if dim == 3 {
+		min3 := model3d.XYZ(min[0], min[1], min[2])
+		max3 := model3d.XYZ(max[0], max[1], max[2])
+		solid := model3d.CheckedFuncSolid(min3, max3, func(c model3d.Coord3D) bool {
+			in, err := evalFnSolidBool(e, fn, []float64{c.X, c.Y, c.Z}, false)
+			if err != nil {
+				return false
+			}
+			return in
+		})
+		return shapeSolid3D(solid), nil
+	}
+	min2 := model2d.XY(min[0], min[1])
+	max2 := model2d.XY(max[0], max[1])
+	solid := model2d.CheckedFuncSolid(min2, max2, func(c model2d.Coord) bool {
+		in, err := evalFnSolidBool(e, fn, []float64{c.X, c.Y}, false)
+		if err != nil {
+			return false
+		}
+		return in
+	})
+	return shapeSolid2D(solid), nil
+}
+
 func handleSphere(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
 	sphere, err := parseSphere(e, st)
 	if err != nil {
@@ -256,6 +285,95 @@ func parseSphere(e *env, st *CallStmt) (*model3d.Sphere, error) {
 		return nil, err
 	}
 	return &model3d.Sphere{Radius: r}, nil
+}
+
+func parseFnSolidArgs(e *env, st *CallStmt) (int, []float64, []float64, *FuncClosure, error) {
+	args, err := bindArgs(e, st.Call, []ArgSpec{
+		{Name: "min", Pos: 0, Required: true},
+		{Name: "max", Pos: 1, Required: true},
+		{Name: "fn", Pos: 2, Required: true},
+	})
+	if err != nil {
+		return 0, nil, nil, nil, err
+	}
+	min, err := argCoordStrict(args, "min")
+	if err != nil {
+		return 0, nil, nil, nil, err
+	}
+	if len(min) != 2 && len(min) != 3 {
+		return 0, nil, nil, nil, fmt.Errorf("min must be a 2D or 3D vector/list")
+	}
+	max, err := argCoordStrict(args, "max")
+	if err != nil {
+		return 0, nil, nil, nil, err
+	}
+	if len(max) != len(min) {
+		return 0, nil, nil, nil, fmt.Errorf("max must have the same dimension as min")
+	}
+	fn, err := argFunc(args, "fn")
+	if err != nil {
+		return 0, nil, nil, nil, err
+	}
+	mid := make([]float64, len(min))
+	for i := range mid {
+		mid[i] = (min[i] + max[i]) / 2
+	}
+	for _, c := range [][]float64{min, max, mid} {
+		if _, err := evalFnSolidBool(e, fn, c, true); err != nil {
+			return 0, nil, nil, nil, err
+		}
+	}
+	return len(min), min, max, fn, nil
+}
+
+func argFunc(args map[string]Value, name string) (*FuncClosure, error) {
+	v, ok := args[name]
+	if !ok {
+		return nil, fmt.Errorf("missing parameter %q", name)
+	}
+	if v.Kind != ValFunc || v.Func == nil {
+		return nil, fmt.Errorf("expected function")
+	}
+	return v.Func, nil
+}
+
+func argCoordStrict(args map[string]Value, name string) ([]float64, error) {
+	v, ok := args[name]
+	if !ok {
+		return nil, fmt.Errorf("missing parameter %q", name)
+	}
+	if v.Kind != ValList {
+		return nil, fmt.Errorf("expected vector/list")
+	}
+	out := make([]float64, len(v.List))
+	for i := range out {
+		n, err := v.List[i].AsNum()
+		if err != nil {
+			return nil, err
+		}
+		out[i] = n
+	}
+	return out, nil
+}
+
+func evalFnSolidBool(e *env, fn *FuncClosure, coord []float64, strict bool) (bool, error) {
+	vec := make([]Value, 0, len(coord))
+	for _, x := range coord {
+		vec = append(vec, Num(x))
+	}
+	arg := List(vec)
+	v, err := evalClosureCallValues(e, fn, []Value{arg})
+	if err != nil {
+		return false, err
+	}
+	b, err := v.AsBool()
+	if err != nil {
+		if strict {
+			return false, err
+		}
+		return false, nil
+	}
+	return b, nil
 }
 
 func parseCube(e *env, st *CallStmt) (*model3d.Rect, error) {

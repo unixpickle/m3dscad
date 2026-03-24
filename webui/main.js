@@ -15,6 +15,12 @@ const resetViewBtn = document.getElementById("resetView");
 const downloadBtn = document.getElementById("download");
 const gridEl = document.getElementById("grid");
 const canvas = document.getElementById("preview");
+const axisLineX = document.getElementById("axisLineX");
+const axisLineY = document.getElementById("axisLineY");
+const axisLineZ = document.getElementById("axisLineZ");
+const axisLabelX = document.getElementById("axisLabelX");
+const axisLabelY = document.getElementById("axisLabelY");
+const axisLabelZ = document.getElementById("axisLabelZ");
 const resizer = document.getElementById("resizer");
 const appEl = document.getElementById("app");
 const toggleCodeBtn = document.getElementById("toggleCode");
@@ -315,6 +321,7 @@ MeshRenderer.prototype.render = function () {
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   gl.enable(gl.DEPTH_TEST);
   gl.useProgram(this.program);
+  updateAxisIndicator(this.camera);
 
   if (this.vertexCount > 0) {
     const { model, view, proj, eye } = buildMatrices(this.camera, canvas);
@@ -528,6 +535,61 @@ function mat4LookAt(eye, target, up) {
 function normalize3(v) {
   const len = Math.hypot(v[0], v[1], v[2]) || 1;
   return [v[0] / len, v[1] / len, v[2] / len];
+}
+
+function dot3(a, b) {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+
+function cross3(a, b) {
+  return [
+    a[1] * b[2] - a[2] * b[1],
+    a[2] * b[0] - a[0] * b[2],
+    a[0] * b[1] - a[1] * b[0],
+  ];
+}
+
+function setAxis(lineEl, labelEl, sx, sy, depth) {
+  if (!lineEl || !labelEl) return;
+  const cx = 32;
+  const cy = 32;
+  const extent = 16;
+  const x2 = cx + sx * extent;
+  const y2 = cy - sy * extent;
+  const labelDist = 3.5;
+  const lx = cx + sx * (extent + labelDist);
+  const ly = cy - sy * (extent + labelDist);
+  const opacity = 0.35 + 0.65 * (depth + 1) * 0.5;
+  lineEl.setAttribute("x1", `${cx}`);
+  lineEl.setAttribute("y1", `${cy}`);
+  lineEl.setAttribute("x2", x2.toFixed(2));
+  lineEl.setAttribute("y2", y2.toFixed(2));
+  lineEl.style.opacity = opacity.toFixed(2);
+  labelEl.setAttribute("x", lx.toFixed(2));
+  labelEl.setAttribute("y", ly.toFixed(2));
+  labelEl.style.opacity = opacity.toFixed(2);
+}
+
+function updateAxisIndicator(camera) {
+  if (!axisLineX || !axisLineY || !axisLineZ || !axisLabelX || !axisLabelY || !axisLabelZ) {
+    return;
+  }
+  const eye = [
+    camera.target[0] + camera.radius * Math.cos(camera.theta) * Math.sin(camera.phi),
+    camera.target[1] + camera.radius * Math.sin(camera.theta) * Math.sin(camera.phi),
+    camera.target[2] + camera.radius * Math.cos(camera.phi),
+  ];
+  const forward = normalize3([
+    camera.target[0] - eye[0],
+    camera.target[1] - eye[1],
+    camera.target[2] - eye[2],
+  ]);
+  const worldUp = [0, 0, 1];
+  const right = normalize3(cross3(forward, worldUp));
+  const up = normalize3(cross3(right, forward));
+  setAxis(axisLineX, axisLabelX, dot3([1, 0, 0], right), dot3([1, 0, 0], up), dot3([1, 0, 0], forward));
+  setAxis(axisLineY, axisLabelY, dot3([0, 1, 0], right), dot3([0, 1, 0], up), dot3([0, 1, 0], forward));
+  setAxis(axisLineZ, axisLabelZ, dot3([0, 0, 1], right), dot3([0, 0, 1], up), dot3([0, 0, 1], forward));
 }
 
 function createShader(gl, type, source) {

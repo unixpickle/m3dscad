@@ -164,8 +164,18 @@ func unionAll(children []ShapeRep) (ShapeRep, error) {
 			out = out.Join(ch.MB3)
 		}
 		return ShapeRep{Kind: ShapeMetaball3D, MB3: out}, nil
-	case ShapeMesh3D, ShapeMesh2D:
-		return ShapeRep{}, fmt.Errorf("cannot union meshes")
+	case ShapeMesh3D:
+		out := model3d.NewMesh()
+		for _, ch := range children {
+			out.AddMesh(ch.M3)
+		}
+		return shapeMesh3D(out), nil
+	case ShapeMesh2D:
+		out := model2d.NewMesh()
+		for _, ch := range children {
+			out.AddMesh(ch.M2)
+		}
+		return shapeMesh2D(out), nil
 	default:
 		return ShapeRep{}, fmt.Errorf("unknown shape kind")
 	}

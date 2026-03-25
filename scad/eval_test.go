@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/unixpickle/model3d/model2d"
 	"github.com/unixpickle/model3d/model3d"
 )
 
@@ -55,6 +56,22 @@ func assertContains(t *testing.T, s model3d.Solid, p model3d.Coord3D, want bool)
 	if got != want {
 		t.Fatalf("contains(%v) = %v, want %v", p, got, want)
 	}
+}
+
+func countMesh2DSegments(m *model2d.Mesh) int {
+	n := 0
+	m.Iterate(func(*model2d.Segment) {
+		n++
+	})
+	return n
+}
+
+func countMesh3DTriangles(m *model3d.Mesh) int {
+	n := 0
+	m.Iterate(func(*model3d.Triangle) {
+		n++
+	})
+	return n
 }
 
 func TestSolidsIntegration(t *testing.T) {
@@ -699,6 +716,27 @@ func TestSolidsIntegration(t *testing.T) {
 				model3d.XYZ(10, 0, 5.1),
 			},
 		},
+		{
+			name: "ModuleArgUsesCallerLocalScope",
+			src: `
+				module hinge(y) {
+					hingeHook(y-2);
+					hingeHook(y+2);
+				}
+				module hingeHook(y) {
+					translate([0, y, 0]) sphere(r=1);
+				}
+				hinge(10);
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(0, 8, 0),
+				model3d.XYZ(0, 12, 0),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(0, 5, 0),
+				model3d.XYZ(0, 15, 0),
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -1266,6 +1304,37 @@ func TestEchoStatementAndFunction(t *testing.T) {
 	}
 }
 
+func TestModuleDefaultArgUsesCapturedScope(t *testing.T) {
+	prog, err := Parse(`
+		module foo(y=baz(z)) {
+			echo(y);
+			sphere(r=0.01);
+		}
+
+		z = 3;
+		function baz(x) = x * 2;
+		union() {
+			z = 2;
+			function baz(x) = x / 2;
+			foo();
+		}
+	`)
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	var msgs []string
+	e := newEnv(func(msg string) {
+		msgs = append(msgs, msg)
+	})
+	if _, err := evalStmts(e, prog.Stmts); err != nil {
+		t.Fatalf("eval failed: %v", err)
+	}
+	want := []string{"6"}
+	if !reflect.DeepEqual(msgs, want) {
+		t.Fatalf("echo mismatch:\n got: %#v\nwant: %#v", msgs, want)
+	}
+}
+
 func TestAnonymousFunctions(t *testing.T) {
 	prog, err := Parse(`
 		x = function(y) 3+y;
@@ -1382,4 +1451,44 @@ func TestRotateExtrudeSDFTorusAgreement(t *testing.T) {
 			t.Fatalf("sdf mismatch at %v: got=%f want=%f err=%e", c, got.SDF(c), want.SDF(c), errAbs)
 		}
 	}
+}
+
+func TestUnionMeshesConcatenates(t *testing.T) {
+	t.Run("2D", func(t *testing.T) {
+		a := mustEvalShape(t, `polygon_mesh(points=[[0,0],[1,0],[1,1],[0,1]]);`)
+		b := mustEvalShape(t, `translate([3,0,0]) polygon_mesh(points=[[0,0],[1,0],[1,1],[0,1]]);`)
+		u := mustEvalShape(t, `
+			union() {
+				polygon_mesh(points=[[0,0],[1,0],[1,1],[0,1]]);
+				translate([3,0,0]) polygon_mesh(points=[[0,0],[1,0],[1,1],[0,1]]);
+			}
+		`)
+		if a.Kind != ShapeMesh2D || b.Kind != ShapeMesh2D || u.Kind != ShapeMesh2D {
+			t.Fatalf("expected ShapeMesh2D outputs, got %v %v %v", a.Kind, b.Kind, u.Kind)
+		}
+		want := countMesh2DSegments(a.M2) + countMesh2DSegments(b.M2)
+		got := countMesh2DSegments(u.M2)
+		if got != want {
+			t.Fatalf("segment count mismatch: got %d want %d", got, want)
+		}
+	})
+
+	t.Run("3D", func(t *testing.T) {
+		a := mustEvalShape(t, `linear_extrude(height=1) polygon_mesh(points=[[0,0],[1,0],[1,1],[0,1]]);`)
+		b := mustEvalShape(t, `translate([3,0,0]) linear_extrude(height=1) polygon_mesh(points=[[0,0],[1,0],[1,1],[0,1]]);`)
+		u := mustEvalShape(t, `
+			union() {
+				linear_extrude(height=1) polygon_mesh(points=[[0,0],[1,0],[1,1],[0,1]]);
+				translate([3,0,0]) linear_extrude(height=1) polygon_mesh(points=[[0,0],[1,0],[1,1],[0,1]]);
+			}
+		`)
+		if a.Kind != ShapeMesh3D || b.Kind != ShapeMesh3D || u.Kind != ShapeMesh3D {
+			t.Fatalf("expected ShapeMesh3D outputs, got %v %v %v", a.Kind, b.Kind, u.Kind)
+		}
+		want := countMesh3DTriangles(a.M3) + countMesh3DTriangles(b.M3)
+		got := countMesh3DTriangles(u.M3)
+		if got != want {
+			t.Fatalf("triangle count mismatch: got %d want %d", got, want)
+		}
+	})
 }

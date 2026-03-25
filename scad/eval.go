@@ -345,9 +345,13 @@ func evalCallStmt(e *env, st *CallStmt) (*ShapeRep, error) {
 		if len(st.Children) > 0 {
 			return nil, fmt.Errorf("module %s does not support children in this MVP", name)
 		}
+		caller := &env{
+			scopes: append([]*scope{}, e.scopes...),
+			echo:   e.echo,
+		}
 		var out *ShapeRep
 		err := e.withCapturedScopes(md.Captured, func() error {
-			if err := bindParams(e, e, md.Params, st.Call.Args); err != nil {
+			if err := bindParams(e, caller, md.Params, st.Call.Args); err != nil {
 				return err
 			}
 			solids, err := evalStmts(e, md.Body.Stmts)

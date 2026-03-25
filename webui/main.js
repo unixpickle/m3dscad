@@ -70,6 +70,8 @@ const fragmentShader = `
   }
 `;
 
+const CAMERA_FOV_RAD = (60 * Math.PI) / 180;
+
 let renderer = null;
 let worker = null;
 let workerReady = false;
@@ -267,6 +269,7 @@ function MeshRenderer(canvas) {
     target: [0, 0, 0],
   };
   this.dragging = false;
+  this.dragMode = null;
   this.lastPos = [0, 0];
   this.fitPending = true;
 
@@ -350,21 +353,33 @@ MeshRenderer.prototype.render = function () {
 
 function setupInteraction(renderer, canvas) {
   canvas.style.touchAction = "none";
+  canvas.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+  });
   canvas.addEventListener("mousedown", (event) => {
+    if (event.button !== 0 && event.button !== 2) {
+      return;
+    }
     renderer.dragging = true;
+    renderer.dragMode = event.button === 2 ? "pan" : "rotate";
     renderer.lastPos = [event.clientX, event.clientY];
   });
   window.addEventListener("mouseup", () => {
     renderer.dragging = false;
+    renderer.dragMode = null;
   });
   window.addEventListener("mousemove", (event) => {
     if (!renderer.dragging) return;
     const dx = event.clientX - renderer.lastPos[0];
     const dy = event.clientY - renderer.lastPos[1];
     renderer.lastPos = [event.clientX, event.clientY];
-    renderer.camera.theta -= dx * 0.005;
-    renderer.camera.phi -= dy * 0.005;
-    renderer.camera.phi = Math.min(Math.max(renderer.camera.phi, 0.1), Math.PI - 0.1);
+    if (renderer.dragMode === "pan") {
+      panCamera(renderer.camera, dx, dy, canvas);
+    } else {
+      renderer.camera.theta -= dx * 0.005;
+      renderer.camera.phi -= dy * 0.005;
+      renderer.camera.phi = Math.min(Math.max(renderer.camera.phi, 0.1), Math.PI - 0.1);
+    }
   });
   canvas.addEventListener("wheel", (event) => {
     event.preventDefault();
@@ -394,11 +409,20 @@ function setupInteraction(renderer, canvas) {
 
   canvas.addEventListener("pointerdown", (event) => {
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    if (pointers.size === 1) {
+    if (event.pointerType === "mouse") {
+      if (event.button !== 0 && event.button !== 2) {
+        return;
+      }
       renderer.dragging = true;
+      renderer.dragMode = event.button === 2 ? "pan" : "rotate";
+      renderer.lastPos = [event.clientX, event.clientY];
+    } else if (pointers.size === 1) {
+      renderer.dragging = true;
+      renderer.dragMode = "rotate";
       renderer.lastPos = [event.clientX, event.clientY];
     } else if (pointers.size === 2) {
       renderer.dragging = false;
+      renderer.dragMode = null;
       lastPinchDist = null;
     }
     canvas.setPointerCapture(event.pointerId);
@@ -411,9 +435,13 @@ function setupInteraction(renderer, canvas) {
       const dx = event.clientX - renderer.lastPos[0];
       const dy = event.clientY - renderer.lastPos[1];
       renderer.lastPos = [event.clientX, event.clientY];
-      renderer.camera.theta -= dx * 0.005;
-      renderer.camera.phi -= dy * 0.005;
-      renderer.camera.phi = Math.min(Math.max(renderer.camera.phi, 0.1), Math.PI - 0.1);
+      if (renderer.dragMode === "pan") {
+        panCamera(renderer.camera, dx, dy, canvas);
+      } else {
+        renderer.camera.theta -= dx * 0.005;
+        renderer.camera.phi -= dy * 0.005;
+        renderer.camera.phi = Math.min(Math.max(renderer.camera.phi, 0.1), Math.PI - 0.1);
+      }
     } else if (pointers.size === 2) {
       updatePinch();
     }
@@ -424,10 +452,12 @@ function setupInteraction(renderer, canvas) {
     if (pointers.size === 1) {
       const remaining = Array.from(pointers.values())[0];
       renderer.dragging = true;
+      renderer.dragMode = "rotate";
       renderer.lastPos = [remaining.x, remaining.y];
       lastPinchDist = null;
     } else if (pointers.size === 0) {
       renderer.dragging = false;
+      renderer.dragMode = null;
       lastPinchDist = null;
     }
     if (canvas.hasPointerCapture(event.pointerId)) {
@@ -451,7 +481,7 @@ function resizeCanvas(canvas) {
 
 function buildMatrices(camera, canvas) {
   const aspect = canvas.width / Math.max(canvas.height, 1);
-  const proj = mat4Perspective((60 * Math.PI) / 180, aspect, 0.01, 1000);
+  const proj = mat4Perspective(CAMERA_FOV_RAD, aspect, 0.01, 1000);
   const eye = [
     camera.target[0] +
       camera.radius * Math.cos(camera.theta) * Math.sin(camera.phi),
@@ -535,6 +565,40 @@ function mat4LookAt(eye, target, up) {
 function normalize3(v) {
   const len = Math.hypot(v[0], v[1], v[2]) || 1;
   return [v[0] / len, v[1] / len, v[2] / len];
+}
+
+function getCameraBasis(camera) {
+  const eye = [
+    camera.target[0] + camera.radius * Math.cos(camera.theta) * Math.sin(camera.phi),
+    camera.target[1] + camera.radius * Math.sin(camera.theta) * Math.sin(camera.phi),
+    camera.target[2] + camera.radius * Math.cos(camera.phi),
+  ];
+  const forward = normalize3([
+    camera.target[0] - eye[0],
+    camera.target[1] - eye[1],
+    camera.target[2] - eye[2],
+  ]);
+  let right = cross3(forward, [0, 0, 1]);
+  if (Math.hypot(right[0], right[1], right[2]) < 1e-8) {
+    right = [1, 0, 0];
+  } else {
+    right = normalize3(right);
+  }
+  const up = normalize3(cross3(right, forward));
+  return { right, up };
+}
+
+function panCamera(camera, dx, dy, canvas) {
+  const viewportHeight = Math.max(canvas.clientHeight, 1);
+  const worldPerPixel = (2 * camera.radius * Math.tan(CAMERA_FOV_RAD / 2)) / viewportHeight;
+  const { right, up } = getCameraBasis(camera);
+  const rightDelta = -dx * worldPerPixel;
+  const upDelta = dy * worldPerPixel;
+  camera.target = [
+    camera.target[0] + right[0] * rightDelta + up[0] * upDelta,
+    camera.target[1] + right[1] * rightDelta + up[1] * upDelta,
+    camera.target[2] + right[2] * rightDelta + up[2] * upDelta,
+  ];
 }
 
 function dot3(a, b) {

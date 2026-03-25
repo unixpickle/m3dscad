@@ -22331,6 +22331,7 @@ difference() {
     gl_FragColor = vec4(color, 1.0);
   }
 `;
+  var CAMERA_FOV_RAD = 60 * Math.PI / 180;
   var renderer = null;
   var worker = null;
   var workerReady = false;
@@ -22518,6 +22519,7 @@ difference() {
       target: [0, 0, 0]
     };
     this.dragging = false;
+    this.dragMode = null;
     this.lastPos = [0, 0];
     this.fitPending = true;
     setupInteraction(this, canvas2);
@@ -22592,21 +22594,33 @@ difference() {
   };
   function setupInteraction(renderer2, canvas2) {
     canvas2.style.touchAction = "none";
+    canvas2.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+    });
     canvas2.addEventListener("mousedown", (event) => {
+      if (event.button !== 0 && event.button !== 2) {
+        return;
+      }
       renderer2.dragging = true;
+      renderer2.dragMode = event.button === 2 ? "pan" : "rotate";
       renderer2.lastPos = [event.clientX, event.clientY];
     });
     window.addEventListener("mouseup", () => {
       renderer2.dragging = false;
+      renderer2.dragMode = null;
     });
     window.addEventListener("mousemove", (event) => {
       if (!renderer2.dragging) return;
       const dx = event.clientX - renderer2.lastPos[0];
       const dy = event.clientY - renderer2.lastPos[1];
       renderer2.lastPos = [event.clientX, event.clientY];
-      renderer2.camera.theta -= dx * 5e-3;
-      renderer2.camera.phi -= dy * 5e-3;
-      renderer2.camera.phi = Math.min(Math.max(renderer2.camera.phi, 0.1), Math.PI - 0.1);
+      if (renderer2.dragMode === "pan") {
+        panCamera(renderer2.camera, dx, dy, canvas2);
+      } else {
+        renderer2.camera.theta -= dx * 5e-3;
+        renderer2.camera.phi -= dy * 5e-3;
+        renderer2.camera.phi = Math.min(Math.max(renderer2.camera.phi, 0.1), Math.PI - 0.1);
+      }
     });
     canvas2.addEventListener("wheel", (event) => {
       event.preventDefault();
@@ -22633,11 +22647,20 @@ difference() {
     };
     canvas2.addEventListener("pointerdown", (event) => {
       pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-      if (pointers.size === 1) {
+      if (event.pointerType === "mouse") {
+        if (event.button !== 0 && event.button !== 2) {
+          return;
+        }
         renderer2.dragging = true;
+        renderer2.dragMode = event.button === 2 ? "pan" : "rotate";
+        renderer2.lastPos = [event.clientX, event.clientY];
+      } else if (pointers.size === 1) {
+        renderer2.dragging = true;
+        renderer2.dragMode = "rotate";
         renderer2.lastPos = [event.clientX, event.clientY];
       } else if (pointers.size === 2) {
         renderer2.dragging = false;
+        renderer2.dragMode = null;
         lastPinchDist = null;
       }
       canvas2.setPointerCapture(event.pointerId);
@@ -22649,9 +22672,13 @@ difference() {
         const dx = event.clientX - renderer2.lastPos[0];
         const dy = event.clientY - renderer2.lastPos[1];
         renderer2.lastPos = [event.clientX, event.clientY];
-        renderer2.camera.theta -= dx * 5e-3;
-        renderer2.camera.phi -= dy * 5e-3;
-        renderer2.camera.phi = Math.min(Math.max(renderer2.camera.phi, 0.1), Math.PI - 0.1);
+        if (renderer2.dragMode === "pan") {
+          panCamera(renderer2.camera, dx, dy, canvas2);
+        } else {
+          renderer2.camera.theta -= dx * 5e-3;
+          renderer2.camera.phi -= dy * 5e-3;
+          renderer2.camera.phi = Math.min(Math.max(renderer2.camera.phi, 0.1), Math.PI - 0.1);
+        }
       } else if (pointers.size === 2) {
         updatePinch();
       }
@@ -22661,10 +22688,12 @@ difference() {
       if (pointers.size === 1) {
         const remaining = Array.from(pointers.values())[0];
         renderer2.dragging = true;
+        renderer2.dragMode = "rotate";
         renderer2.lastPos = [remaining.x, remaining.y];
         lastPinchDist = null;
       } else if (pointers.size === 0) {
         renderer2.dragging = false;
+        renderer2.dragMode = null;
         lastPinchDist = null;
       }
       if (canvas2.hasPointerCapture(event.pointerId)) {
@@ -22685,7 +22714,7 @@ difference() {
   }
   function buildMatrices(camera, canvas2) {
     const aspect = canvas2.width / Math.max(canvas2.height, 1);
-    const proj = mat4Perspective(60 * Math.PI / 180, aspect, 0.01, 1e3);
+    const proj = mat4Perspective(CAMERA_FOV_RAD, aspect, 0.01, 1e3);
     const eye = [
       camera.target[0] + camera.radius * Math.cos(camera.theta) * Math.sin(camera.phi),
       camera.target[1] + camera.radius * Math.sin(camera.theta) * Math.sin(camera.phi),
@@ -22760,6 +22789,38 @@ difference() {
   function normalize3(v) {
     const len = Math.hypot(v[0], v[1], v[2]) || 1;
     return [v[0] / len, v[1] / len, v[2] / len];
+  }
+  function getCameraBasis(camera) {
+    const eye = [
+      camera.target[0] + camera.radius * Math.cos(camera.theta) * Math.sin(camera.phi),
+      camera.target[1] + camera.radius * Math.sin(camera.theta) * Math.sin(camera.phi),
+      camera.target[2] + camera.radius * Math.cos(camera.phi)
+    ];
+    const forward = normalize3([
+      camera.target[0] - eye[0],
+      camera.target[1] - eye[1],
+      camera.target[2] - eye[2]
+    ]);
+    let right = cross3(forward, [0, 0, 1]);
+    if (Math.hypot(right[0], right[1], right[2]) < 1e-8) {
+      right = [1, 0, 0];
+    } else {
+      right = normalize3(right);
+    }
+    const up = normalize3(cross3(right, forward));
+    return { right, up };
+  }
+  function panCamera(camera, dx, dy, canvas2) {
+    const viewportHeight = Math.max(canvas2.clientHeight, 1);
+    const worldPerPixel = 2 * camera.radius * Math.tan(CAMERA_FOV_RAD / 2) / viewportHeight;
+    const { right, up } = getCameraBasis(camera);
+    const rightDelta = -dx * worldPerPixel;
+    const upDelta = dy * worldPerPixel;
+    camera.target = [
+      camera.target[0] + right[0] * rightDelta + up[0] * upDelta,
+      camera.target[1] + right[1] * rightDelta + up[1] * upDelta,
+      camera.target[2] + right[2] * rightDelta + up[2] * upDelta
+    ];
   }
   function dot3(a, b) {
     return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];

@@ -62,6 +62,7 @@ func main() {
 	}
 
 	mesh := model3d.DualContour(solid, *delta, true, false)
+	mesh = mesh.EliminateCoplanar(1e-8)
 	if err := mesh.SaveGroupedSTL(*outPath); err != nil {
 		fmt.Fprintln(os.Stderr, "save stl:", err)
 		os.Exit(1)

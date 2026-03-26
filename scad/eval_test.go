@@ -1,6 +1,7 @@
 package scad
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -33,6 +34,14 @@ func mustEvalSolid(t *testing.T, src string) model3d.Solid {
 		t.Fatalf("eval to solid failed: %v", err)
 	}
 	return solid
+}
+
+func countErrorPositions(err error) int {
+	var perr *PosError
+	if !errors.As(err, &perr) {
+		return 0
+	}
+	return len(perr.Positions)
 }
 
 func shapeToSolid3D(shape ShapeRep) (model3d.Solid, error) {
@@ -441,6 +450,23 @@ func TestSolidsIntegration(t *testing.T) {
 			name: "ListComprehensionLetEach",
 			src: `
 				list = [ for (a = [1:4]) let (b = a*a, c = 2*b) each [a, b, c] ];
+				sphere(r=list[5]);
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(7.9, 0, 0),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(8.1, 0, 0),
+			},
+		},
+		{
+			name: "ListComprehensionLetEachTrailComma",
+			src: `
+				list = [
+					for (a = [1:4]) let (
+						b = a*a,
+						c = 2*b,
+					) each [a, b, c] ];
 				sphere(r=list[5]);
 			`,
 			inside: []model3d.Coord3D{
@@ -1044,6 +1070,27 @@ func TestRedeclareErrors(t *testing.T) {
 	}
 }
 
+func TestIncompleteLetErrors(t *testing.T) {
+	_, err := Parse(`
+	x = let (
+		y = 3,
+		z =
+	)
+	`)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	_, err = Parse(`
+	x = let (
+		y = 3,
+		z =,
+	)
+	`)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestExpressionAssignments(t *testing.T) {
 	tests := []struct {
 		name string
@@ -1056,6 +1103,30 @@ func TestExpressionAssignments(t *testing.T) {
 			src: `
 				input = [2, 3, 5, 7, 11];
 				out = [for (a = input) a * a];
+			`,
+			var_: "out",
+			want: List([]Value{Num(4), Num(9), Num(25), Num(49), Num(121)}),
+		},
+		{
+			name: "LetInListComprehension",
+			src: `
+				input = [2, 3, 5, 7, 11];
+				out = [for (a = input) let (
+					x=a*a,
+					y=x+1
+				) y-1];
+			`,
+			var_: "out",
+			want: List([]Value{Num(4), Num(9), Num(25), Num(49), Num(121)}),
+		},
+		{
+			name: "LetInListComprehensionTrailingComma",
+			src: `
+				input = [2, 3, 5, 7, 11];
+				out = [for (a = input) let (
+					x=a*a,
+					y=x+1,
+				) y-1];
 			`,
 			var_: "out",
 			want: List([]Value{Num(4), Num(9), Num(25), Num(49), Num(121)}),
@@ -1266,6 +1337,56 @@ func TestVectorAccessorErrors(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), tc.wantErr) {
 				t.Fatalf("expected error containing %q, got %v", tc.wantErr, err)
+			}
+		})
+	}
+}
+
+func TestEvalErrorPositionPropagation(t *testing.T) {
+	tests := []struct {
+		name      string
+		src       string
+		wantCount int
+	}{
+		{
+			name: "TopLevelAssignmentBuiltinArgTypeError",
+			src: `
+				a = sin([1]);
+				sphere(r=1);
+			`,
+			wantCount: 1,
+		},
+		{
+			name: "TopLevelAssignmentIndexTypeError",
+			src: `
+				a = [1][true];
+				sphere(r=1);
+			`,
+			wantCount: 1,
+		},
+		{
+			name: "FunctionCallAddsCallerPosition",
+			src: `
+				function f(x)=badvar;
+				a = f(1);
+				sphere(r=1);
+			`,
+			wantCount: 2,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			prog, err := Parse(tc.src)
+			if err != nil {
+				t.Fatalf("parse failed: %v", err)
+			}
+			_, err = Eval(prog)
+			if err == nil {
+				t.Fatal("expected eval error")
+			}
+			if got := countErrorPositions(err); got != tc.wantCount {
+				t.Fatalf("expected exactly %d position(s), got %d: %v", tc.wantCount, got, err)
 			}
 		})
 	}

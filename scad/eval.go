@@ -161,37 +161,18 @@ func evalStmts(e *env, ss []Stmt) ([]ShapeRep, error) {
 	// 1) definitions, 2) assignments, 3) geometry/control statements.
 	for _, s := range ss {
 		switch st := s.(type) {
-		case *ModuleDefStmt:
-			err := e.defineModule(st.Name, moduleDef{
-				Params:   st.Params,
-				Body:     st.Body,
-				Captured: e.captureScopes(),
-			})
-			if err != nil {
-				return nil, WithPos(err, st.pos())
+		case *ModuleDefStmt, *FuncDefStmt:
+			if _, err := evalStmt(e, st); err != nil {
+				return nil, err
 			}
-		case *FuncDefStmt:
-			err := e.defineFunc(st.Name, funcDef{
-				Params:   st.Params,
-				Body:     st.Body,
-				Captured: e.captureScopes(),
-			})
-			if err != nil {
-				return nil, WithPos(err, st.pos())
-			}
+		default:
 		}
 	}
 	for _, s := range ss {
-		st, ok := s.(*AssignStmt)
-		if !ok {
-			continue
-		}
-		v, err := evalExpr(e, st.Expr)
-		if err != nil {
-			return nil, err
-		}
-		if err := e.set(st.Name, v); err != nil {
-			return nil, WithPos(err, st.pos())
+		if st, ok := s.(*AssignStmt); ok {
+			if _, err := evalStmt(e, st); err != nil {
+				return nil, err
+			}
 		}
 	}
 	var out []ShapeRep
@@ -200,7 +181,7 @@ func evalStmts(e *env, ss []Stmt) ([]ShapeRep, error) {
 		case *ModuleDefStmt, *FuncDefStmt, *AssignStmt:
 			continue
 		}
-		got, err := evalStmtWithPos(e, s)
+		got, err := evalStmt(e, s)
 		if err != nil {
 			return nil, err
 		}
@@ -211,15 +192,13 @@ func evalStmts(e *env, ss []Stmt) ([]ShapeRep, error) {
 	return out, nil
 }
 
-func evalStmtWithPos(e *env, s Stmt) (*ShapeRep, error) {
-	got, err := evalStmt(e, s)
-	if err != nil {
-		return nil, WithPos(err, s.pos())
-	}
-	return got, nil
-}
+func evalStmt(e *env, s Stmt) (shape *ShapeRep, err error) {
+	defer func() {
+		if err != nil {
+			err = WithPos(err, s.pos())
+		}
+	}()
 
-func evalStmt(e *env, s Stmt) (*ShapeRep, error) {
 	switch st := s.(type) {
 	case *AssignStmt:
 		v, err := evalExpr(e, st.Expr)
@@ -248,12 +227,12 @@ func evalStmt(e *env, s Stmt) (*ShapeRep, error) {
 		if b {
 			e.push()
 			defer e.pop()
-			return evalStmtWithPos(e, st.Then)
+			return evalStmt(e, st.Then)
 		}
 		if st.Else != nil {
 			e.push()
 			defer e.pop()
-			return evalStmtWithPos(e, st.Else)
+			return evalStmt(e, st.Else)
 		}
 		return nil, nil
 
@@ -677,7 +656,7 @@ func evalExpr(e *env, ex Expr) (Value, error) {
 func evalForStmt(e *env, st *ForStmt) (*ShapeRep, error) {
 	var results []ShapeRep
 	err := evalForBindsExpr(e, st.Binds, 0, func() error {
-		res, err := evalStmtWithPos(e, st.Body)
+		res, err := evalStmt(e, st.Body)
 		if err != nil {
 			return err
 		}

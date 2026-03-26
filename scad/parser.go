@@ -745,6 +745,9 @@ func (p *Parser) parseNamedExprBinds(openErr, nameErr, assignErr, closeErr strin
 				break
 			}
 			p.advance()
+			if p.cur.Kind == TokRParen {
+				break
+			}
 		}
 	}
 	if err := p.expect(TokRParen, closeErr); err != nil {

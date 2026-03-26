@@ -39,7 +39,7 @@ func handleWeightMetaball(e *env, st *CallStmt, children []ShapeRep, _ *ShapeRep
 func handleMetaballSolid(e *env, st *CallStmt, children []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
 	args, err := bindArgs(e, st.Call, []ArgSpec{
 		{Name: "threshold", Pos: 0, Required: true},
-		{Name: "falloff", Pos: 1, Default: String("gaussian")},
+		{Name: "falloff", Pos: 1, Default: String("quartic")},
 	})
 	if err != nil {
 		return ShapeRep{}, err

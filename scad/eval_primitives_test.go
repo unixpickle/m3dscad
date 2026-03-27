@@ -1,6 +1,7 @@
 package scad
 
 import (
+	"fmt"
 	"math"
 	"math/rand"
 	"testing"
@@ -178,6 +179,59 @@ func TestCapsuleEquivalentToCylinderWithSpheres(t *testing.T) {
 			rng := rand.New(rand.NewSource(int64(len(tc.name)) * 173))
 			compareMeshes(t, "capsule_vs_constructed", meshA, meshB, threshold, rng)
 			compareMeshes(t, "constructed_vs_capsule", meshB, meshA, threshold, rng)
+		})
+	}
+}
+
+func TestTeardropEquivalentToCircleWithTriangle(t *testing.T) {
+	tests := []struct {
+		name   string
+		radius float64
+	}{
+		{
+			name:   "RadiusOne",
+			radius: 1.0,
+		},
+		{
+			name:   "RadiusFractional",
+			radius: 1.25,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			srcA := fmt.Sprintf(`
+				linear_extrude(height=2) teardrop(radius=%v);
+			`, tc.radius)
+			srcB := fmt.Sprintf(`
+				linear_extrude(height=2)
+					union() {
+						circle(r=%v);
+						polygon(points=[
+							[-%v/sqrt(2), %v/sqrt(2)],
+							[%v/sqrt(2), %v/sqrt(2)],
+							[0, %v*sqrt(2)]
+						]);
+					}
+			`, tc.radius, tc.radius, tc.radius, tc.radius, tc.radius, tc.radius)
+
+			solidA := mustEvalSolid(t, srcA)
+			solidB := mustEvalSolid(t, srcB)
+
+			deltaA := marchingDelta(solidA, openscadTestMaxGridSide)
+			deltaB := marchingDelta(solidB, openscadTestMaxGridSide)
+			delta := math.Max(deltaA, deltaB)
+			if delta <= 0 {
+				t.Fatalf("invalid marching delta: %v", delta)
+			}
+
+			meshA := model3d.MarchingCubesSearch(solidA, delta, openscadTestMCIters)
+			meshB := model3d.MarchingCubesSearch(solidB, delta, openscadTestMCIters)
+
+			threshold := math.Max(3*delta, 0.02)
+			rng := rand.New(rand.NewSource(int64(len(tc.name)) * 181))
+			compareMeshes(t, "teardrop_vs_constructed", meshA, meshB, threshold, rng)
+			compareMeshes(t, "constructed_vs_teardrop", meshB, meshA, threshold, rng)
 		})
 	}
 }

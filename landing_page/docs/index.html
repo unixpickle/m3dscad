@@ -52,6 +52,7 @@
         <h3><a href="#primitives-2d">2D Primitives</a></h3>
         <ul>
           <li><a href="#circle">circle</a>, <a href="#circle_metaball">circle_metaball</a>, <a href="#circle_sdf">circle_sdf</a></li>
+          <li><a href="#teardrop">teardrop</a></li>
           <li><a href="#square">square</a>, <a href="#square_metaball">square_metaball</a>, <a href="#square_sdf">square_sdf</a></li>
           <li><a href="#fn_solid_2d_ref">fn_solid (2D)</a></li>
           <li><a href="#polygon">polygon</a>, <a href="#polygon_mesh">polygon_mesh</a>, <a href="#polygon_sdf">polygon_sdf</a></li>
@@ -312,6 +313,14 @@ sphere(r=radius);</pre>
         <p>Creates a circle represented as a 2D SDF.</p>
         <pre class="example-code">circle_sdf(r=1)</pre>
         <ul><li><code>r</code>: Circle radius.</li></ul>
+
+        <h3 id="teardrop"><code>teardrop</code></h3>
+        <p>Creates a centered 2D teardrop solid.</p>
+        <pre class="example-code">teardrop(radius=1)</pre>
+        <ul>
+          <li><code>radius</code> (or <code>r</code>): Teardrop radius.</li>
+        </ul>
+        <p>The tip direction is fixed to positive Y. Use <code>rotate()</code> to orient it differently.</p>
 
         <h3 id="square"><code>square</code></h3>
         <p>Creates an axis-aligned rectangle solid in 2D.</p>

@@ -104,21 +104,12 @@ func handleScale(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (Shap
 			}),
 		}, nil
 	case ShapeSolid2D:
-		if vec[2] != 0 {
-			return ShapeRep{}, fmt.Errorf("scale(): z component not supported for 2D shapes")
-		}
 		xf := &model2d.VecScale{Scale: model2d.XY(vec[0], vec[1])}
 		return shapeSolid2D(model2d.TransformSolid(xf, childUnion.S2)), nil
 	case ShapeMesh2D:
-		if vec[2] != 0 {
-			return ShapeRep{}, fmt.Errorf("scale(): z component not supported for 2D shapes")
-		}
 		xf := &model2d.VecScale{Scale: model2d.XY(vec[0], vec[1])}
 		return shapeMesh2D(childUnion.M2.Transform(xf)), nil
 	case ShapeSDF2D:
-		if vec[2] != 0 {
-			return ShapeRep{}, fmt.Errorf("scale(): z component not supported for 2D shapes")
-		}
 		if math.Abs(vec[0]) != math.Abs(vec[1]) {
 			return ShapeRep{}, fmt.Errorf("scale(): non-uniform scaling not supported for SDFs")
 		}
@@ -128,9 +119,6 @@ func handleScale(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (Shap
 		}
 		return shapeSDF2D(model2d.TransformSDF(xf, childUnion.SDF2)), nil
 	case ShapeMetaball2D:
-		if vec[2] != 0 {
-			return ShapeRep{}, fmt.Errorf("scale(): z component not supported for 2D shapes")
-		}
 		return ShapeRep{
 			Kind: ShapeMetaball2D,
 			MB2: childUnion.MB2.Map(func(m model2d.Metaball) model2d.Metaball {

@@ -1419,7 +1419,7 @@ func bindParams(bindEnv, evalEnv *env, params []Param, args []Arg) error {
 	// Check required
 	for _, p := range params {
 		if _, ok := values[p.Name]; !ok {
-			return PosErrorf(p.P, "missing parameter %q", p.Name)
+			return fmt.Errorf("missing parameter %q (declared at %s)", p.Name, p.P)
 		}
 	}
 	for k, v := range values {

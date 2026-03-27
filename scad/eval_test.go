@@ -164,6 +164,20 @@ func TestSolidsIntegration(t *testing.T) {
 			},
 		},
 		{
+			name: "Teardrop",
+			src: `
+				linear_extrude(height=1) teardrop(radius=1);
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(0, -0.9, 0.5),
+				model3d.XYZ(0, 1.2, 0.5),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(0, 1.5, 0.5),
+				model3d.XYZ(1.1, 0, 0.5),
+			},
+		},
+		{
 			name: "CylinderPositionalR1R2",
 			src: `
 				cylinder(2, 1, 0);
@@ -778,6 +792,29 @@ func TestSolidsIntegration(t *testing.T) {
 	}
 }
 
+func TestScaleIgnoresZFor2DShapes(t *testing.T) {
+	withZeroZ := mustEvalSolid(t, `
+		linear_extrude(height=2)
+			scale([1.5, 0.75, 0])
+			circle(r=1.2);
+	`)
+	withNonzeroZ := mustEvalSolid(t, `
+		linear_extrude(height=2)
+			scale([1.5, 0.75, 99])
+			circle(r=1.2);
+	`)
+
+	rng := rand.New(rand.NewSource(1337))
+	min := model3d.XYZ(-3, -3, -0.5)
+	max := model3d.XYZ(3, 3, 2.5)
+	for i := 0; i < 2000; i++ {
+		p := model3d.NewCoord3DRandBounds(min, max, rng)
+		if withZeroZ.Contains(p) != withNonzeroZ.Contains(p) {
+			t.Fatalf("z scale changed 2D result at point %v", p)
+		}
+	}
+}
+
 func TestCylinderArgErrors(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -903,6 +940,11 @@ func TestMissingArgError(t *testing.T) {
 			wantErr: `text(): unknown argument "foo"`,
 		},
 		{
+			name:    "UnknownNamedArgTeardropAxis",
+			src:     `teardrop(axis=[0,1]);`,
+			wantErr: `teardrop(): unknown argument "axis"`,
+		},
+		{
 			name: "MissingRequiredAfterDefault",
 			src: `
 				function foo(x=2, y) = x+y;
@@ -954,6 +996,39 @@ func TestMissingArgError(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFunctionCallArgErrorPositions(t *testing.T) {
+	t.Run("ExtraPositionalArgUsesCallSite", func(t *testing.T) {
+		prog, err := Parse("function foo(x) = [x];\n\ny =\n  foo(2,3);\n")
+		if err != nil {
+			t.Fatalf("parse failed: %v", err)
+		}
+		_, err = Eval(prog)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if got, want := err.Error(), `3:1: 4:9: too many positional args`; got != want {
+			t.Fatalf("expected %q, got %q", want, got)
+		}
+	})
+
+	t.Run("MissingRequiredArgReferencesDefinition", func(t *testing.T) {
+		prog, err := Parse("function foo(x) = [x];\n\ny =\n  foo();\n")
+		if err != nil {
+			t.Fatalf("parse failed: %v", err)
+		}
+		_, err = Eval(prog)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !strings.Contains(err.Error(), `3:1: missing parameter "x"`) {
+			t.Fatalf("expected missing-arg error at call site, got %v", err)
+		}
+		if !strings.Contains(err.Error(), "declared at 1:14") {
+			t.Fatalf("missing-arg error should reference declaration site, got %v", err)
+		}
+	})
 }
 
 func TestScopeCaptureSemantics(t *testing.T) {

@@ -160,6 +160,9 @@ var builtinHandlers = map[string]callHandler{
 	"circle_sdf": {
 		Eval: handleCircleSDF,
 	},
+	"teardrop": {
+		Eval: handleTeardrop,
+	},
 	"square": {
 		Eval: handleSquare,
 	},

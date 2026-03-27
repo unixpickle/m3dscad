@@ -161,6 +161,14 @@ func handleCircleSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep,
 	return shapeSDF2D(circle), nil
 }
 
+func handleTeardrop(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
+	teardrop, err := parseTeardrop(e, st)
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	return shapeSolid2D(teardrop), nil
+}
+
 func handleSquare(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
 	rect, err := parseSquare(e, st)
 	if err != nil {
@@ -737,6 +745,24 @@ func parseCircle(e *env, st *CallStmt) (*model2d.Circle, error) {
 		return nil, err
 	}
 	return &model2d.Circle{Radius: r}, nil
+}
+
+func parseTeardrop(e *env, st *CallStmt) (*toolbox3d.Teardrop2D, error) {
+	args, err := bindArgs(e, st.Call, []ArgSpec{
+		{Name: "radius", Aliases: []string{"r"}, Pos: 0, Default: Num(1.0)},
+	})
+	if err != nil {
+		return nil, err
+	}
+	r, err := argNum(args, "radius")
+	if err != nil {
+		return nil, err
+	}
+	return &toolbox3d.Teardrop2D{
+		Center:    model2d.Coord{},
+		Radius:    r,
+		Direction: model2d.Y(1),
+	}, nil
 }
 
 func parseSquare(e *env, st *CallStmt) (*model2d.Rect, error) {

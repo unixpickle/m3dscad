@@ -67,6 +67,32 @@ func assertContains(t *testing.T, s model3d.Solid, p model3d.Coord3D, want bool)
 	}
 }
 
+func assertSDFsEqual3D(t *testing.T, a, b model3d.SDF, min, max model3d.Coord3D, tol float64) {
+	t.Helper()
+	rng := rand.New(rand.NewSource(1337))
+	for i := 0; i < 2000; i++ {
+		p := model3d.NewCoord3DRandBounds(min, max, rng)
+		av := a.SDF(p)
+		bv := b.SDF(p)
+		if math.Abs(av-bv) > tol {
+			t.Fatalf("SDF mismatch at %v: a=%f b=%f", p, av, bv)
+		}
+	}
+}
+
+func assertSDFsEqual2D(t *testing.T, a, b model2d.SDF, min, max model2d.Coord, tol float64) {
+	t.Helper()
+	rng := rand.New(rand.NewSource(1337))
+	for i := 0; i < 2000; i++ {
+		p := model2d.NewCoordRandBounds(min, max, rng)
+		av := a.SDF(p)
+		bv := b.SDF(p)
+		if math.Abs(av-bv) > tol {
+			t.Fatalf("SDF mismatch at %v: a=%f b=%f", p, av, bv)
+		}
+	}
+}
+
 func countMesh2DSegments(m *model2d.Mesh) int {
 	n := 0
 	m.Iterate(func(*model2d.Segment) {
@@ -1095,6 +1121,13 @@ func TestMissingArgError(t *testing.T) {
 			`,
 			wantErr: `transform(): min must be a 2D vector/list`,
 		},
+		{
+			name: "Clip2DRejectsZBounds",
+			src: `
+				clip(min_z=0) circle(r=1);
+			`,
+			wantErr: `clip(): min_z/max_z are not supported for 2D shapes`,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1899,6 +1932,215 @@ func TestTransformModifier(t *testing.T) {
 		max := shape.M3.Max()
 		if min != model3d.XYZ(2, -1, 4) || max != model3d.XYZ(3, 0, 5) {
 			t.Fatalf("unexpected mesh bounds: min=%v max=%v", min, max)
+		}
+	})
+}
+
+func TestClipModifier(t *testing.T) {
+	t.Run("Solid3DMatchesIntersection", func(t *testing.T) {
+		clipped := mustEvalSolid(t, `
+			clip(min_x=-0.4, max_x=0.8, min_y=-0.7, max_y=0.2, min_z=-0.3, max_z=0.9)
+				sphere(r=1.2);
+		`)
+		intersected := mustEvalSolid(t, `
+			intersection() {
+				sphere(r=1.2);
+				translate([-0.4, -0.7, -0.3])
+					cube(size=[1.2, 0.9, 1.2], center=false);
+			}
+		`)
+		assertSolids3DEqual(t, clipped, intersected)
+	})
+
+	t.Run("Solid3DPartiallyUnboundedMatchesIntersection", func(t *testing.T) {
+		clipped := mustEvalSolid(t, `
+			clip(min_x=-0.4, max_y=0.2)
+				sphere(r=1.2);
+		`)
+		intersected := mustEvalSolid(t, `
+			intersection() {
+				sphere(r=1.2);
+				translate([-0.4, -10000, -10000])
+					cube(size=[10000.4, 10000.2, 20000], center=false);
+			}
+		`)
+		assertSolids3DEqual(t, clipped, intersected)
+	})
+
+	t.Run("Solid2DMatchesIntersection", func(t *testing.T) {
+		clipped := mustEvalShape(t, `
+			clip(min_x=-0.4, max_x=0.8, min_y=-0.7, max_y=0.2)
+				circle(r=1.2);
+		`)
+		intersected := mustEvalShape(t, `
+			intersection() {
+				circle(r=1.2);
+				translate([-0.4, -0.7, 0])
+					square(size=[1.2, 0.9], center=false);
+			}
+		`)
+		if clipped.Kind != ShapeSolid2D || intersected.Kind != ShapeSolid2D {
+			t.Fatalf("expected 2D solids, got %v and %v", clipped.Kind, intersected.Kind)
+		}
+		assertSolids2DEqual(t, clipped.S2, intersected.S2)
+	})
+
+	t.Run("Solid2DPartiallyUnboundedMatchesIntersection", func(t *testing.T) {
+		clipped := mustEvalShape(t, `
+			clip(max_x=0.8, min_y=-0.7)
+				circle(r=1.2);
+		`)
+		intersected := mustEvalShape(t, `
+			intersection() {
+				circle(r=1.2);
+				translate([-10000, -0.7, 0])
+					square(size=[10000.8, 10000.7], center=false);
+			}
+		`)
+		if clipped.Kind != ShapeSolid2D || intersected.Kind != ShapeSolid2D {
+			t.Fatalf("expected 2D solids, got %v and %v", clipped.Kind, intersected.Kind)
+		}
+		assertSolids2DEqual(t, clipped.S2, intersected.S2)
+	})
+
+	t.Run("SDF3DMatchesIntersection", func(t *testing.T) {
+		clipped := mustEvalShape(t, `
+			clip(min_x=-0.4, max_x=0.8, min_y=-0.7, max_y=0.2, min_z=-0.3, max_z=0.9)
+				sphere_sdf(r=1.2);
+		`)
+		intersected := mustEvalShape(t, `
+			intersection() {
+				sphere_sdf(r=1.2);
+				translate([-0.4, -0.7, -0.3])
+					cube_sdf(size=[1.2, 0.9, 1.2], center=false);
+			}
+		`)
+		if clipped.Kind != ShapeSDF3D || intersected.Kind != ShapeSDF3D {
+			t.Fatalf("expected 3D SDFs, got %v and %v", clipped.Kind, intersected.Kind)
+		}
+		assertSDFsEqual3D(t, clipped.SDF3, intersected.SDF3, model3d.XYZ(-1.5, -1.5, -1.5), model3d.XYZ(1.5, 1.5, 1.5), 1e-8)
+	})
+
+	t.Run("SDF3DPartiallyUnboundedMatchesIntersection", func(t *testing.T) {
+		clipped := mustEvalShape(t, `
+			clip(max_x=0.8, min_z=-0.3)
+				sphere_sdf(r=1.2);
+		`)
+		intersected := mustEvalShape(t, `
+			intersection() {
+				sphere_sdf(r=1.2);
+				translate([-10000, -10000, -0.3])
+					cube_sdf(size=[10000.8, 20000, 10000.3], center=false);
+			}
+		`)
+		if clipped.Kind != ShapeSDF3D || intersected.Kind != ShapeSDF3D {
+			t.Fatalf("expected 3D SDFs, got %v and %v", clipped.Kind, intersected.Kind)
+		}
+		assertSDFsEqual3D(t, clipped.SDF3, intersected.SDF3, model3d.XYZ(-1.1, -1.1, -0.2), model3d.XYZ(0.7, 1.1, 1.1), 1e-8)
+	})
+
+	t.Run("SDF2DMatchesIntersection", func(t *testing.T) {
+		clipped := mustEvalShape(t, `
+			clip(min_x=-0.4, max_x=0.8, min_y=-0.7, max_y=0.2)
+				circle_sdf(r=1.2);
+		`)
+		intersected := mustEvalShape(t, `
+			intersection() {
+				circle_sdf(r=1.2);
+				translate([-0.4, -0.7, 0])
+					square_sdf(size=[1.2, 0.9], center=false);
+			}
+		`)
+		if clipped.Kind != ShapeSDF2D || intersected.Kind != ShapeSDF2D {
+			t.Fatalf("expected 2D SDFs, got %v and %v", clipped.Kind, intersected.Kind)
+		}
+		assertSDFsEqual2D(t, clipped.SDF2, intersected.SDF2, model2d.XY(-1.5, -1.5), model2d.XY(1.5, 1.5), 1e-8)
+	})
+
+	t.Run("SDF2DPartiallyUnboundedMatchesIntersection", func(t *testing.T) {
+		clipped := mustEvalShape(t, `
+			clip(min_x=-0.4, max_y=0.2)
+				circle_sdf(r=1.2);
+		`)
+		intersected := mustEvalShape(t, `
+			intersection() {
+				circle_sdf(r=1.2);
+				translate([-0.4, -10000, 0])
+					square_sdf(size=[10000.4, 10000.2], center=false);
+			}
+		`)
+		if clipped.Kind != ShapeSDF2D || intersected.Kind != ShapeSDF2D {
+			t.Fatalf("expected 2D SDFs, got %v and %v", clipped.Kind, intersected.Kind)
+		}
+		assertSDFsEqual2D(t, clipped.SDF2, intersected.SDF2, model2d.XY(-0.3, -1.1), model2d.XY(1.1, 0.1), 1e-8)
+	})
+
+	t.Run("SDFRectMatchesAlreadyClippedRect", func(t *testing.T) {
+		cases := []struct {
+			name      string
+			clipArgs  string
+			wantMin   model3d.Coord3D
+			wantMax   model3d.Coord3D
+			sampleMin model3d.Coord3D
+			sampleMax model3d.Coord3D
+		}{
+			{
+				name:      "NoClip",
+				clipArgs:  "",
+				wantMin:   model3d.XYZ(0, 0, 0),
+				wantMax:   model3d.XYZ(4, 3, 2),
+				sampleMin: model3d.XYZ(-1, -1, -1),
+				sampleMax: model3d.XYZ(5, 4, 3),
+			},
+			{
+				name:      "LowerAndUpper",
+				clipArgs:  "min_x=1.5, max_y=2.1, max_z=1.1",
+				wantMin:   model3d.XYZ(1.5, 0, 0),
+				wantMax:   model3d.XYZ(4, 2.1, 1.1),
+				sampleMin: model3d.XYZ(-1, -1, -1),
+				sampleMax: model3d.XYZ(5, 4, 3),
+			},
+			{
+				name:      "BothSidesAllAxes",
+				clipArgs:  "min_x=0.4, max_x=1.6, min_y=1, max_y=2.5, min_z=0.2, max_z=1.8",
+				wantMin:   model3d.XYZ(0.4, 1, 0.2),
+				wantMax:   model3d.XYZ(1.6, 2.5, 1.8),
+				sampleMin: model3d.XYZ(-1, -1, -1),
+				sampleMax: model3d.XYZ(5, 4, 3),
+			},
+			{
+				name:      "OutsideLowerBoundsClampsToOriginal",
+				clipArgs:  "min_x=-2, min_y=-5, min_z=-3, max_x=2.5",
+				wantMin:   model3d.XYZ(0, 0, 0),
+				wantMax:   model3d.XYZ(2.5, 3, 2),
+				sampleMin: model3d.XYZ(-1, -1, -1),
+				sampleMax: model3d.XYZ(5, 4, 3),
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				clipCall := "clip()"
+				if tc.clipArgs != "" {
+					clipCall = "clip(" + tc.clipArgs + ")"
+				}
+				clipped := mustEvalShape(t, clipCall+` cube_sdf(size=[4, 3, 2], center=false);`)
+				if clipped.Kind != ShapeSDF3D {
+					t.Fatalf("expected ShapeSDF3D, got %v", clipped.Kind)
+				}
+
+				size := tc.wantMax.Sub(tc.wantMin)
+				wantSrc := fmt.Sprintf(`
+					translate([%g, %g, %g])
+						cube_sdf(size=[%g, %g, %g], center=false);
+				`, tc.wantMin.X, tc.wantMin.Y, tc.wantMin.Z, size.X, size.Y, size.Z)
+				want := mustEvalShape(t, wantSrc)
+				if want.Kind != ShapeSDF3D {
+					t.Fatalf("expected ShapeSDF3D, got %v", want.Kind)
+				}
+
+				assertSDFsEqual3D(t, clipped.SDF3, want.SDF3, tc.sampleMin, tc.sampleMax, 1e-8)
+			})
 		}
 	})
 }

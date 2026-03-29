@@ -351,6 +351,143 @@ func handleTransform(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (
 	}
 }
 
+type clipSpec struct {
+	MinX float64
+	MaxX float64
+	MinY float64
+	MaxY float64
+	MinZ float64
+	MaxZ float64
+}
+
+func handleClip(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
+	switch childUnion.Kind {
+	case ShapeSolid3D:
+		spec, err := parseClipSpec(e, st, 3)
+		if err != nil {
+			return ShapeRep{}, err
+		}
+		min, max, empty := clipBounds3D(childUnion.S3.Min(), childUnion.S3.Max(), spec)
+		if empty {
+			emptySolid := model3d.CheckedFuncSolid(min, min, func(model3d.Coord3D) bool { return false })
+			return shapeSolid3D(emptySolid), nil
+		}
+		rect := model3d.NewRect(min, max)
+		return shapeSolid3D(model3d.IntersectedSolid{childUnion.S3, rect}), nil
+	case ShapeSolid2D:
+		spec, err := parseClipSpec(e, st, 2)
+		if err != nil {
+			return ShapeRep{}, err
+		}
+		min, max, empty := clipBounds2D(childUnion.S2.Min(), childUnion.S2.Max(), spec)
+		if empty {
+			emptySolid := model2d.CheckedFuncSolid(min, min, func(model2d.Coord) bool { return false })
+			return shapeSolid2D(emptySolid), nil
+		}
+		rect := model2d.NewRect(min, max)
+		return shapeSolid2D(model2d.IntersectedSolid{childUnion.S2, rect}), nil
+	case ShapeSDF3D:
+		spec, err := parseClipSpec(e, st, 3)
+		if err != nil {
+			return ShapeRep{}, err
+		}
+		min, max, empty := clipBounds3D(childUnion.SDF3.Min(), childUnion.SDF3.Max(), spec)
+		if empty {
+			emptySDF := model3d.FuncSDF(min, min, func(model3d.Coord3D) float64 { return -1 })
+			return shapeSDF3D(emptySDF), nil
+		}
+		clipRect := model3d.NewRect(min, max)
+		return shapeSDF3D(sdfIntersect3D([]ShapeRep{
+			*childUnion,
+			shapeSDF3D(clipRect),
+		})), nil
+	case ShapeSDF2D:
+		spec, err := parseClipSpec(e, st, 2)
+		if err != nil {
+			return ShapeRep{}, err
+		}
+		min, max, empty := clipBounds2D(childUnion.SDF2.Min(), childUnion.SDF2.Max(), spec)
+		if empty {
+			emptySDF := model2d.FuncSDF(min, min, func(model2d.Coord) float64 { return -1 })
+			return shapeSDF2D(emptySDF), nil
+		}
+		clipRect := model2d.NewRect(min, max)
+		return shapeSDF2D(sdfIntersect2D([]ShapeRep{
+			*childUnion,
+			shapeSDF2D(clipRect),
+		})), nil
+	default:
+		return ShapeRep{}, fmt.Errorf("clip(): requires a solid or SDF")
+	}
+}
+
+func parseClipSpec(e *env, st *CallStmt, dim int) (clipSpec, error) {
+	bound, err := bindArgsDetailed(e, st.Call, []ArgSpec{
+		{Name: "min_x", Pos: 0, Default: Num(math.Inf(-1))},
+		{Name: "max_x", Pos: 1, Default: Num(math.Inf(1))},
+		{Name: "min_y", Pos: 2, Default: Num(math.Inf(-1))},
+		{Name: "max_y", Pos: 3, Default: Num(math.Inf(1))},
+		{Name: "min_z", Pos: 4, Default: Num(math.Inf(-1))},
+		{Name: "max_z", Pos: 5, Default: Num(math.Inf(1))},
+	})
+	if err != nil {
+		return clipSpec{}, err
+	}
+	if dim == 2 && (bound.Provided["min_z"] || bound.Provided["max_z"]) {
+		return clipSpec{}, fmt.Errorf("clip(): min_z/max_z are not supported for 2D shapes")
+	}
+	minX, err := argNum(bound.Values, "min_x")
+	if err != nil {
+		return clipSpec{}, err
+	}
+	maxX, err := argNum(bound.Values, "max_x")
+	if err != nil {
+		return clipSpec{}, err
+	}
+	minY, err := argNum(bound.Values, "min_y")
+	if err != nil {
+		return clipSpec{}, err
+	}
+	maxY, err := argNum(bound.Values, "max_y")
+	if err != nil {
+		return clipSpec{}, err
+	}
+	minZ, err := argNum(bound.Values, "min_z")
+	if err != nil {
+		return clipSpec{}, err
+	}
+	maxZ, err := argNum(bound.Values, "max_z")
+	if err != nil {
+		return clipSpec{}, err
+	}
+	return clipSpec{
+		MinX: minX,
+		MaxX: maxX,
+		MinY: minY,
+		MaxY: maxY,
+		MinZ: minZ,
+		MaxZ: maxZ,
+	}, nil
+}
+
+func clipBounds2D(min, max model2d.Coord, spec clipSpec) (model2d.Coord, model2d.Coord, bool) {
+	min = min.Max(model2d.XY(spec.MinX, spec.MinY))
+	max = max.Min(model2d.XY(spec.MaxX, spec.MaxY))
+	if min.X > max.X || min.Y > max.Y {
+		return min, min, true
+	}
+	return min, max, false
+}
+
+func clipBounds3D(min, max model3d.Coord3D, spec clipSpec) (model3d.Coord3D, model3d.Coord3D, bool) {
+	min = min.Max(model3d.XYZ(spec.MinX, spec.MinY, spec.MinZ))
+	max = max.Min(model3d.XYZ(spec.MaxX, spec.MaxY, spec.MaxZ))
+	if min.X > max.X || min.Y > max.Y || min.Z > max.Z {
+		return min, min, true
+	}
+	return min, max, false
+}
+
 func parseTransformBoundsArgs(
 	e *env,
 	st *CallStmt,

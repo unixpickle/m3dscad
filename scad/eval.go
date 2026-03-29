@@ -1071,44 +1071,28 @@ func evalClosureCall(e *env, fn *FuncClosure, args []Arg) (Value, error) {
 		scopes: append([]*scope{}, e.scopes...),
 		echo:   e.echo,
 	}
-	var out Value
-	err := e.withCapturedScopes(fn.Captured, func() error {
-		if err := bindParams(e, caller, fn.Params, args); err != nil {
-			return err
-		}
-		v, err := evalExpr(e, fn.Body)
-		if err != nil {
-			return err
-		}
-		out = v
-		return nil
-	})
-	if err != nil {
+	callEnv := &env{
+		scopes: append(append([]*scope{}, fn.Captured...), newScope()),
+		echo:   e.echo,
+	}
+	if err := bindParams(callEnv, caller, fn.Params, args); err != nil {
 		return Value{}, err
 	}
-	return out, nil
+	return evalExpr(callEnv, fn.Body)
 }
 
 func evalClosureCallValues(e *env, fn *FuncClosure, args []Value) (Value, error) {
 	if fn == nil {
 		return Value{}, fmt.Errorf("invalid function value")
 	}
-	var out Value
-	err := e.withCapturedScopes(fn.Captured, func() error {
-		if err := bindParamsValues(e, fn.Params, args); err != nil {
-			return err
-		}
-		v, err := evalExpr(e, fn.Body)
-		if err != nil {
-			return err
-		}
-		out = v
-		return nil
-	})
-	if err != nil {
+	callEnv := &env{
+		scopes: append(append([]*scope{}, fn.Captured...), newScope()),
+		echo:   e.echo,
+	}
+	if err := bindParamsValues(callEnv, fn.Params, args); err != nil {
 		return Value{}, err
 	}
-	return out, nil
+	return evalExpr(callEnv, fn.Body)
 }
 
 func evalEchoArgs(e *env, args []Arg) ([]string, error) {

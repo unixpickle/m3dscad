@@ -96,7 +96,10 @@ func handleDualContour(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep)
 	return shapeMesh3D(mesh), nil
 }
 
-func handleMeshToSDF(_ *env, _ *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
+func handleMeshToSDF(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
+	if _, err := bindArgs(e, st.Call, []ArgSpec{}); err != nil {
+		return ShapeRep{}, err
+	}
 	switch childUnion.Kind {
 	case ShapeMesh2D:
 		return shapeSDF2D(model2d.MeshToSDF(childUnion.M2)), nil

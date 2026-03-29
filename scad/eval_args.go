@@ -10,44 +10,78 @@ type ArgSpec struct {
 	Required bool
 }
 
+type boundArgs struct {
+	Values        map[string]Value
+	Provided      map[string]bool
+	NamedProvided map[string]bool
+}
+
 func bindArgs(e *env, c Call, specs []ArgSpec) (map[string]Value, error) {
-	allowedNames := make(map[string]struct{}, len(specs))
+	res, err := bindArgsDetailed(e, c, specs)
+	if err != nil {
+		return nil, err
+	}
+	return res.Values, nil
+}
+
+func bindArgsDetailed(e *env, c Call, specs []ArgSpec) (*boundArgs, error) {
+	nameToCanonical := make(map[string]string, len(specs))
+	maxPos := -1
 	for _, spec := range specs {
-		allowedNames[spec.Name] = struct{}{}
+		if _, exists := nameToCanonical[spec.Name]; exists {
+			return nil, fmt.Errorf("%s(): duplicate arg spec %q", c.Name, spec.Name)
+		}
+		nameToCanonical[spec.Name] = spec.Name
 		for _, alias := range spec.Aliases {
-			allowedNames[alias] = struct{}{}
+			if _, exists := nameToCanonical[alias]; exists {
+				return nil, fmt.Errorf("%s(): duplicate arg spec alias %q", c.Name, alias)
+			}
+			nameToCanonical[alias] = spec.Name
+		}
+		if spec.Pos > maxPos {
+			maxPos = spec.Pos
 		}
 	}
 
 	named := make(map[string]Value, len(c.Args))
 	positional := make([]Value, 0, len(c.Args))
+	namedProvided := make(map[string]bool, len(specs))
+	seenNamed := false
 	for _, a := range c.Args {
 		v, err := evalExpr(e, a.Expr)
 		if err != nil {
 			return nil, err
 		}
 		if a.Name != "" {
-			if _, ok := allowedNames[a.Name]; !ok {
+			seenNamed = true
+			canonical, ok := nameToCanonical[a.Name]
+			if !ok {
 				return nil, fmt.Errorf("%s(): unknown argument %q", c.Name, a.Name)
 			}
-			named[a.Name] = v
-		} else {
-			positional = append(positional, v)
+			if _, exists := named[canonical]; exists {
+				return nil, fmt.Errorf("%s(): duplicate argument %q", c.Name, a.Name)
+			}
+			named[canonical] = v
+			namedProvided[canonical] = true
+			continue
 		}
+		if seenNamed {
+			return nil, fmt.Errorf("%s(): positional args cannot follow named args", c.Name)
+		}
+		positional = append(positional, v)
+	}
+	if maxPos >= 0 {
+		if len(positional) > maxPos+1 {
+			return nil, fmt.Errorf("%s(): too many positional args", c.Name)
+		}
+	} else if len(positional) > 0 {
+		return nil, fmt.Errorf("%s(): too many positional args", c.Name)
 	}
 
 	out := make(map[string]Value, len(specs))
+	provided := make(map[string]bool, len(specs))
 	for _, spec := range specs {
 		v, ok := named[spec.Name]
-		if !ok {
-			for _, alias := range spec.Aliases {
-				if val, found := named[alias]; found {
-					v = val
-					ok = true
-					break
-				}
-			}
-		}
 		if !ok && spec.Pos >= 0 && spec.Pos < len(positional) {
 			v = positional[spec.Pos]
 			ok = true
@@ -59,8 +93,13 @@ func bindArgs(e *env, c Call, specs []ArgSpec) (map[string]Value, error) {
 			v = spec.Default
 		}
 		out[spec.Name] = v
+		provided[spec.Name] = ok
 	}
-	return out, nil
+	return &boundArgs{
+		Values:        out,
+		Provided:      provided,
+		NamedProvided: namedProvided,
+	}, nil
 }
 
 func argNum(args map[string]Value, name string) (float64, error) {

@@ -8,7 +8,10 @@ import (
 	"github.com/unixpickle/model3d/model3d"
 )
 
-func handleMetaball(_ *env, _ *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
+func handleMetaball(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
+	if _, err := bindArgs(e, st.Call, []ArgSpec{}); err != nil {
+		return ShapeRep{}, err
+	}
 	switch childUnion.Kind {
 	case ShapeSDF2D:
 		return shapeMetaball2D(model2d.SDFToMetaball(childUnion.SDF2)), nil

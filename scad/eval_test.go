@@ -854,6 +854,90 @@ func TestCylinderArgErrors(t *testing.T) {
 	}
 }
 
+func TestBindArgsStrictErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		src     string
+		wantErr string
+	}{
+		{
+			name:    "DuplicateNamed",
+			src:     `sphere(r=1, r=2);`,
+			wantErr: `duplicate argument "r"`,
+		},
+		{
+			name:    "PositionalAfterNamed",
+			src:     `cube(size=1, true);`,
+			wantErr: "positional args cannot follow named args",
+		},
+		{
+			name:    "TooManyPositional",
+			src:     `sphere(1, 2);`,
+			wantErr: "too many positional args",
+		},
+		{
+			name:    "AliasDuplicate",
+			src:     `teardrop(radius=1, r=2);`,
+			wantErr: `duplicate argument "r"`,
+		},
+		{
+			name:    "RotateTooManyPositional",
+			src:     `rotate(10, [0,0,1], 3) cube(1);`,
+			wantErr: "too many positional args",
+		},
+		{
+			name:    "RotateUnknownNamed",
+			src:     `rotate(a=10, v=[0,0,1], foo=3) cube(1);`,
+			wantErr: `rotate(): unknown argument "foo"`,
+		},
+		{
+			name:    "UnionTakesNoArgs",
+			src:     `union(1) { cube(1); }`,
+			wantErr: "too many positional args",
+		},
+		{
+			name:    "DifferenceUnknownNamed",
+			src:     `difference(foo=1) { cube(1); cube(0.5); }`,
+			wantErr: `difference(): unknown argument "foo"`,
+		},
+		{
+			name:    "IntersectionTakesNoArgs",
+			src:     `intersection(1) { cube(1); cube(1); }`,
+			wantErr: "too many positional args",
+		},
+		{
+			name:    "SolidTakesNoArgs",
+			src:     `solid(1) sphere_sdf(r=1);`,
+			wantErr: "too many positional args",
+		},
+		{
+			name:    "MeshToSDFTakesNoArgs",
+			src:     `mesh_to_sdf(1) marching_cubes() sphere(r=1);`,
+			wantErr: "too many positional args",
+		},
+		{
+			name:    "MetaballTakesNoArgs",
+			src:     `metaball(1) sphere_sdf(r=1);`,
+			wantErr: "too many positional args",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			prog, err := Parse(tc.src)
+			if err != nil {
+				t.Fatalf("parse failed: %v", err)
+			}
+			_, err = Eval(prog)
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("expected error containing %q, got %v", tc.wantErr, err)
+			}
+		})
+	}
+}
+
 func TestLinearExtrudeArgErrors(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -979,6 +1063,37 @@ func TestMissingArgError(t *testing.T) {
 				line_join(points=[[0,0,0], [1,0,0]], norm="foo");
 			`,
 			wantErr: `line_join(): norm must be "l2" or "l1"`,
+		},
+		{
+			name: "TransformSolidMissingBounds",
+			src: `
+				transform(function(c) [c.x, c.y, c.z]) sphere(r=1);
+			`,
+			wantErr: `missing parameter "max"`,
+		},
+		{
+			name: "TransformMeshRejectsBoundsArgs",
+			src: `
+				transform([-1,-1], [1,1], function(c) c)
+					polygon_mesh(points=[[0,0], [1,0], [0,1]]);
+			`,
+			wantErr: `too many positional args`,
+		},
+		{
+			name: "TransformSolidMapMustReturnVector",
+			src: `
+				transform([-1,-1,-1], [1,1,1], function(c) c.x)
+					sphere(r=1);
+			`,
+			wantErr: `expected vector/list`,
+		},
+		{
+			name: "Transform2DSolidBoundsDimMismatch",
+			src: `
+				transform([-1,-1,-1], [1,1,1], function(c) [c.x, c.y, c.z])
+					circle(r=1);
+			`,
+			wantErr: `transform(): min must be a 2D vector/list`,
 		},
 	}
 	for _, tc := range tests {
@@ -1110,6 +1225,15 @@ func TestRedeclareErrors(t *testing.T) {
 				out = f();
 			`,
 			wantErr: `cannot redeclare function "f"`,
+		},
+		{
+			name: "ModuleRedeclare",
+			src: `
+				module m() { sphere(r=1); }
+				module m() { sphere(r=2); }
+				m();
+			`,
+			wantErr: `cannot redeclare module "m"`,
 		},
 		{
 			name: "FunctionThenVariableAllowed",
@@ -1685,6 +1809,96 @@ func TestUnionMeshesConcatenates(t *testing.T) {
 		got := countMesh3DTriangles(u.M3)
 		if got != want {
 			t.Fatalf("triangle count mismatch: got %d want %d", got, want)
+		}
+	})
+}
+
+func TestTransformModifier(t *testing.T) {
+	t.Run("Solid3D", func(t *testing.T) {
+		solid := mustEvalSolid(t, `
+			transform([-2,-2,-2], [2,2,2], function(c) [c.x/2, c.y/2, c.z/2])
+				sphere(r=1);
+		`)
+		assertContains(t, solid, model3d.XYZ(1.5, 0, 0), true)
+		assertContains(t, solid, model3d.XYZ(2.1, 0, 0), false)
+	})
+
+	t.Run("Solid2D", func(t *testing.T) {
+		shape := mustEvalShape(t, `
+			transform([-2,-2], [2,2], function(c) [c.x/2, c.y/2])
+				circle(r=1);
+		`)
+		if shape.Kind != ShapeSolid2D {
+			t.Fatalf("expected ShapeSolid2D, got %v", shape.Kind)
+		}
+		if !shape.S2.Contains(model2d.XY(1.5, 0)) {
+			t.Fatalf("expected transformed 2D solid to contain point")
+		}
+		if shape.S2.Contains(model2d.XY(2.1, 0)) {
+			t.Fatalf("expected transformed 2D solid to exclude point")
+		}
+	})
+
+	t.Run("SDF3D", func(t *testing.T) {
+		shape := mustEvalShape(t, `
+			transform([-2,-2,-2], [2,2,2], function(c) [c.x/2, c.y/2, c.z/2])
+				sphere_sdf(r=1);
+		`)
+		if shape.Kind != ShapeSDF3D {
+			t.Fatalf("expected ShapeSDF3D, got %v", shape.Kind)
+		}
+		if d := shape.SDF3.SDF(model3d.XYZ(1.5, 0, 0)); d <= 0 {
+			t.Fatalf("expected inside SDF value > 0, got %f", d)
+		}
+		if d := shape.SDF3.SDF(model3d.XYZ(2.1, 0, 0)); d >= 0 {
+			t.Fatalf("expected outside SDF value < 0, got %f", d)
+		}
+	})
+
+	t.Run("SDF2D", func(t *testing.T) {
+		shape := mustEvalShape(t, `
+			transform([-2,-2], [2,2], function(c) [c.x/2, c.y/2])
+				circle_sdf(r=1);
+		`)
+		if shape.Kind != ShapeSDF2D {
+			t.Fatalf("expected ShapeSDF2D, got %v", shape.Kind)
+		}
+		if d := shape.SDF2.SDF(model2d.XY(1.5, 0)); d <= 0 {
+			t.Fatalf("expected inside SDF value > 0, got %f", d)
+		}
+		if d := shape.SDF2.SDF(model2d.XY(2.1, 0)); d >= 0 {
+			t.Fatalf("expected outside SDF value < 0, got %f", d)
+		}
+	})
+
+	t.Run("Mesh2D", func(t *testing.T) {
+		shape := mustEvalShape(t, `
+			transform(function(c) [c.x+3, c.y-1])
+				polygon_mesh(points=[[0,0], [1,0], [0,1]]);
+		`)
+		if shape.Kind != ShapeMesh2D {
+			t.Fatalf("expected ShapeMesh2D, got %v", shape.Kind)
+		}
+		min := shape.M2.Min()
+		max := shape.M2.Max()
+		if min != model2d.XY(3, -1) || max != model2d.XY(4, 0) {
+			t.Fatalf("unexpected mesh bounds: min=%v max=%v", min, max)
+		}
+	})
+
+	t.Run("Mesh3D", func(t *testing.T) {
+		shape := mustEvalShape(t, `
+			transform(function(c) [c.x+2, c.y-1, c.z+4])
+				linear_extrude(height=1)
+				polygon_mesh(points=[[0,0], [1,0], [0,1]]);
+		`)
+		if shape.Kind != ShapeMesh3D {
+			t.Fatalf("expected ShapeMesh3D, got %v", shape.Kind)
+		}
+		min := shape.M3.Min()
+		max := shape.M3.Max()
+		if min != model3d.XYZ(2, -1, 4) || max != model3d.XYZ(3, 0, 5) {
+			t.Fatalf("unexpected mesh bounds: min=%v max=%v", min, max)
 		}
 	})
 }

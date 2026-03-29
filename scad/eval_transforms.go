@@ -252,6 +252,225 @@ func handleRotate(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (Sha
 	}
 }
 
+func handleTransform(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
+	switch childUnion.Kind {
+	case ShapeSolid3D:
+		min, max, fn, err := parseTransformBoundsArgs(e, st, 3)
+		if err != nil {
+			return ShapeRep{}, err
+		}
+		min3 := model3d.XYZ(min[0], min[1], min[2])
+		max3 := model3d.XYZ(max[0], max[1], max[2])
+		return shapeSolid3D(model3d.CheckedFuncSolid(min3, max3, func(c model3d.Coord3D) bool {
+			mapped, err := evalFnCoordMap(e, fn, []float64{c.X, c.Y, c.Z}, 3, false)
+			if err != nil || mapped == nil {
+				return false
+			}
+			return childUnion.S3.Contains(model3d.XYZ(mapped[0], mapped[1], mapped[2]))
+		})), nil
+	case ShapeSolid2D:
+		min, max, fn, err := parseTransformBoundsArgs(e, st, 2)
+		if err != nil {
+			return ShapeRep{}, err
+		}
+		min2 := model2d.XY(min[0], min[1])
+		max2 := model2d.XY(max[0], max[1])
+		return shapeSolid2D(model2d.CheckedFuncSolid(min2, max2, func(c model2d.Coord) bool {
+			mapped, err := evalFnCoordMap(e, fn, []float64{c.X, c.Y}, 2, false)
+			if err != nil || mapped == nil {
+				return false
+			}
+			return childUnion.S2.Contains(model2d.XY(mapped[0], mapped[1]))
+		})), nil
+	case ShapeSDF3D:
+		min, max, fn, err := parseTransformBoundsArgs(e, st, 3)
+		if err != nil {
+			return ShapeRep{}, err
+		}
+		min3 := model3d.XYZ(min[0], min[1], min[2])
+		max3 := model3d.XYZ(max[0], max[1], max[2])
+		return shapeSDF3D(model3d.FuncSDF(min3, max3, func(c model3d.Coord3D) float64 {
+			mapped, err := evalFnCoordMap(e, fn, []float64{c.X, c.Y, c.Z}, 3, false)
+			if err != nil || mapped == nil {
+				return -1
+			}
+			return childUnion.SDF3.SDF(model3d.XYZ(mapped[0], mapped[1], mapped[2]))
+		})), nil
+	case ShapeSDF2D:
+		min, max, fn, err := parseTransformBoundsArgs(e, st, 2)
+		if err != nil {
+			return ShapeRep{}, err
+		}
+		min2 := model2d.XY(min[0], min[1])
+		max2 := model2d.XY(max[0], max[1])
+		return shapeSDF2D(model2d.FuncSDF(min2, max2, func(c model2d.Coord) float64 {
+			mapped, err := evalFnCoordMap(e, fn, []float64{c.X, c.Y}, 2, false)
+			if err != nil || mapped == nil {
+				return -1
+			}
+			return childUnion.SDF2.SDF(model2d.XY(mapped[0], mapped[1]))
+		})), nil
+	case ShapeMesh3D:
+		oldMin := childUnion.M3.Min()
+		oldMax := childUnion.M3.Max()
+		fn, err := parseTransformMeshArgs(
+			e, st, 3,
+			[]float64{oldMin.X, oldMin.Y, oldMin.Z},
+			[]float64{oldMax.X, oldMax.Y, oldMax.Z},
+		)
+		if err != nil {
+			return ShapeRep{}, err
+		}
+		return shapeMesh3D(childUnion.M3.MapCoords(func(c model3d.Coord3D) model3d.Coord3D {
+			mapped, err := evalFnCoordMap(e, fn, []float64{c.X, c.Y, c.Z}, 3, false)
+			if err != nil || mapped == nil {
+				return c
+			}
+			return model3d.XYZ(mapped[0], mapped[1], mapped[2])
+		})), nil
+	case ShapeMesh2D:
+		oldMin := childUnion.M2.Min()
+		oldMax := childUnion.M2.Max()
+		fn, err := parseTransformMeshArgs(
+			e, st, 2,
+			[]float64{oldMin.X, oldMin.Y},
+			[]float64{oldMax.X, oldMax.Y},
+		)
+		if err != nil {
+			return ShapeRep{}, err
+		}
+		return shapeMesh2D(childUnion.M2.MapCoords(func(c model2d.Coord) model2d.Coord {
+			mapped, err := evalFnCoordMap(e, fn, []float64{c.X, c.Y}, 2, false)
+			if err != nil || mapped == nil {
+				return c
+			}
+			return model2d.XY(mapped[0], mapped[1])
+		})), nil
+	default:
+		return ShapeRep{}, fmt.Errorf("transform(): unsupported shape kind")
+	}
+}
+
+func parseTransformBoundsArgs(
+	e *env,
+	st *CallStmt,
+	dim int,
+) ([]float64, []float64, *FuncClosure, error) {
+	args, err := bindArgs(e, st.Call, []ArgSpec{
+		{Name: "min", Pos: 0, Required: true},
+		{Name: "max", Pos: 1, Required: true},
+		{Name: "fn", Pos: 2, Required: true},
+	})
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	min, err := argCoordStrict(args, "min")
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if len(min) != dim {
+		return nil, nil, nil, fmt.Errorf("transform(): min must be a %dD vector/list", dim)
+	}
+	max, err := argCoordStrict(args, "max")
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if len(max) != dim {
+		return nil, nil, nil, fmt.Errorf("transform(): max must be a %dD vector/list", dim)
+	}
+	fn, err := argFunc(args, "fn")
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if err := preflightTransformFn(e, fn, dim, min, max); err != nil {
+		return nil, nil, nil, err
+	}
+	return min, max, fn, nil
+}
+
+func parseTransformMeshArgs(
+	e *env,
+	st *CallStmt,
+	dim int,
+	min []float64,
+	max []float64,
+) (*FuncClosure, error) {
+	args, err := bindArgs(e, st.Call, []ArgSpec{
+		{Name: "fn", Pos: 0, Required: true},
+	})
+	if err != nil {
+		return nil, err
+	}
+	fn, err := argFunc(args, "fn")
+	if err != nil {
+		return nil, err
+	}
+	if err := preflightTransformFn(e, fn, dim, min, max); err != nil {
+		return nil, err
+	}
+	return fn, nil
+}
+
+func preflightTransformFn(e *env, fn *FuncClosure, dim int, min, max []float64) error {
+	mid := make([]float64, dim)
+	for i := range mid {
+		mid[i] = (min[i] + max[i]) / 2
+	}
+	for _, c := range [][]float64{min, max, mid} {
+		if _, err := evalFnCoordMap(e, fn, c, dim, true); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func evalFnCoordMap(
+	e *env,
+	fn *FuncClosure,
+	coord []float64,
+	dim int,
+	strict bool,
+) ([]float64, error) {
+	vec := make([]Value, 0, len(coord))
+	for _, x := range coord {
+		vec = append(vec, Num(x))
+	}
+	arg := List(vec)
+	v, err := evalClosureCallValues(e, fn, []Value{arg})
+	if err != nil {
+		if strict {
+			return nil, err
+		}
+		return nil, nil
+	}
+	out, err := valueCoordStrict(v, dim)
+	if err != nil {
+		if strict {
+			return nil, err
+		}
+		return nil, nil
+	}
+	return out, nil
+}
+
+func valueCoordStrict(v Value, dim int) ([]float64, error) {
+	if v.Kind != ValList {
+		return nil, fmt.Errorf("expected vector/list")
+	}
+	if len(v.List) != dim {
+		return nil, fmt.Errorf("expected %dD vector/list", dim)
+	}
+	out := make([]float64, dim)
+	for i := range out {
+		n, err := v.List[i].AsNum()
+		if err != nil {
+			return nil, err
+		}
+		out[i] = n
+	}
+	return out, nil
+}
+
 type rotateSpec struct {
 	AxisAngle bool
 	Angles    [3]float64
@@ -260,34 +479,22 @@ type rotateSpec struct {
 }
 
 func parseRotateSpec(e *env, st *CallStmt) (rotateSpec, error) {
-	named := map[string]Value{}
-	positional := make([]Value, 0, len(st.Call.Args))
-	for _, a := range st.Call.Args {
-		v, err := evalExpr(e, a.Expr)
-		if err != nil {
-			return rotateSpec{}, err
-		}
-		if a.Name != "" {
-			named[a.Name] = v
-		} else {
-			positional = append(positional, v)
-		}
+	bound, err := bindArgsDetailed(e, st.Call, []ArgSpec{
+		{Name: "a", Pos: 0, Default: Value{}},
+		{Name: "v", Pos: 1, Default: Value{}},
+	})
+	if err != nil {
+		return rotateSpec{}, err
 	}
 
-	aVal, aOK := named["a"]
-	if !aOK && len(positional) > 0 {
-		aVal = positional[0]
-		aOK = true
-	}
+	aVal := bound.Values["a"]
+	aOK := bound.Provided["a"]
 	if !aOK {
 		return rotateSpec{}, fmt.Errorf("rotate(): missing parameter \"a\"")
 	}
 
-	vVal, vOK := named["v"]
-	if !vOK && len(positional) > 1 {
-		vVal = positional[1]
-		vOK = true
-	}
+	vVal := bound.Values["v"]
+	vOK := bound.Provided["v"]
 
 	if vOK {
 		if aVal.Kind != ValNum {

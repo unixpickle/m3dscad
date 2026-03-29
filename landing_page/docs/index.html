@@ -72,6 +72,7 @@
           <li><a href="#translate">translate</a></li>
           <li><a href="#scale">scale</a></li>
           <li><a href="#rotate">rotate</a></li>
+          <li><a href="#transform">transform</a></li>
           <li><a href="#linear_extrude">linear_extrude</a></li>
           <li><a href="#rotate_extrude">rotate_extrude</a></li>
         </ul>
@@ -475,6 +476,16 @@ sphere(r=radius);</pre>
           <li><code>a</code>: Either a scalar angle (degrees) or a 3-angle vector.</li>
           <li><code>v</code>: Optional axis vector for axis-angle mode.</li>
           <li><code>children</code>: Exactly one child branch (or multiple children that union first).</li>
+        </ul>
+
+        <h3 id="transform"><code>transform</code></h3>
+        <p>Applies a user-defined coordinate map to solid, SDF, or mesh children.</p>
+        <pre class="example-code">transform(min, max, fn) { solid_or_sdf }
+transform(fn) { mesh }</pre>
+        <ul>
+          <li><code>min</code>, <code>max</code>: Required bounds for solid/SDF output; vectors must match child dimensionality (2D or 3D).</li>
+          <li><code>fn</code>: Mapping function. For solids/SDFs, maps outer coordinates to inner coordinates; for meshes, maps old mesh coordinates to new coordinates.</li>
+          <li><code>children</code>: Solid, SDF, or mesh child geometry to transform.</li>
         </ul>
 
         <h3 id="linear_extrude"><code>linear_extrude</code></h3>

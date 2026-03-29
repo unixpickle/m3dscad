@@ -107,7 +107,10 @@ func shapeMetaball3D(m model3d.Metaball) ShapeRep {
 	}
 }
 
-func handleSolid(_ *env, _ *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
+func handleSolid(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
+	if _, err := bindArgs(e, st.Call, []ArgSpec{}); err != nil {
+		return ShapeRep{}, err
+	}
 	switch childUnion.Kind {
 	case ShapeSolid2D, ShapeSolid3D:
 		return *childUnion, nil

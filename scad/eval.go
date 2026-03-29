@@ -85,6 +85,9 @@ func (e *env) defineFunc(name string, f funcDef) error {
 
 func (e *env) defineModule(name string, m moduleDef) error {
 	cur := e.currentScope()
+	if _, ok := cur.mods[name]; ok {
+		return fmt.Errorf("cannot redeclare module %q in current scope", name)
+	}
 	cur.mods[name] = m
 	return nil
 }

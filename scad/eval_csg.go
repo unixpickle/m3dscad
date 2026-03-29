@@ -7,14 +7,20 @@ import (
 	"github.com/unixpickle/model3d/model3d"
 )
 
-func handleUnion(_ *env, _ *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
+func handleUnion(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
+	if _, err := bindArgs(e, st.Call, []ArgSpec{}); err != nil {
+		return ShapeRep{}, err
+	}
 	if childUnion == nil {
 		return ShapeRep{}, fmt.Errorf("union() requires children")
 	}
 	return *childUnion, nil
 }
 
-func handleDifference(_ *env, _ *CallStmt, children []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
+func handleDifference(e *env, st *CallStmt, children []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
+	if _, err := bindArgs(e, st.Call, []ArgSpec{}); err != nil {
+		return ShapeRep{}, err
+	}
 	if len(children) == 0 {
 		return ShapeRep{}, fmt.Errorf("difference() had no solids")
 	}
@@ -55,7 +61,10 @@ func handleDifference(_ *env, _ *CallStmt, children []ShapeRep, _ *ShapeRep) (Sh
 	}
 }
 
-func handleIntersection(_ *env, _ *CallStmt, children []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
+func handleIntersection(e *env, st *CallStmt, children []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
+	if _, err := bindArgs(e, st.Call, []ArgSpec{}); err != nil {
+		return ShapeRep{}, err
+	}
 	if len(children) == 0 {
 		return ShapeRep{}, fmt.Errorf("intersection() had no solids")
 	}

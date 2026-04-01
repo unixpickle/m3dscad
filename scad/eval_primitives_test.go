@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/unixpickle/model3d/model2d"
 	"github.com/unixpickle/model3d/model3d"
 )
 
@@ -124,6 +125,213 @@ func TestSolidConversions(t *testing.T) {
 			compareMeshes(t, "b_vs_a", meshB, meshA, threshold, rng)
 		})
 	}
+}
+
+func TestHull2DConversions(t *testing.T) {
+	hullShape := mustEvalShape(t, `
+		union() {
+			cirlce_hull(r=0);
+			translate([2, 0, 0]) circle_hull(r=1);
+		}
+	`)
+	if hullShape.Kind != ShapeHull2D {
+		t.Fatalf("expected ShapeHull2D, got %v", hullShape.Kind)
+	}
+	if len(hullShape.H2.Circles) != 2 {
+		t.Fatalf("expected 2 hull circles, got %d", len(hullShape.H2.Circles))
+	}
+	if hullShape.H2.Circles[0].Radius != 0 {
+		t.Fatalf("expected zero-radius circle to be preserved, got %v", hullShape.H2.Circles[0].Radius)
+	}
+	if hullShape.H2.Circles[1].Center != model2d.XY(2, 0) {
+		t.Fatalf("expected translated hull circle center, got %v", hullShape.H2.Circles[1].Center)
+	}
+
+	want := model2d.NewArcHull([]*model2d.Circle{
+		{Center: model2d.XY(0, 0), Radius: 0},
+		{Center: model2d.XY(2, 0), Radius: 1},
+	})
+
+	solidShape := mustEvalShape(t, `
+		hull_solid() union() {
+			cirlce_hull(r=0);
+			translate([2, 0, 0]) circle_hull(r=1);
+		}
+	`)
+	if solidShape.Kind != ShapeSolid2D {
+		t.Fatalf("expected ShapeSolid2D, got %v", solidShape.Kind)
+	}
+	assertSolids2DEqual(t, solidShape.S2, want)
+
+	sdfShape := mustEvalShape(t, `
+		hull_sdf() union() {
+			cirlce_hull(r=0);
+			translate([2, 0, 0]) circle_hull(r=1);
+		}
+	`)
+	if sdfShape.Kind != ShapeSDF2D {
+		t.Fatalf("expected ShapeSDF2D, got %v", sdfShape.Kind)
+	}
+	assertSDFsEqual2D(t, sdfShape.SDF2, want, want.Min(), want.Max(), 1e-8)
+}
+
+func TestHull2DZeroRadiusFallback(t *testing.T) {
+	t.Run("ConvexHullMesh", func(t *testing.T) {
+		wantMesh := model2d.ConvexHullMesh([]model2d.Coord{
+			model2d.XY(0, 0),
+			model2d.XY(2, 0),
+			model2d.XY(0, 1),
+		})
+		wantSolid := wantMesh.Solid()
+		wantSDF := model2d.MeshToSDF(wantMesh)
+
+		solidShape := mustEvalShape(t, `
+			hull_solid() union() {
+				circle_hull(r=0);
+				translate([2, 0, 0]) circle_hull(r=0);
+				translate([0, 1, 0]) circle_hull(r=0);
+			}
+		`)
+		if solidShape.Kind != ShapeSolid2D {
+			t.Fatalf("expected ShapeSolid2D, got %v", solidShape.Kind)
+		}
+		assertSolids2DEqual(t, solidShape.S2, wantSolid)
+
+		sdfShape := mustEvalShape(t, `
+			hull_sdf() union() {
+				circle_hull(r=0);
+				translate([2, 0, 0]) circle_hull(r=0);
+				translate([0, 1, 0]) circle_hull(r=0);
+			}
+		`)
+		if sdfShape.Kind != ShapeSDF2D {
+			t.Fatalf("expected ShapeSDF2D, got %v", sdfShape.Kind)
+		}
+		assertSDFsEqual2D(t, sdfShape.SDF2, wantSDF, wantSDF.Min(), wantSDF.Max(), 1e-8)
+	})
+
+	t.Run("SinglePoint", func(t *testing.T) {
+		solidShape := mustEvalShape(t, `hull_solid() circle_hull(r=0);`)
+		if solidShape.Kind != ShapeSolid2D {
+			t.Fatalf("expected ShapeSolid2D, got %v", solidShape.Kind)
+		}
+		if !solidShape.S2.Contains(model2d.Coord{}) {
+			t.Fatal("expected degenerate hull solid to contain its only center")
+		}
+		if solidShape.S2.Contains(model2d.XY(1e-3, 0)) {
+			t.Fatal("expected degenerate hull solid to exclude other points")
+		}
+
+		sdfShape := mustEvalShape(t, `hull_sdf() circle_hull(r=0);`)
+		if sdfShape.Kind != ShapeSDF2D {
+			t.Fatalf("expected ShapeSDF2D, got %v", sdfShape.Kind)
+		}
+		if d := sdfShape.SDF2.SDF(model2d.Coord{}); d != 0 {
+			t.Fatalf("expected zero SDF at the hull point, got %v", d)
+		}
+		if d := sdfShape.SDF2.SDF(model2d.XY(1, 0)); d >= 0 {
+			t.Fatalf("expected negative SDF away from the hull point, got %v", d)
+		}
+	})
+}
+
+func TestHull2DTriangleEquivalentToPolygon(t *testing.T) {
+	polygonShape := mustEvalShape(t, `
+		polygon(points=[[0,0], [2,0], [0.5,1.5]]);
+	`)
+	hullShape := mustEvalShape(t, `
+		hull_solid() union() {
+			translate([0, 0, 0]) circle_hull(r=0);
+			translate([2, 0, 0]) circle_hull(r=0);
+			translate([0.5, 1.5, 0]) circle_hull(r=0);
+		}
+	`)
+	if polygonShape.Kind != ShapeSolid2D || hullShape.Kind != ShapeSolid2D {
+		t.Fatalf("expected ShapeSolid2D outputs, got %v and %v", polygonShape.Kind, hullShape.Kind)
+	}
+	assertSolids2DEqual(t, polygonShape.S2, hullShape.S2)
+}
+
+func TestHull2DRoundedTriangleEquivalentToOutsetPolygon(t *testing.T) {
+	polygonShape := mustEvalShape(t, `
+		solid() outset_sdf(0.1)
+			polygon_sdf(points=[[0,0], [2,0], [0.5,1.5]]);
+	`)
+	hullShape := mustEvalShape(t, `
+		hull_solid() union() {
+			translate([0, 0, 0]) circle_hull(r=0.1);
+			translate([2, 0, 0]) circle_hull(r=0.1);
+			translate([0.5, 1.5, 0]) circle_hull(r=0.1);
+		}
+	`)
+	if polygonShape.Kind != ShapeSolid2D || hullShape.Kind != ShapeSolid2D {
+		t.Fatalf("expected ShapeSolid2D outputs, got %v and %v", polygonShape.Kind, hullShape.Kind)
+	}
+	assertSolids2DEqual(t, polygonShape.S2, hullShape.S2)
+}
+
+func TestHull2DRoundedTriangleSDFEquivalentToOutsetPolygon(t *testing.T) {
+	polygonShape := mustEvalShape(t, `
+		outset_sdf(0.1)
+			polygon_sdf(points=[[0,0], [2,0], [0.5,1.5]]);
+	`)
+	hullShape := mustEvalShape(t, `
+		hull_sdf() union() {
+			translate([0, 0, 0]) circle_hull(r=0.1);
+			translate([2, 0, 0]) circle_hull(r=0.1);
+			translate([0.5, 1.5, 0]) circle_hull(r=0.1);
+		}
+	`)
+	if polygonShape.Kind != ShapeSDF2D || hullShape.Kind != ShapeSDF2D {
+		t.Fatalf("expected ShapeSDF2D outputs, got %v and %v", polygonShape.Kind, hullShape.Kind)
+	}
+
+	min := polygonShape.SDF2.Min().Min(hullShape.SDF2.Min()).AddScalar(-0.2)
+	max := polygonShape.SDF2.Max().Max(hullShape.SDF2.Max()).AddScalar(0.2)
+	rng := rand.New(rand.NewSource(1337))
+	for i := 0; i < 2000; i++ {
+		p := model2d.NewCoordRandBounds(min, max, rng)
+		a := polygonShape.SDF2.SDF(p)
+		b := hullShape.SDF2.SDF(p)
+		if math.Abs(a-b) > 1e-5 {
+			t.Fatalf("SDF mismatch at %v: a=%f b=%f", p, a, b)
+		}
+	}
+}
+
+func TestPolygonHullEquivalentToTriangleHull(t *testing.T) {
+	shapeA := mustEvalShape(t, `
+		hull_solid() polygon_hull(points=[[0,0], [2,0], [0.5,1.5]]);
+	`)
+	shapeB := mustEvalShape(t, `
+		hull_solid() union() {
+			translate([0, 0, 0]) circle_hull(r=0);
+			translate([2, 0, 0]) circle_hull(r=0);
+			translate([0.5, 1.5, 0]) circle_hull(r=0);
+		}
+	`)
+	if shapeA.Kind != ShapeSolid2D || shapeB.Kind != ShapeSolid2D {
+		t.Fatalf("expected ShapeSolid2D outputs, got %v and %v", shapeA.Kind, shapeB.Kind)
+	}
+	assertSolids2DEqual(t, shapeA.S2, shapeB.S2)
+}
+
+func TestMeshToHullEquivalentToTriangleHull(t *testing.T) {
+	shapeA := mustEvalShape(t, `
+		hull_solid() mesh_to_hull()
+			polygon_mesh(points=[[0,0], [2,0], [0.5,1.5]]);
+	`)
+	shapeB := mustEvalShape(t, `
+		hull_solid() union() {
+			translate([0, 0, 0]) circle_hull(r=0);
+			translate([2, 0, 0]) circle_hull(r=0);
+			translate([0.5, 1.5, 0]) circle_hull(r=0);
+		}
+	`)
+	if shapeA.Kind != ShapeSolid2D || shapeB.Kind != ShapeSolid2D {
+		t.Fatalf("expected ShapeSolid2D outputs, got %v and %v", shapeA.Kind, shapeB.Kind)
+	}
+	assertSolids2DEqual(t, shapeA.S2, shapeB.S2)
 }
 
 func TestCapsuleEquivalentToCylinderWithSpheres(t *testing.T) {

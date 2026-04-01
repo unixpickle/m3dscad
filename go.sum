@@ -10,10 +10,14 @@ github.com/unixpickle/essentials v1.3.0 h1:H258Z5Uo1pVzFjxD2rwFWzHPN3s0J0jLs5kux
 github.com/unixpickle/essentials v1.3.0/go.mod h1:dQ1idvqrgrDgub3mfckQm7osVPzT3u9rB6NK/LEhmtQ=
 github.com/unixpickle/model3d v0.4.14 h1:VJuAm3yhH2TOq+mZKZxdty63PnUrCi7tF4dWvRwir3o=
 github.com/unixpickle/model3d v0.4.14/go.mod h1:jzVXU0Rlm8wa27Y79i1spgsYI8aPp+id311rj3FAxsY=
+github.com/unixpickle/model3d v0.4.15 h1:kQIPisgx14AJOZEvwEAJqm62FrGuvql4NNiiPjk05/o=
+github.com/unixpickle/model3d v0.4.15/go.mod h1:bk9rFuX4Lc0Bii9rVzfTd/+E/eKJnqe21QZfhcxUGsM=
 github.com/unixpickle/path2d v0.1.0 h1:2aFmxwkMCm9yxg/340uqiBgV73buarmx0d/jIcVoDHw=
 github.com/unixpickle/path2d v0.1.0/go.mod h1:/7teh33dU3DY7tLec5tvKjEUhrNFbHjONMWWugrSp6I=
 github.com/unixpickle/splaytree v1.1.0 h1:LXYm3OHPHLacGrUnEsrES4i8DFTqwyw1eoxXuZIE6kM=
 github.com/unixpickle/splaytree v1.1.0/go.mod h1:Wmzeu7zl1qJVgZXlOdWib73pZlFOsFVgYo3k/72bYDw=
+github.com/unixpickle/splaytree v1.2.0 h1:GCXr7opRXvTfMCIONcx3z4ST66LIe13bNGWaDCeTq+c=
+github.com/unixpickle/splaytree v1.2.0/go.mod h1:Wmzeu7zl1qJVgZXlOdWib73pZlFOsFVgYo3k/72bYDw=
 github.com/unixpickle/textcurve v0.1.0 h1:l+6korAF4Ffgahnr1XZua5M2NEvEHj4tdUQ5+XRD0D8=
 github.com/unixpickle/textcurve v0.1.0/go.mod h1:GNN/ygzxhQGiL0uSaLHOb9RX26M0yNCZB4H8zqvoI44=
 golang.org/x/image v0.36.0 h1:Iknbfm1afbgtwPTmHnS2gTM/6PPZfH+z2EFuOkSbqwc=

@@ -44,8 +44,10 @@ func newEnv(echo EchoHandler) *env {
 	if echo == nil {
 		echo = defaultEchoHandler
 	}
+	root := newScope()
+	root.vars["PI"] = Num(math.Pi)
 	return &env{
-		scopes: []*scope{newScope()},
+		scopes: []*scope{root},
 		echo:   echo,
 	}
 }

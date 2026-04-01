@@ -161,6 +161,34 @@ func handleCircleSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep,
 	return shapeSDF2D(circle), nil
 }
 
+func handleCircleHull(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
+	circle, err := parseCircle(e, st)
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	return shapeHull2D(&Hull2D{Circles: []*model2d.Circle{circle}}), nil
+}
+
+func handleHullSolid(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
+	if _, err := bindArgs(e, st.Call, []ArgSpec{}); err != nil {
+		return ShapeRep{}, err
+	}
+	if childUnion.Kind != ShapeHull2D {
+		return ShapeRep{}, fmt.Errorf("hull_solid(): requires a Hull2D")
+	}
+	return shapeSolid2D(childUnion.H2.Solid()), nil
+}
+
+func handleHullSDF(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
+	if _, err := bindArgs(e, st.Call, []ArgSpec{}); err != nil {
+		return ShapeRep{}, err
+	}
+	if childUnion.Kind != ShapeHull2D {
+		return ShapeRep{}, fmt.Errorf("hull_sdf(): requires a Hull2D")
+	}
+	return shapeSDF2D(childUnion.H2.SDF()), nil
+}
+
 func handleTeardrop(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
 	teardrop, err := parseTeardrop(e, st)
 	if err != nil {
@@ -242,6 +270,14 @@ func handlePolygon(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, e
 	return shapeSolid2D(solid), nil
 }
 
+func handlePolygonHull(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
+	hull, err := parsePolygonHull(e, st)
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	return shapeHull2D(hull), nil
+}
+
 func handlePolygonSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
 	mesh, err := parsePolygonMesh(e, st)
 	if err != nil {
@@ -295,6 +331,19 @@ func parsePolygonMesh(e *env, st *CallStmt) (*model2d.Mesh, error) {
 		mesh.AddMesh(pathMesh)
 	}
 	return mesh, nil
+}
+
+func parsePolygonHull(e *env, st *CallStmt) (*Hull2D, error) {
+	points, paths, err := parsePolygonData(e, st)
+	if err != nil {
+		return nil, err
+	}
+	exterior := paths[0]
+	circles := make([]*model2d.Circle, 0, len(exterior))
+	for _, idx := range exterior {
+		circles = append(circles, &model2d.Circle{Center: points[idx]})
+	}
+	return &Hull2D{Circles: circles}, nil
 }
 
 func parsePolygonData(e *env, st *CallStmt) ([]model2d.Coord, [][]int, error) {

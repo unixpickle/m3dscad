@@ -90,6 +90,12 @@ var builtinHandlers = map[string]callHandler{
 		NeedsChildUnion: true,
 		Eval:            handleMeshToSDF,
 	},
+	"mesh_to_hull": {
+		AllowChildren:   true,
+		RequireChildren: true,
+		NeedsChildUnion: true,
+		Eval:            handleMeshToHull,
+	},
 	"inset_sdf": {
 		AllowChildren:   true,
 		RequireChildren: true,
@@ -107,6 +113,18 @@ var builtinHandlers = map[string]callHandler{
 		RequireChildren: true,
 		NeedsChildUnion: true,
 		Eval:            handleSolid,
+	},
+	"hull_solid": {
+		AllowChildren:   true,
+		RequireChildren: true,
+		NeedsChildUnion: true,
+		Eval:            handleHullSolid,
+	},
+	"hull_sdf": {
+		AllowChildren:   true,
+		RequireChildren: true,
+		NeedsChildUnion: true,
+		Eval:            handleHullSDF,
 	},
 	"metaball": {
 		AllowChildren:   true,
@@ -172,6 +190,12 @@ var builtinHandlers = map[string]callHandler{
 	"circle_sdf": {
 		Eval: handleCircleSDF,
 	},
+	"circle_hull": {
+		Eval: handleCircleHull,
+	},
+	"cirlce_hull": {
+		Eval: handleCircleHull,
+	},
 	"teardrop": {
 		Eval: handleTeardrop,
 	},
@@ -189,6 +213,9 @@ var builtinHandlers = map[string]callHandler{
 	},
 	"polygon": {
 		Eval: handlePolygon,
+	},
+	"polygon_hull": {
+		Eval: handlePolygonHull,
 	},
 	"polygon_sdf": {
 		Eval: handlePolygonSDF,

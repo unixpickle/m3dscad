@@ -1476,6 +1476,18 @@ func TestExpressionAssignments(t *testing.T) {
 			}),
 		},
 		{
+			name: "BuiltinConstantPI",
+			src: `
+				out = [
+					round(PI * 1000),
+					round(sin((PI / 2) * 180 / PI)),
+					round(cos(PI * 180 / PI)),
+				];
+			`,
+			var_: "out",
+			want: List([]Value{Num(3142), Num(1), Num(-1)}),
+		},
+		{
 			name: "VectorXYZAccessors",
 			src: `
 				v = [11, 22, 33, 44];
@@ -1803,6 +1815,21 @@ func TestRotateExtrudeSDFTorusAgreement(t *testing.T) {
 		if errAbs > 1e-7 {
 			t.Fatalf("sdf mismatch at %v: got=%f want=%f err=%e", c, got.SDF(c), want.SDF(c), errAbs)
 		}
+	}
+}
+
+func TestRootLevelUnion(t *testing.T) {
+	code := `
+	dual_contour(0.05) sphere(r=1);
+	translate([3, 0, 0]) dual_contour(0.05) sphere(r=1);
+	`
+	shape := mustEvalShape(t, code)
+	if shape.Kind != ShapeMesh3D {
+		t.Fatalf("expected ShapeMesh3D, got %v", shape.Kind)
+	}
+	got := shape.M3
+	if math.Abs(got.Volume()-8.0/3.0*math.Pi) > 0.01 {
+		t.Fatalf("unexpected volume: %f", got.Volume())
 	}
 }
 

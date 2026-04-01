@@ -109,3 +109,18 @@ func handleMeshToSDF(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (
 		return ShapeRep{}, fmt.Errorf("mesh_to_sdf(): requires a mesh")
 	}
 }
+
+func handleMeshToHull(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
+	if _, err := bindArgs(e, st.Call, []ArgSpec{}); err != nil {
+		return ShapeRep{}, err
+	}
+	if childUnion.Kind != ShapeMesh2D {
+		return ShapeRep{}, fmt.Errorf("mesh_to_hull(): requires a 2D mesh")
+	}
+	vertices := childUnion.M2.VertexSlice()
+	circles := make([]*model2d.Circle, 0, len(vertices))
+	for _, v := range vertices {
+		circles = append(circles, &model2d.Circle{Center: v})
+	}
+	return shapeHull2D(&Hull2D{Circles: circles}), nil
+}

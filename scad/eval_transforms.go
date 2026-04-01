@@ -64,6 +64,16 @@ func handleTranslate(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (
 				return model2d.TranslateMetaball(m, model2d.XY(vec[0], vec[1]))
 			}),
 		}, nil
+	case ShapeHull2D:
+		if vec[2] != 0 {
+			return ShapeRep{}, fmt.Errorf("translate(): z component not supported for 2D shapes")
+		}
+		offset := model2d.XY(vec[0], vec[1])
+		return shapeHull2D(childUnion.H2.Map(func(c *model2d.Circle) *model2d.Circle {
+			circle := *c
+			circle.Center = circle.Center.Add(offset)
+			return &circle
+		})), nil
 	default:
 		return ShapeRep{}, fmt.Errorf("translate(): unsupported shape kind")
 	}
@@ -125,6 +135,18 @@ func handleScale(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (Shap
 				return model2d.VecScaleMetaball(m, model2d.XY(vec[0], vec[1]))
 			}),
 		}, nil
+	case ShapeHull2D:
+		if math.Abs(vec[0]) != math.Abs(vec[1]) {
+			return ShapeRep{}, fmt.Errorf("scale(): non-uniform scaling not supported for hulls")
+		}
+		scale := model2d.XY(vec[0], vec[1])
+		radiusScale := math.Abs(vec[0])
+		return shapeHull2D(childUnion.H2.Map(func(c *model2d.Circle) *model2d.Circle {
+			circle := *c
+			circle.Center = circle.Center.Mul(scale)
+			circle.Radius *= radiusScale
+			return &circle
+		})), nil
 	default:
 		return ShapeRep{}, fmt.Errorf("scale(): unsupported shape kind")
 	}
@@ -247,6 +269,17 @@ func handleRotate(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (Sha
 				return model2d.RotateMetaball(m, angle)
 			}),
 		}, nil
+	case ShapeHull2D:
+		angle, err := rotateAngle2D(spec)
+		if err != nil {
+			return ShapeRep{}, err
+		}
+		xf := model2d.Rotation(angle)
+		return shapeHull2D(childUnion.H2.Map(func(c *model2d.Circle) *model2d.Circle {
+			circle := *c
+			circle.Center = xf.Apply(circle.Center)
+			return &circle
+		})), nil
 	default:
 		return ShapeRep{}, fmt.Errorf("rotate(): unsupported shape kind")
 	}

@@ -6,6 +6,7 @@ import (
 
 	"github.com/unixpickle/model3d/model2d"
 	"github.com/unixpickle/model3d/model3d"
+	"github.com/unixpickle/model3d/toolbox3d"
 )
 
 func handleLinearExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
@@ -70,6 +71,56 @@ func handleLinearExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRe
 	}
 }
 
+func handleInsetExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
+	if childUnion.Kind != ShapeSDF2D {
+		return ShapeRep{}, fmt.Errorf("inset_extrude() requires 2D SDF children")
+	}
+	args, err := bindArgs(e, st.Call, []ArgSpec{
+		{Name: "height", Aliases: []string{"h"}, Pos: 0, Default: Num(1.0)},
+		{Name: "center", Pos: 1, Default: Bool(false)},
+		{Name: "bottom", Pos: 2, Default: Num(0.0)},
+		{Name: "top", Pos: 3, Default: Num(0.0)},
+		{Name: "bottom_fn", Pos: -1, Default: String("chamfer")},
+		{Name: "top_fn", Pos: -1, Default: String("chamfer")},
+	})
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	height, err := argNum(args, "height")
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	center, err := argBool(args, "center")
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	bottom, err := argNum(args, "bottom")
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	top, err := argNum(args, "top")
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	bottomFn, err := argString(args, "bottom_fn")
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	topFn, err := argString(args, "top_fn")
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	if height < 0 {
+		height = -height
+	}
+	z0, z1 := linearExtrudeZBounds(height, center)
+	insetFn, err := insetExtrudeFunc(bottom, top, bottomFn, topFn)
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	return shapeSolid3D(toolbox3d.Extrude(childUnion.SDF2, z0, z1, insetFn)), nil
+}
+
 func linearExtrude(s model2d.Solid, height float64, center bool, twist float64, scale [2]float64) model3d.Solid {
 	if height < 0 {
 		height = -height
@@ -116,6 +167,45 @@ func checkExtrudeTransform(kind string, twist float64, scale [2]float64) error {
 		return fmt.Errorf("linear_extrude(): scale != 1 is unsupported for %s", kind)
 	}
 	return nil
+}
+
+func insetExtrudeFunc(bottom, top float64, bottomFn, topFn string) (toolbox3d.InsetFunc, error) {
+	bottomInset, err := insetExtrudeSideFunc("bottom_fn", bottomFn, bottom, true)
+	if err != nil {
+		return nil, err
+	}
+	topInset, err := insetExtrudeSideFunc("top_fn", topFn, top, false)
+	if err != nil {
+		return nil, err
+	}
+	return toolbox3d.InsetFuncSum(bottomInset, topInset), nil
+}
+
+func insetExtrudeSideFunc(argName, kind string, radius float64, bottom bool) (toolbox3d.InsetFunc, error) {
+	switch kind {
+	case "chamfer":
+		fn := &toolbox3d.ChamferInsetFunc{
+			Outwards: radius < 0,
+		}
+		if bottom {
+			fn.BottomRadius = math.Abs(radius)
+		} else {
+			fn.TopRadius = math.Abs(radius)
+		}
+		return fn, nil
+	case "fillet":
+		fn := &toolbox3d.FilletInsetFunc{
+			Outwards: radius < 0,
+		}
+		if bottom {
+			fn.BottomRadius = math.Abs(radius)
+		} else {
+			fn.TopRadius = math.Abs(radius)
+		}
+		return fn, nil
+	default:
+		return nil, fmt.Errorf("inset_extrude(): %s must be \"chamfer\" or \"fillet\"", argName)
+	}
 }
 
 func handleRotateExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {

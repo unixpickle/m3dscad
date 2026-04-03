@@ -25,9 +25,16 @@
         <div class="docs-layout">
         <aside class="toc-sidebar" id="docsTocSidebar" aria-label="Table of contents">
         <div class="toc">
-          <h2>Table Of Contents</h2>
+          <div class="toc-header">
+            <h2>Contents</h2>
+            <button class="toc-close" id="tocClose" type="button" aria-label="Close table of contents">×</button>
+          </div>
 
-        <h3><a href="#language-overview">Language Overview</a></h3>
+        <div class="toc-group" data-group-target="language-overview">
+        <div class="toc-group-head">
+          <a class="toc-group-link" href="#language-overview">Language Overview</a>
+          <button class="toc-group-toggle" type="button" aria-expanded="true" aria-label="Toggle Language Overview section"></button>
+        </div>
         <ul>
           <li><a href="#calls-and-modifiers">Calls And Modifiers</a></li>
           <li><a href="#variables">Variables</a></li>
@@ -38,63 +45,96 @@
           <li><a href="#for-loops">For Loops</a></li>
           <li><a href="#list-comprehension">List Comprehension</a></li>
         </ul>
+        </div>
 
-        <h3><a href="#primitives-3d">3D Primitives</a></h3>
+        <div class="toc-group" data-group-target="primitives-3d">
+        <div class="toc-group-head">
+          <a class="toc-group-link" href="#primitives-3d">3D Primitives</a>
+          <button class="toc-group-toggle" type="button" aria-expanded="true" aria-label="Toggle 3D Primitives section"></button>
+        </div>
         <ul>
-          <li><a href="#sphere">sphere</a>, <a href="#sphere_metaball">sphere_metaball</a>, <a href="#sphere_sdf">sphere_sdf</a></li>
-          <li><a href="#cube">cube</a>, <a href="#cube_metaball">cube_metaball</a>, <a href="#cube_sdf">cube_sdf</a></li>
-          <li><a href="#cylinder">cylinder</a>, <a href="#cylinder_metaball">cylinder_metaball</a>, <a href="#cylinder_sdf">cylinder_sdf</a></li>
-          <li><a href="#capsule">capsule</a>, <a href="#capsule_metaball">capsule_metaball</a>, <a href="#capsule_sdf">capsule_sdf</a></li>
+          <li class="toc-family"><span class="toc-link-row"><a href="#sphere">sphere</a><a href="#sphere_metaball">sphere_metaball</a><a href="#sphere_sdf">sphere_sdf</a></span></li>
+          <li class="toc-family"><span class="toc-link-row"><a href="#cube">cube</a><a href="#cube_metaball">cube_metaball</a><a href="#cube_sdf">cube_sdf</a></span></li>
+          <li class="toc-family"><span class="toc-link-row"><a href="#cylinder">cylinder</a><a href="#cylinder_metaball">cylinder_metaball</a><a href="#cylinder_sdf">cylinder_sdf</a></span></li>
+          <li class="toc-family"><span class="toc-link-row"><a href="#capsule">capsule</a><a href="#capsule_metaball">capsule_metaball</a><a href="#capsule_sdf">capsule_sdf</a></span></li>
           <li><a href="#line_join">line_join</a></li>
           <li><a href="#fn_solid">fn_solid</a></li>
         </ul>
+        </div>
 
-        <h3><a href="#primitives-2d">2D Primitives</a></h3>
+        <div class="toc-group" data-group-target="primitives-2d">
+        <div class="toc-group-head">
+          <a class="toc-group-link" href="#primitives-2d">2D Primitives</a>
+          <button class="toc-group-toggle" type="button" aria-expanded="true" aria-label="Toggle 2D Primitives section"></button>
+        </div>
         <ul>
-          <li><a href="#circle">circle</a>, <a href="#circle_metaball">circle_metaball</a>, <a href="#circle_sdf">circle_sdf</a></li>
+          <li class="toc-family"><span class="toc-link-row"><a href="#circle">circle</a><a href="#circle_metaball">circle_metaball</a><a href="#circle_sdf">circle_sdf</a><a href="#circle_hull">circle_hull</a></span></li>
           <li><a href="#teardrop">teardrop</a></li>
-          <li><a href="#square">square</a>, <a href="#square_metaball">square_metaball</a>, <a href="#square_sdf">square_sdf</a></li>
+          <li class="toc-family"><span class="toc-link-row"><a href="#square">square</a><a href="#square_metaball">square_metaball</a><a href="#square_sdf">square_sdf</a></span></li>
           <li><a href="#fn_solid_2d_ref">fn_solid (2D)</a></li>
-          <li><a href="#polygon">polygon</a>, <a href="#polygon_mesh">polygon_mesh</a>, <a href="#polygon_sdf">polygon_sdf</a></li>
-          <li><a href="#path">path</a>, <a href="#path_mesh">path_mesh</a>, <a href="#path_sdf">path_sdf</a></li>
-          <li><a href="#text">text</a>, <a href="#text_mesh">text_mesh</a></li>
+          <li class="toc-family"><span class="toc-link-row"><a href="#polygon">polygon</a><a href="#polygon_mesh">polygon_mesh</a><a href="#polygon_sdf">polygon_sdf</a><a href="#polygon_hull">polygon_hull</a></span></li>
+          <li class="toc-family"><span class="toc-link-row"><a href="#hull_solid">hull_solid</a><a href="#hull_sdf">hull_sdf</a></span></li>
+          <li class="toc-family"><span class="toc-link-row"><a href="#path">path</a><a href="#path_mesh">path_mesh</a><a href="#path_sdf">path_sdf</a></span></li>
+          <li class="toc-family"><span class="toc-link-row"><a href="#text">text</a><a href="#text_mesh">text_mesh</a></span></li>
         </ul>
+        </div>
 
-        <h3><a href="#csg">CSG</a></h3>
+        <div class="toc-group" data-group-target="csg">
+        <div class="toc-group-head">
+          <a class="toc-group-link" href="#csg">CSG</a>
+          <button class="toc-group-toggle" type="button" aria-expanded="true" aria-label="Toggle CSG section"></button>
+        </div>
         <ul>
           <li><a href="#union">union</a></li>
           <li><a href="#difference">difference</a></li>
           <li><a href="#intersection">intersection</a></li>
         </ul>
+        </div>
 
-        <h3><a href="#transforms-and-extrusion">Transforms And Extrusion</a></h3>
+        <div class="toc-group" data-group-target="transforms-and-extrusion">
+        <div class="toc-group-head">
+          <a class="toc-group-link" href="#transforms-and-extrusion">Transforms And Extrusion</a>
+          <button class="toc-group-toggle" type="button" aria-expanded="true" aria-label="Toggle Transforms And Extrusion section"></button>
+        </div>
         <ul>
           <li><a href="#translate">translate</a></li>
           <li><a href="#scale">scale</a></li>
           <li><a href="#rotate">rotate</a></li>
           <li><a href="#transform">transform</a></li>
           <li><a href="#linear_extrude">linear_extrude</a></li>
+          <li><a href="#inset_extrude">inset_extrude</a></li>
           <li><a href="#rotate_extrude">rotate_extrude</a></li>
         </ul>
+        </div>
 
-        <h3><a href="#meshing-and-sdf">Meshing And SDF</a></h3>
+        <div class="toc-group" data-group-target="meshing-and-sdf">
+        <div class="toc-group-head">
+          <a class="toc-group-link" href="#meshing-and-sdf">Meshing And SDF</a>
+          <button class="toc-group-toggle" type="button" aria-expanded="true" aria-label="Toggle Meshing And SDF section"></button>
+        </div>
         <ul>
           <li><a href="#marching_squares">marching_squares</a></li>
           <li><a href="#marching_cubes">marching_cubes</a></li>
           <li><a href="#dual_contour">dual_contour</a></li>
           <li><a href="#mesh_to_sdf">mesh_to_sdf</a></li>
+          <li><a href="#mesh_to_hull">mesh_to_hull</a></li>
           <li><a href="#inset_sdf">inset_sdf</a></li>
           <li><a href="#outset_sdf">outset_sdf</a></li>
           <li><a href="#solid">solid</a></li>
         </ul>
+        </div>
 
-        <h3><a href="#metaball-section">Metaball</a></h3>
+        <div class="toc-group" data-group-target="metaball-section">
+        <div class="toc-group-head">
+          <a class="toc-group-link" href="#metaball-section">Metaball</a>
+          <button class="toc-group-toggle" type="button" aria-expanded="true" aria-label="Toggle Metaball section"></button>
+        </div>
         <ul>
           <li><a href="#metaball">metaball</a></li>
           <li><a href="#weight_metaball">weight_metaball</a></li>
           <li><a href="#metaball_solid">metaball_solid</a></li>
         </ul>
-
+        </div>
         </div>
         </aside>
         <button class="toc-backdrop" id="tocBackdrop" type="button" aria-label="Close table of contents"></button>
@@ -315,6 +355,14 @@ sphere(r=radius);</pre>
         <pre class="example-code">circle_sdf(r=1)</pre>
         <ul><li><code>r</code>: Circle radius.</li></ul>
 
+        <h3 id="circle_hull"><code>circle_hull</code></h3>
+        <p>Creates a 2D convex-hull input primitive from a circle. Combine multiple hull primitives with <code>union()</code>, then convert the result with <code>hull_solid()</code> or <code>hull_sdf()</code>.</p>
+        <pre class="example-code">circle_hull(r=1)</pre>
+        <ul>
+          <li><code>r</code>: Circle radius. Use <code>r=0</code> to contribute a point to the convex hull instead of a rounded circle.</li>
+          <li><code>behavior</code>: Positive radii create a rounded arc hull; if all contributing radii are zero, the hull becomes the ordinary convex hull of the circle centers.</li>
+        </ul>
+
         <h3 id="teardrop"><code>teardrop</code></h3>
         <p>Creates a centered 2D teardrop solid.</p>
         <pre class="example-code">teardrop(radius=1)</pre>
@@ -382,6 +430,31 @@ sphere(r=radius);</pre>
           <li><code>points</code>: Vertex list used by the polygon.</li>
           <li><code>paths</code>: Optional index list(s) describing contours.</li>
           <li><code>convexity</code>: Compatibility parameter (currently unused for evaluation behavior).</li>
+        </ul>
+
+        <h3 id="polygon_hull"><code>polygon_hull</code></h3>
+        <p>Creates a 2D convex-hull input from polygon vertices. This is equivalent to using <code>circle_hull(r=0)</code> at each exterior vertex, then converting the combined hull with <code>hull_solid()</code> or <code>hull_sdf()</code>.</p>
+        <pre class="example-code">polygon_hull(points, paths, convexity=1)</pre>
+        <ul>
+          <li><code>points</code>: Vertex list used by the polygon hull.</li>
+          <li><code>paths</code>: Optional index list(s). Only the first path is used; interior holes are ignored for hull construction.</li>
+          <li><code>convexity</code>: Compatibility parameter (currently unused for evaluation behavior).</li>
+        </ul>
+
+        <h3 id="hull_solid"><code>hull_solid</code></h3>
+        <p>Converts a 2D hull input into a solid. Hull inputs are typically built from <code>circle_hull()</code>, <code>polygon_hull()</code>, or <code>mesh_to_hull()</code>.</p>
+        <pre class="example-code">hull_solid() { hull2d }</pre>
+        <ul>
+          <li><code>children</code>: 2D hull child geometry.</li>
+          <li><code>behavior</code>: Rounded hull circles produce an arc hull; all-zero radii produce the ordinary convex hull of the contributing points.</li>
+        </ul>
+
+        <h3 id="hull_sdf"><code>hull_sdf</code></h3>
+        <p>Converts a 2D hull input into an SDF.</p>
+        <pre class="example-code">hull_sdf() { hull2d }</pre>
+        <ul>
+          <li><code>children</code>: 2D hull child geometry.</li>
+          <li><code>behavior</code>: Uses the same hull construction rules as <code>hull_solid()</code>, but preserves SDF output for downstream operations.</li>
         </ul>
 
         <h3 id="path"><code>path</code></h3>
@@ -499,6 +572,19 @@ transform(fn) { mesh }</pre>
           <li><code>children</code>: 2D child geometry to extrude.</li>
         </ul>
 
+        <h3 id="inset_extrude"><code>inset_extrude</code></h3>
+        <p>Extrudes a 2D SDF along Z while applying inset or outset shaping at the top and bottom.</p>
+        <pre class="example-code">inset_extrude(height=1, center=false, bottom=0, top=0, bottom_fn="chamfer", top_fn="chamfer") { sdf2d }</pre>
+        <ul>
+          <li><code>height</code>: Extrusion distance; alias <code>h</code>.</li>
+          <li><code>center</code>: If true, centers extrusion around Z=0.</li>
+          <li><code>bottom</code>: Bottom inset radius. Negative values produce an outset instead.</li>
+          <li><code>top</code>: Top inset radius. Negative values produce an outset instead.</li>
+          <li><code>bottom_fn</code>: Bottom profile function, either <code>"chamfer"</code> or <code>"fillet"</code>. Defaults to <code>"chamfer"</code>.</li>
+          <li><code>top_fn</code>: Top profile function, either <code>"chamfer"</code> or <code>"fillet"</code>. Defaults to <code>"chamfer"</code>.</li>
+          <li><code>children</code>: 2D SDF child geometry to extrude.</li>
+        </ul>
+
         <h3 id="rotate_extrude"><code>rotate_extrude</code></h3>
         <p>Revolves 2D solid geometry around the Z axis. For SDF children, a full 360-degree revolve preserves SDF output.</p>
         <pre class="example-code">rotate_extrude(angle=360, start=0) { child2d }</pre>
@@ -543,6 +629,14 @@ transform(fn) { mesh }</pre>
         <p>Converts a 2D or 3D mesh to an SDF of matching dimensionality.</p>
         <pre class="example-code">mesh_to_sdf() { mesh }</pre>
         <ul><li><code>children</code>: Mesh child geometry to convert.</li></ul>
+
+        <h3 id="mesh_to_hull"><code>mesh_to_hull</code></h3>
+        <p>Converts a 2D mesh into a convex-hull input by using each mesh vertex as a zero-radius hull point.</p>
+        <pre class="example-code">mesh_to_hull() { mesh2d }</pre>
+        <ul>
+          <li><code>children</code>: 2D mesh child geometry.</li>
+          <li><code>behavior</code>: The resulting hull can be turned into geometry with <code>hull_solid()</code> or <code>hull_sdf()</code>.</li>
+        </ul>
 
         <h3 id="inset_sdf"><code>inset_sdf</code></h3>
         <p>Shrinks an SDF shape by an inward field offset.</p>
@@ -598,6 +692,8 @@ transform(fn) { mesh }</pre>
       const tocToggle = document.getElementById("tocToggle");
       const tocBackdrop = document.getElementById("tocBackdrop");
       const tocSidebar = document.getElementById("docsTocSidebar");
+      const tocClose = document.getElementById("tocClose");
+      const tocGroups = tocSidebar ? Array.from(tocSidebar.querySelectorAll(".toc-group")) : [];
 
       const updateHeaderOffset = () => {
         if (!docsHero) return;
@@ -613,13 +709,28 @@ transform(fn) { mesh }</pre>
         if (tocToggle) tocToggle.setAttribute("aria-expanded", "false");
       };
 
+      const setGroupExpanded = (group, expanded) => {
+        group.classList.toggle("is-collapsed", !expanded);
+        const toggle = group.querySelector(".toc-group-toggle");
+        if (toggle) toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+      };
+
+      const syncGroupState = () => {
+        if (!tocGroups.length) return;
+        tocGroups.forEach((group) => setGroupExpanded(group, true));
+      };
+
       updateHeaderOffset();
       updateScrolledState();
+      syncGroupState();
       if (tocToggle) {
         tocToggle.addEventListener("click", () => {
           const open = docBody.classList.toggle("toc-open");
           tocToggle.setAttribute("aria-expanded", open ? "true" : "false");
         });
+      }
+      if (tocClose) {
+        tocClose.addEventListener("click", closeToc);
       }
       if (tocBackdrop) {
         tocBackdrop.addEventListener("click", closeToc);
@@ -634,6 +745,7 @@ transform(fn) { mesh }</pre>
       window.addEventListener("resize", () => {
         updateHeaderOffset();
         updateScrolledState();
+        syncGroupState();
         if (!window.matchMedia("(max-width: 900px)").matches) closeToc();
       });
       window.addEventListener("scroll", updateScrolledState, { passive: true });

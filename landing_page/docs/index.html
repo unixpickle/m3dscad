@@ -100,6 +100,7 @@
           <li><a href="#translate">translate</a></li>
           <li><a href="#scale">scale</a></li>
           <li><a href="#rotate">rotate</a></li>
+          <li><a href="#mirror">mirror</a></li>
           <li><a href="#transform">transform</a></li>
           <li><a href="#linear_extrude">linear_extrude</a></li>
           <li><a href="#inset_extrude">inset_extrude</a></li>
@@ -548,6 +549,14 @@ sphere(r=radius);</pre>
         <ul>
           <li><code>a</code>: Either a scalar angle (degrees) or a 3-angle vector.</li>
           <li><code>v</code>: Optional axis vector for axis-angle mode.</li>
+          <li><code>children</code>: Exactly one child branch (or multiple children that union first).</li>
+        </ul>
+
+        <h3 id="mirror"><code>mirror</code></h3>
+        <p>Reflects child geometry across the hyperplane orthogonal to a given axis.</p>
+        <pre class="example-code">mirror(v) { child }</pre>
+        <ul>
+          <li><code>v</code>: Mirror axis vector. It need not be normalized, but it must be non-zero; for 2D children, Z must be 0.</li>
           <li><code>children</code>: Exactly one child branch (or multiple children that union first).</li>
         </ul>
 

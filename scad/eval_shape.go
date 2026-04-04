@@ -22,6 +22,17 @@ const (
 	ShapeHull2D
 )
 
+func (s ShapeKind) Dimension() int {
+	switch s {
+	case ShapeSolid2D, ShapeMesh2D, ShapeSDF2D, ShapeMetaball2D, ShapeHull2D:
+		return 2
+	case ShapeSolid3D, ShapeMesh3D, ShapeSDF3D, ShapeMetaball3D:
+		return 3
+	default:
+		panic("unknown ShapeKind")
+	}
+}
+
 type WeightedMetaballs[T any] struct {
 	Balls   []T
 	Weights []float64

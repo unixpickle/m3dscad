@@ -42,6 +42,12 @@ var builtinHandlers = map[string]callHandler{
 		NeedsChildUnion: true,
 		Eval:            handleRotate,
 	},
+	"mirror": {
+		AllowChildren:   true,
+		RequireChildren: true,
+		NeedsChildUnion: true,
+		Eval:            handleMirror,
+	},
 	"transform": {
 		AllowChildren:   true,
 		RequireChildren: true,

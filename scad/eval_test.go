@@ -190,6 +190,18 @@ func TestSolidsIntegration(t *testing.T) {
 			},
 		},
 		{
+			name: "Mirror",
+			src: `
+				mirror([1,0,0]) translate([1,0,0]) sphere(r=1);
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(-1.5, 0, 0),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(1.5, 0, 0),
+			},
+		},
+		{
 			name: "Teardrop",
 			src: `
 				linear_extrude(height=1) teardrop(radius=1);
@@ -915,6 +927,11 @@ func TestBindArgsStrictErrors(t *testing.T) {
 			name:    "RotateUnknownNamed",
 			src:     `rotate(a=10, v=[0,0,1], foo=3) cube(1);`,
 			wantErr: `rotate(): unknown argument "foo"`,
+		},
+		{
+			name:    "MirrorZeroAxis",
+			src:     `mirror([0,0,0]) cube(1);`,
+			wantErr: `mirror(): axis must be non-zero`,
 		},
 		{
 			name:    "UnionTakesNoArgs",
@@ -1874,6 +1891,50 @@ func TestUnionMeshesConcatenates(t *testing.T) {
 }
 
 func TestTransformModifier(t *testing.T) {
+	t.Run("MirrorSolid3D", func(t *testing.T) {
+		solid := mustEvalSolid(t, `
+			mirror([1,0,0]) translate([1,0,0]) sphere(r=1);
+		`)
+		assertContains(t, solid, model3d.XYZ(-1.5, 0, 0), true)
+		assertContains(t, solid, model3d.XYZ(1.5, 0, 0), false)
+	})
+
+	t.Run("MirrorSolid2D", func(t *testing.T) {
+		shape := mustEvalShape(t, `
+			mirror([1,0]) translate([1,0,0]) circle(r=1);
+		`)
+		if shape.Kind != ShapeSolid2D {
+			t.Fatalf("expected ShapeSolid2D, got %v", shape.Kind)
+		}
+		if !shape.S2.Contains(model2d.XY(-1.5, 0)) {
+			t.Fatalf("expected mirrored 2D solid to contain point")
+		}
+		if shape.S2.Contains(model2d.XY(1.5, 0)) {
+			t.Fatalf("expected mirrored 2D solid to exclude point")
+		}
+	})
+
+	t.Run("MirrorSDF3D", func(t *testing.T) {
+		shape := mustEvalShape(t, `
+			mirror([0,1,0]) translate([0,1,0]) sphere_sdf(r=1);
+		`)
+		if shape.Kind != ShapeSDF3D {
+			t.Fatalf("expected ShapeSDF3D, got %v", shape.Kind)
+		}
+		want := model3d.TransformSDF(
+			model3d.Mirror(model3d.Y(1)),
+			&model3d.Sphere{Center: model3d.Y(1), Radius: 1},
+		)
+		assertSDFsEqual3D(
+			t,
+			shape.SDF3,
+			want,
+			model3d.XYZ(-2, -2, -2),
+			model3d.XYZ(2, 2, 2),
+			1e-8,
+		)
+	})
+
 	t.Run("Solid3D", func(t *testing.T) {
 		solid := mustEvalSolid(t, `
 			transform([-2,-2,-2], [2,2,2], function(c) [c.x/2, c.y/2, c.z/2])

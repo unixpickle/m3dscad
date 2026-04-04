@@ -80,6 +80,15 @@ func TestSolidConversions(t *testing.T) {
 			`,
 		},
 		{
+			name: "MirroredSphereSDF",
+			a: `
+				solid() mirror([1, 0, 0]) translate([2, 0, 0]) sphere_sdf(r=1.25);
+			`,
+			b: `
+				scale([-1, 1, 1]) translate([2, 0, 0]) sphere(r=1.25);
+			`,
+		},
+		{
 			name: "RotatedCircleExtrudeSDF",
 			a: `
 				linear_extrude(height=4)
@@ -99,6 +108,17 @@ func TestSolidConversions(t *testing.T) {
 			b: `
 				linear_extrude(height=4)
 					scale([-1.5, 1.5, 0]) circle(r=2.1);
+			`,
+		},
+		{
+			name: "MirroredCircleExtrudeSDF",
+			a: `
+				linear_extrude(height=4)
+					solid() scale([-1, 1, 1]) translate([1.5, 0, 0]) circle_sdf(r=2.1);
+			`,
+			b: `
+				linear_extrude(height=4)
+					mirror([1, 0, 0]) translate([1.5, 0, 0]) circle(r=2.1);
 			`,
 		},
 	}

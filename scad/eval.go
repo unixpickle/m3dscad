@@ -278,11 +278,27 @@ func evalCallStmt(e *env, st *CallStmt) (*ShapeRep, error) {
 	name := st.Call.Name
 
 	if name == "echo" {
+		if len(st.Children) > 0 {
+			return nil, fmt.Errorf("%s() does not take children", name)
+		}
 		args, err := evalEchoArgs(e, st.Call.Args)
 		if err != nil {
 			return nil, err
 		}
 		e.echo(strings.Join(args, ", "))
+		return nil, nil
+	}
+	if name == "assert" {
+		if len(st.Children) > 0 {
+			return nil, fmt.Errorf("%s() does not take children", name)
+		}
+		failed, msg, err := evalAssertCall(e, st.Call)
+		if err != nil {
+			return nil, err
+		}
+		if failed {
+			return nil, fmt.Errorf("%s", msg)
+		}
 		return nil, nil
 	}
 
@@ -327,7 +343,7 @@ func evalCallStmt(e *env, st *CallStmt) (*ShapeRep, error) {
 	// User-defined module call (solids)
 	if md, ok := e.getModule(name); ok {
 		if len(st.Children) > 0 {
-			return nil, fmt.Errorf("module %s does not support children in this MVP", name)
+			return nil, fmt.Errorf("module %s does not support children", name)
 		}
 		caller := &env{
 			scopes: append([]*scope{}, e.scopes...),
@@ -717,6 +733,9 @@ func evalForBindsExpr(e *env, binds []ForBind, idx int, fn func() error) error {
 }
 
 func evalFuncCall(e *env, c Call) (Value, error) {
+	if c.Name == "assert" {
+		return Value{}, PosErrorf(c.P, "assert() must be used as a statement")
+	}
 	if v, ok := e.get(c.Name); ok {
 		if v.Kind != ValFunc || v.Func == nil {
 			return Value{}, PosErrorf(c.P, "%q is not callable", c.Name)
@@ -1111,6 +1130,83 @@ func evalEchoArgs(e *env, args []Arg) ([]string, error) {
 		out = append(out, elem)
 	}
 	return out, nil
+}
+
+func evalAssertCall(e *env, c Call) (bool, string, error) {
+	condArg, msgArg, err := parseAssertArgs(c)
+	if err != nil {
+		return false, "", err
+	}
+	condValue, err := evalExpr(e, condArg.Expr)
+	if err != nil {
+		return false, "", err
+	}
+	if condValue.Kind != ValBool {
+		return false, "", PosErrorf(condArg.P, "expected bool")
+	}
+	if condValue.Bool {
+		return false, "", nil
+	}
+	msg := "assertion failed"
+	if msgArg != nil {
+		msgValue, err := evalExpr(e, msgArg.Expr)
+		if err != nil {
+			return false, "", err
+		}
+		if msgValue.Kind != ValString {
+			return false, "", PosErrorf(msgArg.P, "expected string")
+		}
+		msg = "assertion failed: " + msgValue.Str
+	}
+	return true, msg, nil
+}
+
+func parseAssertArgs(c Call) (Arg, *Arg, error) {
+	if len(c.Args) == 0 {
+		return Arg{}, nil, PosErrorf(c.P, "assert() takes 1 or 2 arguments")
+	}
+
+	var condArg *Arg
+	var msgArg *Arg
+	seenNamed := false
+	positionalCount := 0
+	for _, rawArg := range c.Args {
+		arg := rawArg
+		if arg.Name != "" {
+			seenNamed = true
+			switch arg.Name {
+			case "condition":
+				if condArg != nil {
+					return Arg{}, nil, PosErrorf(arg.P, `assert(): duplicate argument "condition"`)
+				}
+				condArg = &arg
+			case "message":
+				if msgArg != nil {
+					return Arg{}, nil, PosErrorf(arg.P, `assert(): duplicate argument "message"`)
+				}
+				msgArg = &arg
+			default:
+				return Arg{}, nil, PosErrorf(arg.P, `assert(): unknown argument %q`, arg.Name)
+			}
+			continue
+		}
+		if seenNamed {
+			return Arg{}, nil, PosErrorf(arg.P, "assert(): positional args cannot follow named args")
+		}
+		switch positionalCount {
+		case 0:
+			condArg = &arg
+		case 1:
+			msgArg = &arg
+		default:
+			return Arg{}, nil, PosErrorf(arg.P, "assert() takes 1 or 2 arguments")
+		}
+		positionalCount++
+	}
+	if condArg == nil {
+		return Arg{}, nil, PosErrorf(c.P, `missing parameter "condition"`)
+	}
+	return *condArg, msgArg, nil
 }
 
 func valueString(v Value) string {

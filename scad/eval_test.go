@@ -529,6 +529,23 @@ func TestSolidsIntegration(t *testing.T) {
 			},
 		},
 		{
+			name: "ModuleCallTrailingComma",
+			src: `
+				cylinder(
+					h=2,
+					r=1,
+				);
+			`,
+			inside: []model3d.Coord3D{
+				model3d.XYZ(0, 0, 1.9),
+				model3d.XYZ(0, 0.9, 1.9),
+			},
+			outside: []model3d.Coord3D{
+				model3d.XYZ(0, 0, 2.1),
+				model3d.XYZ(0, 1.1, 1.9),
+			},
+		},
+		{
 			name: "IntersectionFor",
 			src: `
 				intersection_for (n = [1:6]) {
@@ -963,6 +980,16 @@ func TestBindArgsStrictErrors(t *testing.T) {
 			src:     `metaball(1) sphere_sdf(r=1);`,
 			wantErr: "too many positional args",
 		},
+		{
+			name:    "EchoDoesNotTakeChildren",
+			src:     `echo(1) a=3;`,
+			wantErr: "echo() does not take children",
+		},
+		{
+			name:    "AssertDoesNotTakeChildren",
+			src:     `assert(true) a=3;`,
+			wantErr: "assert() does not take children",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1196,6 +1223,75 @@ func TestFunctionCallArgErrorPositions(t *testing.T) {
 	})
 }
 
+func TestAssertBuiltin(t *testing.T) {
+	t.Run("StatementFormSkipsMessageOnSuccess", func(t *testing.T) {
+		prog, err := Parse(`
+			assert(condition=true, message=badvar);
+			sphere(r=1);
+		`)
+		if err != nil {
+			t.Fatalf("parse failed: %v", err)
+		}
+		if _, err := Eval(prog); err != nil {
+			t.Fatalf("eval failed: %v", err)
+		}
+	})
+
+	t.Run("StatementFormAllowsFollowingStatements", func(t *testing.T) {
+		solid := mustEvalSolid(t, `
+			assert(true, "still ok");
+			sphere(r=1);
+		`)
+		assertContains(t, solid, model3d.XYZ(0, 0, 0), true)
+		assertContains(t, solid, model3d.XYZ(1.1, 0, 0), false)
+	})
+
+	t.Run("ExpressionUseIsRejected", func(t *testing.T) {
+		prog, err := Parse("out = assert(false, \"boom\");\n")
+		if err != nil {
+			t.Fatalf("parse failed: %v", err)
+		}
+		_, err = Eval(prog)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !strings.Contains(err.Error(), `assert() must be used as a statement`) {
+			t.Fatalf("expected statement-only error, got %v", err)
+		}
+	})
+
+	t.Run("StatementFormFalseIncludesCustomMessage", func(t *testing.T) {
+		prog, err := Parse("assert(false, \"boom\");\n")
+		if err != nil {
+			t.Fatalf("parse failed: %v", err)
+		}
+		_, err = Eval(prog)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if got := countErrorPositions(err); got != 1 {
+			t.Fatalf("expected exactly 1 position(s), got %d: %v", got, err)
+		}
+		if !strings.Contains(err.Error(), `1:1: assertion failed: boom`) {
+			t.Fatalf("expected custom assertion message, got %v", err)
+		}
+	})
+
+	t.Run("StatementFormFalseUsesDefaultMessage", func(t *testing.T) {
+		prog, err := Parse("assert(false);\n")
+		if err != nil {
+			t.Fatalf("parse failed: %v", err)
+		}
+		_, err = Eval(prog)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !strings.Contains(err.Error(), `1:1: assertion failed`) {
+			t.Fatalf("expected default assertion message, got %v", err)
+		}
+	})
+}
+
 func TestScopeCaptureSemantics(t *testing.T) {
 	t.Run("FunctionSeesLaterSameScopeAssignment", func(t *testing.T) {
 		prog, err := Parse(`
@@ -1379,6 +1475,18 @@ func TestExpressionAssignments(t *testing.T) {
 			`,
 			var_: "out",
 			want: List([]Value{Num(4), Num(9), Num(25), Num(49), Num(121)}),
+		},
+		{
+			name: "LetFunctionCallTrailingComma",
+			src: `
+				function foo(x, y) = x+y;
+				out = foo(
+					3,
+					4,
+				);
+			`,
+			var_: "out",
+			want: Num(7),
 		},
 		{
 			name: "EachFlattenRange",

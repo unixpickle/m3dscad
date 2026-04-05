@@ -304,6 +304,9 @@ func (p *Parser) parseArgList() ([]Arg, error) {
 			}
 			if p.cur.Kind == TokComma {
 				p.advance()
+				if p.cur.Kind == TokRParen {
+					break
+				}
 				continue
 			}
 			break

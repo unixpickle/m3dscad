@@ -22484,9 +22484,7 @@ difference() {
   });
   resetViewBtn.addEventListener("click", () => {
     if (!renderer) return;
-    renderer.camera.theta = 0.6;
-    renderer.camera.phi = 0.9;
-    renderer.fitPending = true;
+    renderer.resetView();
   });
   function MeshRenderer(canvas2) {
     const gl = canvas2.getContext("webgl");
@@ -22494,6 +22492,7 @@ difference() {
       overlayEl.textContent = "WebGL not available.";
       return;
     }
+    this.canvas = canvas2;
     this.gl = gl;
     this.program = createProgram(gl, vertexShader, fragmentShader);
     this.buffers = {
@@ -22522,8 +22521,14 @@ difference() {
     this.dragMode = null;
     this.lastPos = [0, 0];
     this.fitPending = true;
+    this.frameHandle = null;
     setupInteraction(this, canvas2);
-    requestAnimationFrame(() => this.render());
+    this.requestRender();
+    if (typeof ResizeObserver === "function") {
+      this.resizeObserver = new ResizeObserver(() => this.requestRender());
+      this.resizeObserver.observe(this.canvas);
+    }
+    window.addEventListener("resize", () => this.requestRender(), { passive: true });
   }
   MeshRenderer.prototype.setMesh = function(positions, normals, bounds) {
     const gl = this.gl;
@@ -22535,6 +22540,7 @@ difference() {
     gl.bufferData(gl.ARRAY_BUFFER, normals, gl.STATIC_DRAW);
     this.bounds = bounds;
     this.fitPending = !hadMesh;
+    this.requestRender();
   };
   MeshRenderer.prototype.fitView = function() {
     if (!this.bounds) {
@@ -22555,23 +22561,38 @@ difference() {
     this.camera.radius = radius * 2.2;
     this.fitPending = false;
   };
+  MeshRenderer.prototype.resetView = function() {
+    this.camera.theta = 0.6;
+    this.camera.phi = 0.9;
+    this.fitPending = true;
+    this.requestRender();
+  };
+  MeshRenderer.prototype.requestRender = function() {
+    if (this.frameHandle != null) {
+      return;
+    }
+    this.frameHandle = requestAnimationFrame(() => {
+      this.frameHandle = null;
+      this.render();
+    });
+  };
   MeshRenderer.prototype.render = function() {
     const gl = this.gl;
     if (!gl) {
       return;
     }
-    resizeCanvas(canvas);
+    resizeCanvas(this.canvas);
     if (this.fitPending) {
       this.fitView();
     }
-    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     gl.clearColor(0.05, 0.06, 0.09, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.enable(gl.DEPTH_TEST);
     gl.useProgram(this.program);
     updateAxisIndicator(this.camera);
     if (this.vertexCount > 0) {
-      const { model, view, proj, eye } = buildMatrices(this.camera, canvas);
+      const { model, view, proj, eye } = buildMatrices(this.camera, this.canvas);
       gl.uniformMatrix4fv(this.uniforms.model, false, model);
       gl.uniformMatrix4fv(this.uniforms.view, false, view);
       gl.uniformMatrix4fv(this.uniforms.proj, false, proj);
@@ -22590,7 +22611,6 @@ difference() {
       gl.vertexAttribPointer(this.attribs.normal, 3, gl.FLOAT, false, 0, 0);
       gl.drawArrays(gl.TRIANGLES, 0, this.vertexCount);
     }
-    requestAnimationFrame(() => this.render());
   };
   function setupInteraction(renderer2, canvas2) {
     canvas2.style.touchAction = "none";
@@ -22621,11 +22641,13 @@ difference() {
         renderer2.camera.phi -= dy * 5e-3;
         renderer2.camera.phi = Math.min(Math.max(renderer2.camera.phi, 0.1), Math.PI - 0.1);
       }
+      renderer2.requestRender();
     });
     canvas2.addEventListener("wheel", (event) => {
       event.preventDefault();
       renderer2.camera.radius *= 1 + event.deltaY * 1e-3;
       renderer2.camera.radius = Math.max(renderer2.camera.radius, 0.4);
+      renderer2.requestRender();
     });
     const pointers = /* @__PURE__ */ new Map();
     let lastPinchDist = null;
@@ -22642,6 +22664,7 @@ difference() {
         const scale = lastPinchDist / dist2;
         renderer2.camera.radius *= scale;
         renderer2.camera.radius = Math.max(renderer2.camera.radius, 0.4);
+        renderer2.requestRender();
       }
       lastPinchDist = dist2;
     };
@@ -22679,6 +22702,7 @@ difference() {
           renderer2.camera.phi -= dy * 5e-3;
           renderer2.camera.phi = Math.min(Math.max(renderer2.camera.phi, 0.1), Math.PI - 0.1);
         }
+        renderer2.requestRender();
       } else if (pointers.size === 2) {
         updatePinch();
       }
@@ -22965,6 +22989,9 @@ difference() {
     const applyLayout = (left) => {
       if (window.innerWidth <= mobileBreakpoint) {
         app.style.gridTemplateColumns = "";
+        if (renderer) {
+          renderer.requestRender();
+        }
         return;
       }
       const rect = app.getBoundingClientRect();
@@ -22972,6 +22999,9 @@ difference() {
       preferredLeft = clampedLeft;
       const right = rect.width - clampedLeft;
       app.style.gridTemplateColumns = `${clampedLeft}px 8px ${right}px`;
+      if (renderer) {
+        renderer.requestRender();
+      }
     };
     const onMove = (event) => {
       if (!dragging) return;

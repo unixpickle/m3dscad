@@ -63,9 +63,15 @@ export class MeshRenderer {
     this.dragging = false;
     this.lastPos = [0, 0];
     this.fitPending = true;
+    this.frameHandle = null;
 
     setupInteraction(this, canvas);
-    requestAnimationFrame(() => this.render());
+    this.requestRender();
+    if (typeof ResizeObserver === "function") {
+      this.resizeObserver = new ResizeObserver(() => this.requestRender());
+      this.resizeObserver.observe(this.canvas);
+    }
+    window.addEventListener("resize", () => this.requestRender(), { passive: true });
   }
 
   setMesh(positions, normals, bounds) {
@@ -77,6 +83,7 @@ export class MeshRenderer {
     gl.bufferData(gl.ARRAY_BUFFER, normals, gl.STATIC_DRAW);
     this.bounds = bounds;
     this.fitPending = true;
+    this.requestRender();
   }
 
   fitView() {
@@ -101,6 +108,17 @@ export class MeshRenderer {
     this.camera.theta = 0.6;
     this.camera.phi = 0.9;
     this.fitPending = true;
+    this.requestRender();
+  }
+
+  requestRender() {
+    if (this.frameHandle != null) {
+      return;
+    }
+    this.frameHandle = requestAnimationFrame(() => {
+      this.frameHandle = null;
+      this.render();
+    });
   }
 
   render() {
@@ -138,8 +156,6 @@ export class MeshRenderer {
 
       gl.drawArrays(gl.TRIANGLES, 0, this.vertexCount);
     }
-
-    requestAnimationFrame(() => this.render());
   }
 }
 
@@ -243,6 +259,7 @@ function setupInteraction(renderer, canvas) {
     renderer.camera.theta -= dx * 0.005;
     renderer.camera.phi -= dy * 0.005;
     renderer.camera.phi = Math.min(Math.max(renderer.camera.phi, 0.1), Math.PI - 0.1);
+    renderer.requestRender();
   });
 }
 

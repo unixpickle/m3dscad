@@ -233,9 +233,7 @@ downloadBtn.addEventListener("click", () => {
 
 resetViewBtn.addEventListener("click", () => {
   if (!renderer) return;
-  renderer.camera.theta = 0.6;
-  renderer.camera.phi = 0.9;
-  renderer.fitPending = true;
+  renderer.resetView();
 });
 
 function MeshRenderer(canvas) {
@@ -244,6 +242,7 @@ function MeshRenderer(canvas) {
     overlayEl.textContent = "WebGL not available.";
     return;
   }
+  this.canvas = canvas;
   this.gl = gl;
   this.program = createProgram(gl, vertexShader, fragmentShader);
   this.buffers = {
@@ -272,9 +271,15 @@ function MeshRenderer(canvas) {
   this.dragMode = null;
   this.lastPos = [0, 0];
   this.fitPending = true;
+  this.frameHandle = null;
 
   setupInteraction(this, canvas);
-  requestAnimationFrame(() => this.render());
+  this.requestRender();
+  if (typeof ResizeObserver === "function") {
+    this.resizeObserver = new ResizeObserver(() => this.requestRender());
+    this.resizeObserver.observe(this.canvas);
+  }
+  window.addEventListener("resize", () => this.requestRender(), { passive: true });
 }
 
 MeshRenderer.prototype.setMesh = function (positions, normals, bounds) {
@@ -288,6 +293,7 @@ MeshRenderer.prototype.setMesh = function (positions, normals, bounds) {
   this.bounds = bounds;
   // Preserve user camera settings across recompiles after the first successful mesh.
   this.fitPending = !hadMesh;
+  this.requestRender();
 };
 
 MeshRenderer.prototype.fitView = function () {
@@ -310,16 +316,33 @@ MeshRenderer.prototype.fitView = function () {
   this.fitPending = false;
 };
 
+MeshRenderer.prototype.resetView = function () {
+  this.camera.theta = 0.6;
+  this.camera.phi = 0.9;
+  this.fitPending = true;
+  this.requestRender();
+};
+
+MeshRenderer.prototype.requestRender = function () {
+  if (this.frameHandle != null) {
+    return;
+  }
+  this.frameHandle = requestAnimationFrame(() => {
+    this.frameHandle = null;
+    this.render();
+  });
+};
+
 MeshRenderer.prototype.render = function () {
   const gl = this.gl;
   if (!gl) {
     return;
   }
-  resizeCanvas(canvas);
+  resizeCanvas(this.canvas);
   if (this.fitPending) {
     this.fitView();
   }
-  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.viewport(0, 0, this.canvas.width, this.canvas.height);
   gl.clearColor(0.05, 0.06, 0.09, 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   gl.enable(gl.DEPTH_TEST);
@@ -327,7 +350,7 @@ MeshRenderer.prototype.render = function () {
   updateAxisIndicator(this.camera);
 
   if (this.vertexCount > 0) {
-    const { model, view, proj, eye } = buildMatrices(this.camera, canvas);
+    const { model, view, proj, eye } = buildMatrices(this.camera, this.canvas);
     gl.uniformMatrix4fv(this.uniforms.model, false, model);
     gl.uniformMatrix4fv(this.uniforms.view, false, view);
     gl.uniformMatrix4fv(this.uniforms.proj, false, proj);
@@ -348,7 +371,6 @@ MeshRenderer.prototype.render = function () {
 
     gl.drawArrays(gl.TRIANGLES, 0, this.vertexCount);
   }
-  requestAnimationFrame(() => this.render());
 };
 
 function setupInteraction(renderer, canvas) {
@@ -380,11 +402,13 @@ function setupInteraction(renderer, canvas) {
       renderer.camera.phi -= dy * 0.005;
       renderer.camera.phi = Math.min(Math.max(renderer.camera.phi, 0.1), Math.PI - 0.1);
     }
+    renderer.requestRender();
   });
   canvas.addEventListener("wheel", (event) => {
     event.preventDefault();
     renderer.camera.radius *= 1 + event.deltaY * 0.001;
     renderer.camera.radius = Math.max(renderer.camera.radius, 0.4);
+    renderer.requestRender();
   });
 
   const pointers = new Map();
@@ -403,6 +427,7 @@ function setupInteraction(renderer, canvas) {
       const scale = lastPinchDist / dist;
       renderer.camera.radius *= scale;
       renderer.camera.radius = Math.max(renderer.camera.radius, 0.4);
+      renderer.requestRender();
     }
     lastPinchDist = dist;
   };
@@ -442,6 +467,7 @@ function setupInteraction(renderer, canvas) {
         renderer.camera.phi -= dy * 0.005;
         renderer.camera.phi = Math.min(Math.max(renderer.camera.phi, 0.1), Math.PI - 0.1);
       }
+      renderer.requestRender();
     } else if (pointers.size === 2) {
       updatePinch();
     }
@@ -757,6 +783,9 @@ function setupResizer() {
   const applyLayout = (left) => {
     if (window.innerWidth <= mobileBreakpoint) {
       app.style.gridTemplateColumns = "";
+      if (renderer) {
+        renderer.requestRender();
+      }
       return;
     }
     const rect = app.getBoundingClientRect();
@@ -764,6 +793,9 @@ function setupResizer() {
     preferredLeft = clampedLeft;
     const right = rect.width - clampedLeft;
     app.style.gridTemplateColumns = `${clampedLeft}px 8px ${right}px`;
+    if (renderer) {
+      renderer.requestRender();
+    }
   };
 
   const onMove = (event) => {

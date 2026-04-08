@@ -23,6 +23,21 @@ func TestTextAndTextMeshParity(t *testing.T) {
 	assertSolids2DEqual(t, shapeA.S2, shapeB.S2)
 }
 
+func TestTextAndTextSDFParity(t *testing.T) {
+	srcText := `
+		text("Hello", size=4, halign="center", valign="center", spacing=1.05, segments=8);
+	`
+	srcTextSDF := `
+		solid() text_sdf("Hello", size=4, halign="center", valign="center", spacing=1.05, segments=8);
+	`
+	shapeA := mustEvalShape(t, srcText)
+	shapeB := mustEvalShape(t, srcTextSDF)
+	if shapeA.Kind != ShapeSolid2D || shapeB.Kind != ShapeSolid2D {
+		t.Fatalf("expected 2D solids, got %v and %v", shapeA.Kind, shapeB.Kind)
+	}
+	assertSolids2DEqual(t, shapeA.S2, shapeB.S2)
+}
+
 func TestTextUnsupportedFont(t *testing.T) {
 	prog, err := Parse(`text("Hello", font="Arial");`)
 	if err != nil {

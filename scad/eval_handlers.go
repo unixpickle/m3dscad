@@ -250,4 +250,7 @@ var builtinHandlers = map[string]callHandler{
 	"text_mesh": {
 		Eval: handleTextMesh,
 	},
+	"text_sdf": {
+		Eval: handleTextSDF,
+	},
 }

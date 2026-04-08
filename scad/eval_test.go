@@ -1668,6 +1668,60 @@ func TestExpressionAssignments(t *testing.T) {
 	}
 }
 
+func TestLookupFunction(t *testing.T) {
+	src := `
+		table1 = [[-1, 2], [4, 4], [5, 4], [3.1, -1]];
+		table2 = [[3.1, -1], [5, 4], [-1, 2], [4, 4]];
+		out = [
+			lookup(3.2, table1),
+			lookup(3.2, table2),
+			lookup(3, table1),
+			lookup(3, table2),
+			lookup(-10, table1),
+			lookup(-10, table2),
+			lookup(10, table1),
+			lookup(10, table2),
+		];
+	`
+	prog, err := Parse(src)
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	e := newEnv(nil)
+	if _, err := evalStmts(e, prog.Stmts); err != nil {
+		t.Fatalf("eval failed: %v", err)
+	}
+	got, ok := e.get("out")
+	if !ok {
+		t.Fatal("missing variable \"out\"")
+	}
+	if got.Kind != ValList {
+		t.Fatalf("expected list, got %#v", got)
+	}
+	want := []float64{
+		-0.4444444444444444,
+		-0.4444444444444444,
+		-0.9268292682926833,
+		-0.9268292682926833,
+		2,
+		2,
+		4,
+		4,
+	}
+	if len(got.List) != len(want) {
+		t.Fatalf("unexpected result length: got %d want %d", len(got.List), len(want))
+	}
+	for i, wantNum := range want {
+		gotNum, err := got.List[i].AsNum()
+		if err != nil {
+			t.Fatalf("result %d is not numeric: %v", i, err)
+		}
+		if math.Abs(gotNum-wantNum) > 1e-9 {
+			t.Fatalf("result %d mismatch: got %.12f want %.12f", i, gotNum, wantNum)
+		}
+	}
+}
+
 func TestVectorAccessorErrors(t *testing.T) {
 	tests := []struct {
 		name    string

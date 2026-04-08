@@ -31,6 +31,14 @@ func handleTextMesh(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, 
 	return shapeMesh2D(mesh), nil
 }
 
+func handleTextSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
+	mesh, err := parseTextMesh(e, st)
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	return shapeSDF2D(model2d.MeshToSDF(mesh)), nil
+}
+
 func parseTextMesh(e *env, st *CallStmt) (*model2d.Mesh, error) {
 	args, err := bindArgs(e, st.Call, []ArgSpec{
 		{Name: "text", Pos: 0, Required: true},

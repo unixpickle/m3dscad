@@ -15,6 +15,8 @@ github.com/unixpickle/model3d v0.4.16 h1:IejemlKyiKDUIaQHfeWqtszR0kyUQBnGoWC4S7P
 github.com/unixpickle/model3d v0.4.16/go.mod h1:bk9rFuX4Lc0Bii9rVzfTd/+E/eKJnqe21QZfhcxUGsM=
 github.com/unixpickle/model3d v0.4.17 h1:vZtLQpd34ldx2wOxIOjiN1KAIDpvBXbWOo21SRFYUSo=
 github.com/unixpickle/model3d v0.4.17/go.mod h1:bk9rFuX4Lc0Bii9rVzfTd/+E/eKJnqe21QZfhcxUGsM=
+github.com/unixpickle/model3d v0.4.18 h1:KntbdgBeXADZdiARXsJQ+Z+GLkEIK3sJeF7XympERTo=
+github.com/unixpickle/model3d v0.4.18/go.mod h1:bk9rFuX4Lc0Bii9rVzfTd/+E/eKJnqe21QZfhcxUGsM=
 github.com/unixpickle/path2d v0.1.0 h1:2aFmxwkMCm9yxg/340uqiBgV73buarmx0d/jIcVoDHw=
 github.com/unixpickle/path2d v0.1.0/go.mod h1:/7teh33dU3DY7tLec5tvKjEUhrNFbHjONMWWugrSp6I=
 github.com/unixpickle/splaytree v1.2.0 h1:GCXr7opRXvTfMCIONcx3z4ST66LIe13bNGWaDCeTq+c=

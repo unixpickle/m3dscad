@@ -2,7 +2,7 @@ module github.com/unixpickle/m3dscad
 
 go 1.25.0
 
-require github.com/unixpickle/model3d v0.4.17
+require github.com/unixpickle/model3d v0.4.18
 
 require github.com/unixpickle/path2d v0.1.0
 

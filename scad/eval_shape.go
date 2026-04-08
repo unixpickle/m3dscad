@@ -2,7 +2,6 @@ package scad
 
 import (
 	"fmt"
-	"math"
 
 	"github.com/unixpickle/model3d/model2d"
 	"github.com/unixpickle/model3d/model3d"
@@ -261,17 +260,17 @@ func unionAll(children []ShapeRep) (ShapeRep, error) {
 	}
 	switch kind {
 	case ShapeSolid3D:
-		solids := make([]model3d.Solid, 0, len(children))
-		for _, ch := range children {
-			solids = append(solids, ch.S3)
+		solids := make(model3d.JoinedSolid, len(children))
+		for i, ch := range children {
+			solids[i] = ch.S3
 		}
-		return shapeSolid3D(model3d.JoinedSolid(solids)), nil
+		return shapeSolid3D(solids), nil
 	case ShapeSolid2D:
-		solids := make([]model2d.Solid, 0, len(children))
-		for _, ch := range children {
-			solids = append(solids, ch.S2)
+		solids := make(model2d.JoinedSolid, len(children))
+		for i, ch := range children {
+			solids[i] = ch.S2
 		}
-		return shapeSolid2D(model2d.JoinedSolid(solids)), nil
+		return shapeSolid2D(solids), nil
 	case ShapeSDF3D:
 		return shapeSDF3D(sdfUnion3D(children)), nil
 	case ShapeSDF2D:
@@ -361,14 +360,7 @@ func sdfUnion2D(children []ShapeRep) model2d.SDF {
 	for _, ch := range children {
 		sdfs = append(sdfs, ch.SDF2)
 	}
-	min, max := model2d.BoundsUnion(sdfs)
-	return model2d.FuncSDF(min, max, func(c model2d.Coord) float64 {
-		val := sdfs[0].SDF(c)
-		for _, s := range sdfs[1:] {
-			val = math.Max(val, s.SDF(c))
-		}
-		return val
-	})
+	return model2d.JoinSDFs(sdfs)
 }
 
 func sdfUnion3D(children []ShapeRep) model3d.SDF {
@@ -376,14 +368,7 @@ func sdfUnion3D(children []ShapeRep) model3d.SDF {
 	for _, ch := range children {
 		sdfs = append(sdfs, ch.SDF3)
 	}
-	min, max := model3d.BoundsUnion(sdfs)
-	return model3d.FuncSDF(min, max, func(c model3d.Coord3D) float64 {
-		val := sdfs[0].SDF(c)
-		for _, s := range sdfs[1:] {
-			val = math.Max(val, s.SDF(c))
-		}
-		return val
-	})
+	return model3d.JoinSDFs(sdfs)
 }
 
 func sdfIntersect2D(children []ShapeRep) model2d.SDF {
@@ -391,14 +376,7 @@ func sdfIntersect2D(children []ShapeRep) model2d.SDF {
 	for _, ch := range children {
 		sdfs = append(sdfs, ch.SDF2)
 	}
-	min, max := boundsIntersect2D(sdfs)
-	return model2d.FuncSDF(min, max, func(c model2d.Coord) float64 {
-		val := sdfs[0].SDF(c)
-		for _, s := range sdfs[1:] {
-			val = math.Min(val, s.SDF(c))
-		}
-		return val
-	})
+	return model2d.IntersectSDFs(sdfs)
 }
 
 func sdfIntersect3D(children []ShapeRep) model3d.SDF {
@@ -406,48 +384,5 @@ func sdfIntersect3D(children []ShapeRep) model3d.SDF {
 	for _, ch := range children {
 		sdfs = append(sdfs, ch.SDF3)
 	}
-	min, max := boundsIntersect3D(sdfs)
-	return model3d.FuncSDF(min, max, func(c model3d.Coord3D) float64 {
-		val := sdfs[0].SDF(c)
-		for _, s := range sdfs[1:] {
-			val = math.Min(val, s.SDF(c))
-		}
-		return val
-	})
-}
-
-func sdfSubtract2D(a, b ShapeRep) model2d.SDF {
-	min := a.SDF2.Min()
-	max := a.SDF2.Max()
-	return model2d.FuncSDF(min, max, func(c model2d.Coord) float64 {
-		return math.Min(a.SDF2.SDF(c), -b.SDF2.SDF(c))
-	})
-}
-
-func sdfSubtract3D(a, b ShapeRep) model3d.SDF {
-	min := a.SDF3.Min()
-	max := a.SDF3.Max()
-	return model3d.FuncSDF(min, max, func(c model3d.Coord3D) float64 {
-		return math.Min(a.SDF3.SDF(c), -b.SDF3.SDF(c))
-	})
-}
-
-func boundsIntersect2D[B model2d.Bounder](bounds []B) (min, max model2d.Coord) {
-	min = bounds[0].Min()
-	max = bounds[0].Max()
-	for _, b := range bounds[1:] {
-		min = min.Max(b.Min())
-		max = max.Min(b.Max())
-	}
-	return min, max
-}
-
-func boundsIntersect3D[B model3d.Bounder](bounds []B) (min, max model3d.Coord3D) {
-	min = bounds[0].Min()
-	max = bounds[0].Max()
-	for _, b := range bounds[1:] {
-		min = min.Max(b.Min())
-		max = max.Min(b.Max())
-	}
-	return min, max
+	return model3d.IntersectSDFs(sdfs)
 }

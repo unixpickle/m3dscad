@@ -232,83 +232,13 @@ func handleRotateExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRe
 		if !full {
 			return ShapeRep{}, fmt.Errorf("rotate_extrude(): SDF input requires full 360 angle")
 		}
-		return shapeSDF3D(rotateExtrudeSDF(childUnion.SDF2)), nil
+		return shapeSDF3D(model3d.RevolveSDF(childUnion.SDF2)), nil
 	}
-	solid, err := rotateExtrude(childUnion.S2, angle, start)
+	solid, err := model3d.RevolveSolidRange(childUnion.S2, angle*math.Pi/180, start*math.Pi/180)
 	if err != nil {
 		return ShapeRep{}, err
 	}
 	return shapeSolid3D(solid), nil
-}
-
-func rotateExtrudeSDF(s model2d.SDF) model3d.SDF {
-	min2 := s.Min()
-	max2 := s.Max()
-	rMax := math.Max(math.Abs(min2.X), math.Abs(max2.X))
-	min := model3d.XYZ(-rMax, -rMax, min2.Y)
-	max := model3d.XYZ(rMax, rMax, max2.Y)
-	return model3d.FuncSDF(min, max, func(c model3d.Coord3D) float64 {
-		r := math.Hypot(c.X, c.Y)
-		dPos := s.SDF(model2d.XY(r, c.Z))
-		dNeg := s.SDF(model2d.XY(-r, c.Z))
-		return math.Max(dPos, dNeg)
-	})
-}
-
-func rotateExtrude(s model2d.Solid, angleDeg float64, startDeg float64) (model3d.Solid, error) {
-	min2 := s.Min()
-	max2 := s.Max()
-	rMax := math.Max(math.Abs(min2.X), math.Abs(max2.X))
-	min := model3d.XYZ(-rMax, -rMax, min2.Y)
-	max := model3d.XYZ(rMax, rMax, max2.Y)
-
-	angle := angleDeg
-	start := normalizeAngleDeg(startDeg)
-	full := math.Abs(angle) >= 360-1e-9
-
-	return model3d.CheckedFuncSolid(min, max, func(c model3d.Coord3D) bool {
-		r := math.Hypot(c.X, c.Y)
-		if !full {
-			theta := math.Atan2(c.Y, c.X) * 180 / math.Pi
-			if angle >= 0 {
-				delta := angleDistanceCCW(start, theta)
-				if delta > angle+1e-9 {
-					return false
-				}
-			} else {
-				delta := angleDistanceCW(start, theta)
-				if delta > -angle+1e-9 {
-					return false
-				}
-			}
-		}
-		for _, neg := range []bool{false, true} {
-			x := r
-			if neg {
-				x = -x
-			}
-			if s.Contains(model2d.XY(x, c.Z)) {
-				return true
-			}
-		}
-		return false
-	}), nil
-}
-
-func normalizeAngleDeg(a float64) float64 {
-	a = math.Mod(a, 360)
-	if a < 0 {
-		a += 360
-	}
-	return a
-}
-
-func angleDistanceCCW(from, to float64) float64 {
-	return normalizeAngleDeg(to - from)
-}
-
-func angleDistanceCW(from, to float64) float64 {
-	return normalizeAngleDeg(from - to)
 }
 
 func inverseExtrudeTransform(x, y, t, twist float64, scale [2]float64) (float64, float64, bool) {
@@ -347,7 +277,7 @@ func maxCornerRadius(min, max model2d.Coord) float64 {
 	}
 	maxR2 := 0.0
 	for _, c := range corners {
-		r2 := c.X*c.X + c.Y*c.Y
+		r2 := c.NormSquared()
 		if r2 > maxR2 {
 			maxR2 = r2
 		}

@@ -41,9 +41,9 @@ func handleDifference(e *env, st *CallStmt, children []ShapeRep, _ *ShapeRep) (S
 	case ShapeSolid2D:
 		return shapeSolid2D(model2d.Subtract(children[0].S2, subUnion.S2)), nil
 	case ShapeSDF3D:
-		return shapeSDF3D(sdfSubtract3D(children[0], subUnion)), nil
+		return shapeSDF3D(model3d.SubtractSDF(children[0].SDF3, subUnion.SDF3)), nil
 	case ShapeSDF2D:
-		return shapeSDF2D(sdfSubtract2D(children[0], subUnion)), nil
+		return shapeSDF2D(model2d.SubtractSDF(children[0].SDF2, subUnion.SDF2)), nil
 	case ShapeMetaball2D:
 		return ShapeRep{
 			Kind: ShapeMetaball2D,

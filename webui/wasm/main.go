@@ -16,7 +16,13 @@ func main() {
 	select {}
 }
 
-func compile(_ js.Value, args []js.Value) any {
+func compile(_ js.Value, args []js.Value) (res any) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			res = jsError(panicMessage(rec))
+		}
+	}()
+
 	if len(args) < 2 {
 		return jsError("compile(code, gridSize) requires 2 arguments")
 	}

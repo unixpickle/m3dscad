@@ -121,7 +121,6 @@ function initWorker(options = {}) {
     worker.terminate();
   }
   worker = new Worker("./worker.js");
-  worker.postMessage({ type: "init" });
   worker.onmessage = (event) => {
     const msg = event.data;
     if (!msg || !msg.type) return;
@@ -139,6 +138,15 @@ function initWorker(options = {}) {
       if (typeof window.alert === "function") {
         window.alert(text);
       }
+      return;
+    }
+    if (msg.type === "init_error") {
+      workerReady = false;
+      const errText = msg.error || "WASM initialization failed.";
+      statusEl.textContent = errText;
+      setOverlay(statusEl.textContent, true);
+      lastMesh = null;
+      downloadBtn.disabled = true;
       return;
     }
     if (msg.type === "result") {
@@ -175,6 +183,7 @@ function initWorker(options = {}) {
     statusEl.textContent = `Worker error: ${event.message}`;
     setOverlay(statusEl.textContent, true);
   };
+  worker.postMessage({ type: "init" });
 }
 
 function compile() {

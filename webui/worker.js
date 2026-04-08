@@ -43,9 +43,7 @@ onmessage = (event) => {
   if (msg.type === "init") {
     initWasm().catch((err) => {
       postMessage({
-        type: "result",
-        id: msg.id,
-        ok: false,
+        type: "init_error",
         error: err.message || String(err),
       });
     });
@@ -65,7 +63,18 @@ onmessage = (event) => {
         });
         return;
       }
-      const result = self.m3dscadCompile(msg.code, msg.gridSize);
+      let result;
+      try {
+        result = self.m3dscadCompile(msg.code, msg.gridSize);
+      } catch (err) {
+        postMessage({
+          type: "result",
+          id: msg.id,
+          ok: false,
+          error: (err && err.message) || String(err),
+        });
+        return;
+      }
       result.type = "result";
       result.id = msg.id;
       postMessage(result);

@@ -781,6 +781,36 @@ func evalFuncCall(e *env, c Call) (Value, error) {
 			out = append(out, elems...)
 		}
 		return List(out), nil
+	case "is_list":
+		arg0, err := evalUnaryFuncArg(e, c)
+		if err != nil {
+			return Value{}, err
+		}
+		return Bool(arg0.Kind == ValList), nil
+	case "is_num":
+		arg0, err := evalUnaryFuncArg(e, c)
+		if err != nil {
+			return Value{}, err
+		}
+		return Bool(arg0.Kind == ValNum && !math.IsNaN(arg0.Num)), nil
+	case "is_bool":
+		arg0, err := evalUnaryFuncArg(e, c)
+		if err != nil {
+			return Value{}, err
+		}
+		return Bool(arg0.Kind == ValBool), nil
+	case "is_string":
+		arg0, err := evalUnaryFuncArg(e, c)
+		if err != nil {
+			return Value{}, err
+		}
+		return Bool(arg0.Kind == ValString), nil
+	case "is_function":
+		arg0, err := evalUnaryFuncArg(e, c)
+		if err != nil {
+			return Value{}, err
+		}
+		return Bool(arg0.Kind == ValFunc && arg0.Func != nil), nil
 	case "sin":
 		x, err := evalUnaryNumericFuncArg(e, c)
 		if err != nil {
@@ -1423,14 +1453,22 @@ func evalMinMaxArgs(e *env, c Call) ([]float64, error) {
 }
 
 func evalUnaryNumericFuncArg(e *env, c Call) (float64, error) {
-	if len(c.Args) != 1 {
-		return 0, PosErrorf(c.P, "function %s needs exactly 1 argument", c.Name)
-	}
-	arg0, err := evalExpr(e, c.Args[0].Expr)
+	arg0, err := evalUnaryFuncArg(e, c)
 	if err != nil {
 		return 0, err
 	}
 	return arg0.AsNum()
+}
+
+func evalUnaryFuncArg(e *env, c Call) (Value, error) {
+	if len(c.Args) != 1 {
+		return Value{}, PosErrorf(c.P, "function %s needs exactly 1 argument", c.Name)
+	}
+	arg0, err := evalExpr(e, c.Args[0].Expr)
+	if err != nil {
+		return Value{}, err
+	}
+	return arg0, nil
 }
 
 func evalBinaryNumericFuncArgs(e *env, c Call) (float64, float64, error) {

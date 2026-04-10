@@ -1848,6 +1848,111 @@ func TestEchoStatementAndFunction(t *testing.T) {
 	}
 }
 
+func TestTypePredicateFunctions(t *testing.T) {
+	prog, err := Parse(`
+		assert(is_list([]));
+		assert(is_list([1]));
+		assert(is_list([1,2]));
+		assert(is_list([true]));
+		assert(is_list([1,2,[5,6],"test"]));
+		assert(!is_list(1));
+		assert(!is_list(1/0));
+		assert(!is_list(((1/0)/(1/0))));
+		assert(!is_list("test"));
+		assert(!is_list(true));
+		assert(!is_list(false));
+
+		assert(is_num(0.1));
+		assert(is_num(1));
+		assert(is_num(10));
+		assert(is_num(+1/0));
+		assert(is_num(-1/0));
+		assert(!is_num(0/0));
+		assert(!is_num((1/0)/(1/0)));
+		assert(!is_num([]));
+		assert(!is_num([1]));
+		assert(!is_num("test"));
+		assert(!is_num(false));
+
+		assert(is_bool(true));
+		assert(is_bool(false));
+		assert(!is_bool([]));
+		assert(!is_bool([1]));
+		assert(!is_bool("test"));
+		assert(!is_bool(0.1));
+		assert(!is_bool(1));
+		assert(!is_bool(10));
+		assert(!is_bool(0/0));
+		assert(!is_bool((1/0)/(1/0)));
+		assert(!is_bool(1/0));
+		assert(!is_bool(-1/0));
+
+		assert(is_string(""));
+		assert(is_string("test"));
+		assert(!is_string(0.1));
+		assert(!is_string(1));
+		assert(!is_string(10));
+		assert(!is_string([]));
+		assert(!is_string([1]));
+		assert(!is_string(false));
+		assert(!is_string(0/0));
+		assert(!is_string((1/0)/(1/0)));
+		assert(!is_string(1/0));
+		assert(!is_string(-1/0));
+
+		assert(is_function(function(x) x*x));
+		func = function(x) x+x;
+		assert(is_function(func));
+	`)
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	if _, err := evalStmts(newEnv(nil), prog.Stmts); err != nil {
+		t.Fatalf("eval failed: %v", err)
+	}
+}
+
+func TestTypePredicateFunctionArityErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		src  string
+		want string
+	}{
+		{
+			name: "MissingArg",
+			src: `
+				a = is_list();
+				sphere(r=1);
+			`,
+			want: "function is_list needs exactly 1 argument",
+		},
+		{
+			name: "ExtraArg",
+			src: `
+				a = is_function(1, 2);
+				sphere(r=1);
+			`,
+			want: "function is_function needs exactly 1 argument",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			prog, err := Parse(tc.src)
+			if err != nil {
+				t.Fatalf("parse failed: %v", err)
+			}
+			_, err = Eval(prog)
+			if err == nil {
+				t.Fatal("expected eval error")
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("expected error containing %q, got %v", tc.want, err)
+			}
+		})
+	}
+}
+
 func TestModuleDefaultArgUsesCapturedScope(t *testing.T) {
 	prog, err := Parse(`
 		module foo(y=baz(z)) {

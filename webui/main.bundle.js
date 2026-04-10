@@ -22592,7 +22592,7 @@ difference() {
     gl.useProgram(this.program);
     updateAxisIndicator(this.camera);
     if (this.vertexCount > 0) {
-      const { model, view, proj, eye } = buildMatrices(this.camera, this.canvas);
+      const { model, view, proj, eye } = buildMatrices(this.camera, this.canvas, this.bounds);
       gl.uniformMatrix4fv(this.uniforms.model, false, model);
       gl.uniformMatrix4fv(this.uniforms.view, false, view);
       gl.uniformMatrix4fv(this.uniforms.proj, false, proj);
@@ -22788,17 +22788,42 @@ difference() {
       canvas2.height = height;
     }
   }
-  function buildMatrices(camera, canvas2) {
+  function buildMatrices(camera, canvas2, bounds) {
     const aspect = canvas2.width / Math.max(canvas2.height, 1);
-    const proj = mat4Perspective(CAMERA_FOV_RAD, aspect, 0.01, 1e3);
     const eye = [
       camera.target[0] + camera.radius * Math.cos(camera.theta) * Math.sin(camera.phi),
       camera.target[1] + camera.radius * Math.sin(camera.theta) * Math.sin(camera.phi),
       camera.target[2] + camera.radius * Math.cos(camera.phi)
     ];
+    const { near, far } = clipPlanesForBounds(eye, bounds);
+    const proj = mat4Perspective(CAMERA_FOV_RAD, aspect, near, far);
     const view = mat4LookAt(eye, camera.target, [0, 0, 1]);
     const model = mat4Identity();
     return { model, view, proj, eye };
+  }
+  function clipPlanesForBounds(eye, bounds) {
+    if (!bounds) {
+      return { near: 0.01, far: 1e3 };
+    }
+    const center = [
+      (bounds.min[0] + bounds.max[0]) / 2,
+      (bounds.min[1] + bounds.max[1]) / 2,
+      (bounds.min[2] + bounds.max[2]) / 2
+    ];
+    const dx = bounds.max[0] - bounds.min[0];
+    const dy = bounds.max[1] - bounds.min[1];
+    const dz = bounds.max[2] - bounds.min[2];
+    const sceneRadius = Math.max(Math.hypot(dx, dy, dz) * 0.5, 1);
+    const distanceToCenter = Math.hypot(
+      eye[0] - center[0],
+      eye[1] - center[1],
+      eye[2] - center[2]
+    );
+    const farthestPoint = distanceToCenter + sceneRadius;
+    const far = Math.max(farthestPoint * 1.5, 1);
+    const surfaceDistance = Math.max(distanceToCenter - sceneRadius, 0);
+    const near = Math.max(0.01, Math.min(Math.max(surfaceDistance * 0.5, 0.01), far / 1e3));
+    return { near, far };
   }
   function mat4Identity() {
     return new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);

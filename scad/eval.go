@@ -781,6 +781,16 @@ func evalFuncCall(e *env, c Call) (Value, error) {
 			out = append(out, elems...)
 		}
 		return List(out), nil
+	case "str":
+		var sb strings.Builder
+		for _, a := range c.Args {
+			v, err := evalExpr(e, a.Expr)
+			if err != nil {
+				return Value{}, err
+			}
+			sb.WriteString(strValueString(v))
+		}
+		return String(sb.String()), nil
 	case "is_list":
 		arg0, err := evalUnaryFuncArg(e, c)
 		if err != nil {
@@ -1283,6 +1293,13 @@ func valueString(v Value) string {
 	default:
 		return "undef"
 	}
+}
+
+func strValueString(v Value) string {
+	if v.Kind == ValString {
+		return v.Str
+	}
+	return valueString(v)
 }
 
 func formatExpr(ex Expr) string {

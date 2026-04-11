@@ -2,6 +2,22 @@
 
 let ready = false;
 let wasmReadyPromise = null;
+const goExitedError = "Go program has already exited";
+
+function resetWasmState() {
+  ready = false;
+  wasmReadyPromise = null;
+  self.m3dscadCompile = undefined;
+}
+
+function postCompileError(id, error) {
+  postMessage({
+    type: "result",
+    id,
+    ok: false,
+    error,
+  });
+}
 
 function initWasm() {
   if (wasmReadyPromise) {
@@ -23,7 +39,11 @@ function initWasm() {
           .then((bytes) => WebAssembly.instantiate(bytes, go.importObject));
     load
       .then((result) => {
-        go.run(result.instance);
+        go.run(result.instance)
+          .catch(() => {})
+          .finally(() => {
+            resetWasmState();
+          });
         ready = true;
         postMessage({ type: "ready" });
         resolve();
@@ -55,24 +75,19 @@ onmessage = (event) => {
   initWasm()
     .then(() => {
       if (!ready || typeof self.m3dscadCompile !== "function") {
-        postMessage({
-          type: "result",
-          id: msg.id,
-          ok: false,
-          error: "WASM not ready.",
-        });
+        postCompileError(msg.id, goExitedError);
         return;
       }
       let result;
       try {
         result = self.m3dscadCompile(msg.code, msg.gridSize);
       } catch (err) {
-        postMessage({
-          type: "result",
-          id: msg.id,
-          ok: false,
-          error: (err && err.message) || String(err),
-        });
+        postCompileError(msg.id, (err && err.message) || String(err));
+        return;
+      }
+      if (!result || typeof result !== "object") {
+        resetWasmState();
+        postCompileError(msg.id, goExitedError);
         return;
       }
       result.type = "result";
@@ -80,11 +95,6 @@ onmessage = (event) => {
       postMessage(result);
     })
     .catch((err) => {
-      postMessage({
-        type: "result",
-        id: msg.id,
-        ok: false,
-        error: err.message || String(err),
-      });
+      postCompileError(msg.id, err.message || String(err));
     });
 };

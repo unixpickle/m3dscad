@@ -1848,6 +1848,27 @@ func TestEchoStatementAndFunction(t *testing.T) {
 	}
 }
 
+func TestStrFunction(t *testing.T) {
+	prog, err := Parse(`
+		number = 2;
+		echo(str("This is ", number, 3, " and that's it."));
+	`)
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	var msgs []string
+	e := newEnv(func(msg string) {
+		msgs = append(msgs, msg)
+	})
+	if _, err := evalStmts(e, prog.Stmts); err != nil {
+		t.Fatalf("eval failed: %v", err)
+	}
+	want := []string{`"This is 23 and that's it."`}
+	if !reflect.DeepEqual(msgs, want) {
+		t.Fatalf("echo mismatch:\n got: %#v\nwant: %#v", msgs, want)
+	}
+}
+
 func TestTypePredicateFunctions(t *testing.T) {
 	prog, err := Parse(`
 		assert(is_list([]));

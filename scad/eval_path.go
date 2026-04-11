@@ -53,11 +53,14 @@ func parsePathMesh(e *env, st *CallStmt) (*model2d.Mesh, error) {
 	if segments < 1 {
 		return nil, fmt.Errorf("path(): segments must be >= 1")
 	}
-	curve, err := path2d.ParseSVGPath(path)
+	curves, err := path2d.ParseSVGPath(path)
 	if err != nil {
 		return nil, fmt.Errorf("path(): %w", err)
 	}
-	mesh := model2d.CurveMesh(curve, int(segments))
+	mesh := model2d.NewMesh()
+	for _, curve := range curves {
+		mesh.AddMesh(model2d.CurveMesh(curve, int(segments)))
+	}
 	if mesh == nil || mesh.NumSegments() == 0 {
 		return nil, fmt.Errorf("path(): no segments produced")
 	}

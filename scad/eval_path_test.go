@@ -58,6 +58,43 @@ func TestPathMeshDefaultSegments(t *testing.T) {
 	}
 }
 
+func TestPathMultipleSubpaths(t *testing.T) {
+	srcExpected := `
+		union() {
+			square([1, 1], center=false);
+			translate([2, 0, 0]) square([1, 1], center=false);
+		}
+	`
+	srcPath := `
+		path("M0 0 L1 0 L1 1 L0 1 Z M2 0 L3 0 L3 1 L2 1 Z", segments=200);
+	`
+	srcPathMesh := `
+		solid() path_mesh("M0 0 L1 0 L1 1 L0 1 Z M2 0 L3 0 L3 1 L2 1 Z", segments=200);
+	`
+	srcPathSDF := `
+		solid() path_sdf("M0 0 L1 0 L1 1 L0 1 Z M2 0 L3 0 L3 1 L2 1 Z", segments=200);
+	`
+
+	shapeExpected := mustEvalShape(t, srcExpected)
+	shapePath := mustEvalShape(t, srcPath)
+	shapePathMesh := mustEvalShape(t, srcPathMesh)
+	shapePathSDF := mustEvalShape(t, srcPathSDF)
+	if shapeExpected.Kind != ShapeSolid2D || shapePath.Kind != ShapeSolid2D ||
+		shapePathMesh.Kind != ShapeSolid2D || shapePathSDF.Kind != ShapeSolid2D {
+		t.Fatalf(
+			"expected 2D solids, got %v, %v, %v, %v",
+			shapeExpected.Kind,
+			shapePath.Kind,
+			shapePathMesh.Kind,
+			shapePathSDF.Kind,
+		)
+	}
+
+	assertSolids2DEqual(t, shapeExpected.S2, shapePath.S2)
+	assertSolids2DEqual(t, shapeExpected.S2, shapePathMesh.S2)
+	assertSolids2DEqual(t, shapeExpected.S2, shapePathSDF.S2)
+}
+
 func TestPathMatchesPrimitive(t *testing.T) {
 	tests := []struct {
 		name string

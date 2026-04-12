@@ -568,18 +568,8 @@ func evalExpr(e *env, ex Expr) (Value, error) {
 				return Value{}, err
 			}
 			return Bool(!b), nil
-		case TokMinus:
-			n, err := v.AsNum()
-			if err != nil {
-				return Value{}, err
-			}
-			return Num(-n), nil
-		case TokPlus:
-			n, err := v.AsNum()
-			if err != nil {
-				return Value{}, err
-			}
-			return Num(n), nil
+		case TokMinus, TokPlus:
+			return evalUnaryArithmetic(x.Op, v)
 		default:
 			return Value{}, PosErrorf(x.pos(), "unknown unary op")
 		}
@@ -596,28 +586,11 @@ func evalExpr(e *env, ex Expr) (Value, error) {
 		// boolean ops short-circuit not implemented in MVP (easy to add).
 		switch x.Op {
 		case TokPlus, TokMinus, TokStar, TokSlash, TokPercent, TokCaret:
-			a, err := lv.AsNum()
+			v, err := evalBinaryArithmetic(x.Op, lv, rv)
 			if err != nil {
-				return Value{}, err
+				return Value{}, WithPos(err, x.pos())
 			}
-			b, err := rv.AsNum()
-			if err != nil {
-				return Value{}, err
-			}
-			switch x.Op {
-			case TokPlus:
-				return Num(a + b), nil
-			case TokMinus:
-				return Num(a - b), nil
-			case TokStar:
-				return Num(a * b), nil
-			case TokSlash:
-				return Num(a / b), nil
-			case TokPercent:
-				return Num(math.Mod(a, b)), nil
-			case TokCaret:
-				return Num(math.Pow(a, b)), nil
-			}
+			return v, nil
 		case TokEq:
 			return Bool(lv.Equal(rv)), nil
 		case TokNeq:

@@ -1645,6 +1645,53 @@ func TestExpressionAssignments(t *testing.T) {
 				Bool(false), Bool(true),
 			}),
 		},
+		{
+			name: "VectorAndMatrixArithmetic",
+			src: `
+				out = [
+					5 * [1, [2, [3]]],
+					[[10, 20], [30, 40]] / 10,
+					[1, [2, [3, 4]]] + [10, [20, [30]]],
+					-[1, [2, 3]],
+					[1, 2, 3] * [4, 5, 6],
+					[[1, 2], [3, 4]] * [[5, 6], [7, 8]],
+					[[1, 2, 3], [4, 5, 6]] * [7, 8, 9],
+					[7, 8] * [[1, 2, 3], [4, 5, 6]],
+				];
+			`,
+			var_: "out",
+			want: List([]Value{
+				List([]Value{
+					Num(5),
+					List([]Value{
+						Num(10),
+						List([]Value{Num(15)}),
+					}),
+				}),
+				List([]Value{
+					List([]Value{Num(1), Num(2)}),
+					List([]Value{Num(3), Num(4)}),
+				}),
+				List([]Value{
+					Num(11),
+					List([]Value{
+						Num(22),
+						List([]Value{Num(33)}),
+					}),
+				}),
+				List([]Value{
+					Num(-1),
+					List([]Value{Num(-2), Num(-3)}),
+				}),
+				Num(32),
+				List([]Value{
+					List([]Value{Num(19), Num(22)}),
+					List([]Value{Num(43), Num(50)}),
+				}),
+				List([]Value{Num(50), Num(122)}),
+				List([]Value{Num(39), Num(54), Num(69)}),
+			}),
+		},
 	}
 
 	for _, tc := range tests {
@@ -1663,6 +1710,79 @@ func TestExpressionAssignments(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, tc.want) {
 				t.Fatalf("value mismatch for %q:\n got: %#v\nwant: %#v", tc.var_, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestVectorAndMatrixArithmeticErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		src     string
+		wantErr string
+	}{
+		{
+			name: "ScalarVectorMultiplyRequiresNumbers",
+			src: `
+				out = 5 * [1, [2, "a"]];
+				sphere(r=1);
+			`,
+			wantErr: `operator * on vectors requires numeric elements`,
+		},
+		{
+			name: "VectorAddRequiresMatchingStructure",
+			src: `
+				out = [1, [2]] + [1, 2];
+				sphere(r=1);
+			`,
+			wantErr: `operator + on vectors requires matching numeric/list structure`,
+		},
+		{
+			name: "DotProductLengthMismatch",
+			src: `
+				out = [1, 2] * [3];
+				sphere(r=1);
+			`,
+			wantErr: `vector dot product requires equal-length vectors`,
+		},
+		{
+			name: "MatrixProductDimensionMismatch",
+			src: `
+				out = [[1, 2]] * [[3, 4]];
+				sphere(r=1);
+			`,
+			wantErr: `matrix product dimension mismatch`,
+		},
+		{
+			name: "InvalidListMultiply",
+			src: `
+				out = [1, [2]] * [3, [4]];
+				sphere(r=1);
+			`,
+			wantErr: `operator * on lists requires vectors or matrices of numbers`,
+		},
+		{
+			name: "MixedScalarMatrixLikeMultiply",
+			src: `
+				out = [[1, 2], 3] * [[2, 2], 2];
+				sphere(r=1);
+			`,
+			wantErr: `operator * on lists requires vectors or matrices of numbers`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			prog, err := Parse(tc.src)
+			if err != nil {
+				t.Fatalf("parse failed: %v", err)
+			}
+			_, err = Eval(prog)
+			if err == nil {
+				t.Fatal("expected eval error")
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("expected error containing %q, got %v", tc.wantErr, err)
 			}
 		})
 	}

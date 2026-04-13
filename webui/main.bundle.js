@@ -22335,10 +22335,15 @@ difference() {
   var renderer = null;
   var worker = null;
   var workerReady = false;
+  var workerInitPromise = Promise.resolve();
+  var resolveWorkerInit = null;
+  var rejectWorkerInit = null;
   var requestId = 0;
   var pendingRequest = null;
+  var compilePreparing = false;
   var lastMesh = null;
   var goExitedError = "Go program has already exited";
+  var workerRestartedError = "WASM worker restarted";
   function createEditor(source) {
     editorView = new EditorView({
       state: EditorState.create({
@@ -22371,19 +22376,37 @@ difference() {
   function initWorker(options = {}) {
     const silent = Boolean(options.silent);
     if (!silent) {
-      setOverlay("Loading WASM...");
+      setOverlay("Loading WASM...", { cancelable: false });
     }
     workerReady = false;
+    if (rejectWorkerInit) {
+      rejectWorkerInit(new Error(workerRestartedError));
+      resolveWorkerInit = null;
+      rejectWorkerInit = null;
+    }
     if (worker) {
       worker.terminate();
     }
     worker = new Worker("./worker.js");
+    const currentWorker = worker;
+    workerInitPromise = new Promise((resolve, reject) => {
+      resolveWorkerInit = resolve;
+      rejectWorkerInit = reject;
+    });
     worker.onmessage = (event) => {
+      if (worker !== currentWorker) {
+        return;
+      }
       const msg = event.data;
       if (!msg || !msg.type) return;
       if (msg.type === "ready") {
         workerReady = true;
-        setOverlay("", true);
+        if (resolveWorkerInit) {
+          resolveWorkerInit();
+          resolveWorkerInit = null;
+          rejectWorkerInit = null;
+        }
+        setOverlay("", { idle: true });
         if (!silent) {
           statusEl.textContent = "WASM ready. Press Command+S to compile.";
         }
@@ -22400,8 +22423,13 @@ difference() {
       if (msg.type === "init_error") {
         workerReady = false;
         const errText = msg.error || "WASM initialization failed.";
+        if (rejectWorkerInit) {
+          rejectWorkerInit(new Error(errText));
+          resolveWorkerInit = null;
+          rejectWorkerInit = null;
+        }
         statusEl.textContent = errText;
-        setOverlay(statusEl.textContent, true);
+        setOverlay(statusEl.textContent, { idle: true });
         lastMesh = null;
         downloadBtn.disabled = true;
         return;
@@ -22415,12 +22443,12 @@ difference() {
           const errText = msg.error || "Unknown error.";
           if (errText.includes(goExitedError)) {
             statusEl.textContent = "WASM runtime exited. Reinitializing...";
-            setOverlay(statusEl.textContent, true);
+            setOverlay(statusEl.textContent, { idle: true });
             initWorker({ silent: true });
             return;
           }
           statusEl.textContent = errText;
-          setOverlay(statusEl.textContent, true);
+          setOverlay(statusEl.textContent, { idle: true });
           lastMesh = null;
           downloadBtn.disabled = true;
           return;
@@ -22431,36 +22459,66 @@ difference() {
         lastMesh = { positions, normals };
         downloadBtn.disabled = positions.length === 0;
         statusEl.textContent = `Triangles: ${positions.length / 9}`;
-        setOverlay("", true);
+        setOverlay("", { idle: true });
         return;
       }
     };
     worker.onerror = (event) => {
+      if (worker !== currentWorker) {
+        return;
+      }
       workerReady = false;
-      statusEl.textContent = `Worker error: ${event.message}`;
-      setOverlay(statusEl.textContent, true);
+      const errText = `Worker error: ${event.message}`;
+      if (rejectWorkerInit) {
+        rejectWorkerInit(new Error(errText));
+        resolveWorkerInit = null;
+        rejectWorkerInit = null;
+      }
+      statusEl.textContent = errText;
+      setOverlay(statusEl.textContent, { idle: true });
     };
     worker.postMessage({ type: "init" });
+    return workerInitPromise;
   }
-  function compile() {
-    if (pendingRequest) {
+  async function compile() {
+    if (pendingRequest || compilePreparing) {
       return;
     }
-    if (!workerReady) {
-      statusEl.textContent = "WASM not ready.";
-      setOverlay(statusEl.textContent, true);
-      return;
+    compilePreparing = true;
+    try {
+      if (!workerReady) {
+        statusEl.textContent = "Loading WASM...";
+        setOverlay(statusEl.textContent, { cancelable: false });
+        await workerInitPromise;
+      }
+      if (!workerReady) {
+        const errText = "WASM initialization failed.";
+        statusEl.textContent = errText;
+        setOverlay(errText, { idle: true });
+        return;
+      }
+      const gridSize = Number(gridEl.value || "128");
+      statusEl.textContent = "Compiling...";
+      setOverlay("Compiling...", { cancelable: true });
+      pendingRequest = ++requestId;
+      worker.postMessage({
+        type: "compile",
+        id: pendingRequest,
+        code: getSource(),
+        gridSize
+      });
+    } catch (err) {
+      if ((err && err.message) === workerRestartedError) {
+        return;
+      }
+      const errText = err && err.message || "WASM initialization failed.";
+      statusEl.textContent = errText;
+      setOverlay(errText, { idle: true });
+      lastMesh = null;
+      downloadBtn.disabled = true;
+    } finally {
+      compilePreparing = false;
     }
-    const gridSize = Number(gridEl.value || "128");
-    statusEl.textContent = "Compiling...";
-    setOverlay("Compiling...");
-    pendingRequest = ++requestId;
-    worker.postMessage({
-      type: "compile",
-      id: pendingRequest,
-      code: getSource(),
-      gridSize
-    });
   }
   compileBtn.addEventListener("click", compile);
   document.addEventListener("keydown", (event) => {
@@ -22474,7 +22532,7 @@ difference() {
   cancelBtn.addEventListener("click", () => {
     if (!pendingRequest) return;
     statusEl.textContent = "Compilation canceled.";
-    setOverlay(statusEl.textContent, true);
+    setOverlay(statusEl.textContent, { idle: true });
     pendingRequest = null;
     initWorker({ silent: true });
   });
@@ -23001,13 +23059,14 @@ difference() {
   }
   renderer = new MeshRenderer(canvas);
   initWorker();
-  function setOverlay(text, idle) {
+  function setOverlay(text, options = {}) {
     const show = text && text.trim().length > 0;
     overlayCard.style.display = show ? "flex" : "none";
     overlayText.textContent = text || "";
-    const isIdle = Boolean(idle);
+    const isIdle = Boolean(options.idle);
+    const isCancelable = show && !isIdle && Boolean(options.cancelable);
     spinnerEl.style.display = isIdle ? "none" : "block";
-    cancelBtn.style.display = isIdle ? "none" : "block";
+    cancelBtn.style.display = isCancelable ? "block" : "none";
   }
   function setupMobileToggle() {
     if (!appEl || !toggleCodeBtn || !togglePreviewBtn) return;

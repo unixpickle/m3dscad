@@ -1,6 +1,6 @@
 # m3dscad
 
-This is a 3D CAD language inspired by OpenSCAD, built on top of [model3d](github.com/unixpickle/model3d).
+This is a 3D CAD language inspired by OpenSCAD, built on top of [model3d](https://github.com/unixpickle/model3d).
 
 # Tests
 

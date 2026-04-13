@@ -33,7 +33,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	shape, err := scad.Eval(prog)
+	shape, err := scad.Eval(prog, scad.Hooks{})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "eval:", err)
 		os.Exit(1)

@@ -116,7 +116,7 @@ func TestInsetExtrudeErrors(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parse failed: %v", err)
 			}
-			_, err = Eval(prog)
+			_, err = Eval(prog, Hooks{})
 			if err == nil {
 				t.Fatal("expected error")
 			}

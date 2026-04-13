@@ -31,24 +31,44 @@ type scope struct {
 
 type env struct {
 	scopes []*scope
-	echo   EchoHandler
+	hooks  Hooks
 }
 
+func (e *env) WithScopes(s []*scope) *env {
+	return &env{
+		scopes: s,
+		hooks:  e.hooks,
+	}
+}
+
+func (e *env) Clone() *env {
+	return e.WithScopes(append([]*scope{}, e.scopes...))
+}
+
+// Hooks provides built-in function implementations to the interpreter.
+type Hooks struct {
+	// Echo is called for the built-in echo().
+	// If it is nil, log.Println is used.
+	Echo EchoHandler
+}
+
+// An EchoHandler is called when a script executes the built-in echo()
+// statement.
 type EchoHandler func(msg string)
 
 func defaultEchoHandler(msg string) {
 	log.Println(msg)
 }
 
-func newEnv(echo EchoHandler) *env {
-	if echo == nil {
-		echo = defaultEchoHandler
+func newEnv(hooks Hooks) *env {
+	if hooks.Echo == nil {
+		hooks.Echo = defaultEchoHandler
 	}
 	root := newScope()
 	root.vars["PI"] = Num(math.Pi)
 	return &env{
 		scopes: []*scope{root},
-		echo:   echo,
+		hooks:  hooks,
 	}
 }
 
@@ -144,12 +164,8 @@ func Parse(src string) (*Program, error) {
 	return p.ParseProgram()
 }
 
-func Eval(p *Program) (ShapeRep, error) {
-	return EvalWithEcho(p, nil)
-}
-
-func EvalWithEcho(p *Program, echo EchoHandler) (ShapeRep, error) {
-	e := newEnv(echo)
+func Eval(p *Program, hooks Hooks) (ShapeRep, error) {
+	e := newEnv(hooks)
 	solids, err := evalStmts(e, p.Stmts)
 	if err != nil {
 		return ShapeRep{}, err
@@ -285,7 +301,7 @@ func evalCallStmt(e *env, st *CallStmt) (*ShapeRep, error) {
 		if err != nil {
 			return nil, err
 		}
-		e.echo(strings.Join(args, ", "))
+		e.hooks.Echo(strings.Join(args, ", "))
 		return nil, nil
 	}
 	if name == "assert" {
@@ -345,10 +361,7 @@ func evalCallStmt(e *env, st *CallStmt) (*ShapeRep, error) {
 		if len(st.Children) > 0 {
 			return nil, fmt.Errorf("module %s does not support children", name)
 		}
-		caller := &env{
-			scopes: append([]*scope{}, e.scopes...),
-			echo:   e.echo,
-		}
+		caller := e.Clone()
 		var out *ShapeRep
 		err := e.withCapturedScopes(md.Captured, func() error {
 			if err := bindParams(e, caller, md.Params, st.Call.Args); err != nil {
@@ -722,7 +735,7 @@ func evalFuncCall(e *env, c Call) (Value, error) {
 		if err != nil {
 			return Value{}, err
 		}
-		e.echo(strings.Join(args, ", "))
+		e.hooks.Echo(strings.Join(args, ", "))
 		return Value{}, nil
 	case "len":
 		if len(c.Args) != 1 {
@@ -1101,14 +1114,8 @@ func evalClosureCall(e *env, fn *FuncClosure, args []Arg) (Value, error) {
 	if fn == nil {
 		return Value{}, fmt.Errorf("invalid function value")
 	}
-	caller := &env{
-		scopes: append([]*scope{}, e.scopes...),
-		echo:   e.echo,
-	}
-	callEnv := &env{
-		scopes: append(append([]*scope{}, fn.Captured...), newScope()),
-		echo:   e.echo,
-	}
+	caller := e.Clone()
+	callEnv := e.WithScopes(append(append([]*scope{}, fn.Captured...), newScope()))
 	if err := bindParams(callEnv, caller, fn.Params, args); err != nil {
 		return Value{}, err
 	}
@@ -1119,10 +1126,7 @@ func evalClosureCallValues(e *env, fn *FuncClosure, args []Value) (Value, error)
 	if fn == nil {
 		return Value{}, fmt.Errorf("invalid function value")
 	}
-	callEnv := &env{
-		scopes: append(append([]*scope{}, fn.Captured...), newScope()),
-		echo:   e.echo,
-	}
+	callEnv := e.WithScopes(append(append([]*scope{}, fn.Captured...), newScope()))
 	if err := bindParamsValues(callEnv, fn.Params, args); err != nil {
 		return Value{}, err
 	}

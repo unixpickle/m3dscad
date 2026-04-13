@@ -19,7 +19,7 @@ func mustEvalShape(t *testing.T, src string) ShapeRep {
 	if err != nil {
 		t.Fatalf("parse failed: %v", err)
 	}
-	shape, err := Eval(prog)
+	shape, err := Eval(prog, Hooks{})
 	if err != nil {
 		t.Fatalf("eval failed: %v", err)
 	}
@@ -898,7 +898,7 @@ func TestCylinderArgErrors(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parse failed: %v", err)
 			}
-			_, err = Eval(prog)
+			_, err = Eval(prog, Hooks{})
 			if err == nil {
 				t.Fatal("expected error")
 			}
@@ -942,7 +942,7 @@ func TestSphereAndCircleRadiusDiameterArgErrors(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parse failed: %v", err)
 			}
-			_, err = Eval(prog)
+			_, err = Eval(prog, Hooks{})
 			if err == nil {
 				t.Fatal("expected error")
 			}
@@ -1041,7 +1041,7 @@ func TestBindArgsStrictErrors(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parse failed: %v", err)
 			}
-			_, err = Eval(prog)
+			_, err = Eval(prog, Hooks{})
 			if err == nil {
 				t.Fatal("expected error")
 			}
@@ -1097,7 +1097,7 @@ func TestLinearExtrudeArgErrors(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parse failed: %v", err)
 			}
-			_, err = Eval(prog)
+			_, err = Eval(prog, Hooks{})
 			if err == nil {
 				t.Fatal("expected error")
 			}
@@ -1223,7 +1223,7 @@ func TestMissingArgError(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parse failed: %v", err)
 			}
-			_, err = Eval(prog)
+			_, err = Eval(prog, Hooks{})
 			if err == nil {
 				t.Fatal("expected error")
 			}
@@ -1240,7 +1240,7 @@ func TestFunctionCallArgErrorPositions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parse failed: %v", err)
 		}
-		_, err = Eval(prog)
+		_, err = Eval(prog, Hooks{})
 		if err == nil {
 			t.Fatal("expected error")
 		}
@@ -1254,7 +1254,7 @@ func TestFunctionCallArgErrorPositions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parse failed: %v", err)
 		}
-		_, err = Eval(prog)
+		_, err = Eval(prog, Hooks{})
 		if err == nil {
 			t.Fatal("expected error")
 		}
@@ -1276,7 +1276,7 @@ func TestAssertBuiltin(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parse failed: %v", err)
 		}
-		if _, err := Eval(prog); err != nil {
+		if _, err := Eval(prog, Hooks{}); err != nil {
 			t.Fatalf("eval failed: %v", err)
 		}
 	})
@@ -1295,7 +1295,7 @@ func TestAssertBuiltin(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parse failed: %v", err)
 		}
-		_, err = Eval(prog)
+		_, err = Eval(prog, Hooks{})
 		if err == nil {
 			t.Fatal("expected error")
 		}
@@ -1309,7 +1309,7 @@ func TestAssertBuiltin(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parse failed: %v", err)
 		}
-		_, err = Eval(prog)
+		_, err = Eval(prog, Hooks{})
 		if err == nil {
 			t.Fatal("expected error")
 		}
@@ -1326,7 +1326,7 @@ func TestAssertBuiltin(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parse failed: %v", err)
 		}
-		_, err = Eval(prog)
+		_, err = Eval(prog, Hooks{})
 		if err == nil {
 			t.Fatal("expected error")
 		}
@@ -1346,7 +1346,7 @@ func TestScopeCaptureSemantics(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parse failed: %v", err)
 		}
-		e := newEnv(nil)
+		e := newEnv(Hooks{})
 		if _, err := evalStmts(e, prog.Stmts); err != nil {
 			t.Fatalf("eval failed: %v", err)
 		}
@@ -1368,7 +1368,7 @@ func TestScopeCaptureSemantics(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parse failed: %v", err)
 		}
-		_, err = Eval(prog)
+		_, err = Eval(prog, Hooks{})
 		if err == nil {
 			t.Fatal("expected error")
 		}
@@ -1386,7 +1386,7 @@ func TestScopeCaptureSemantics(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parse failed: %v", err)
 		}
-		_, err = Eval(prog)
+		_, err = Eval(prog, Hooks{})
 		if err != nil {
 			t.Fatalf("eval failed: %v", err)
 		}
@@ -1442,7 +1442,7 @@ func TestRedeclareErrors(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parse failed: %v", err)
 			}
-			_, err = Eval(prog)
+			_, err = Eval(prog, Hooks{})
 			if tc.wantErr == "" {
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
@@ -1744,7 +1744,7 @@ func TestExpressionAssignments(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parse failed: %v", err)
 			}
-			e := newEnv(nil)
+			e := newEnv(Hooks{})
 			if _, err := evalStmts(e, prog.Stmts); err != nil {
 				t.Fatalf("eval failed: %v", err)
 			}
@@ -1821,7 +1821,7 @@ func TestVectorAndMatrixArithmeticErrors(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parse failed: %v", err)
 			}
-			_, err = Eval(prog)
+			_, err = Eval(prog, Hooks{})
 			if err == nil {
 				t.Fatal("expected eval error")
 			}
@@ -1851,7 +1851,7 @@ func TestLookupFunction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse failed: %v", err)
 	}
-	e := newEnv(nil)
+	e := newEnv(Hooks{})
 	if _, err := evalStmts(e, prog.Stmts); err != nil {
 		t.Fatalf("eval failed: %v", err)
 	}
@@ -1918,7 +1918,7 @@ func TestVectorAccessorErrors(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parse failed: %v", err)
 			}
-			_, err = Eval(prog)
+			_, err = Eval(prog, Hooks{})
 			if err == nil {
 				t.Fatal("expected eval error")
 			}
@@ -1968,7 +1968,7 @@ func TestEvalErrorPositionPropagation(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parse failed: %v", err)
 			}
-			_, err = Eval(prog)
+			_, err = Eval(prog, Hooks{})
 			if err == nil {
 				t.Fatal("expected eval error")
 			}
@@ -1988,9 +1988,7 @@ func TestEchoStatementAndFunction(t *testing.T) {
 		t.Fatalf("parse failed: %v", err)
 	}
 	var msgs []string
-	e := newEnv(func(msg string) {
-		msgs = append(msgs, msg)
-	})
+	e := echoTester(&msgs)
 	if _, err := evalStmts(e, prog.Stmts); err != nil {
 		t.Fatalf("eval failed: %v", err)
 	}
@@ -2021,9 +2019,7 @@ func TestStrFunction(t *testing.T) {
 		t.Fatalf("parse failed: %v", err)
 	}
 	var msgs []string
-	e := newEnv(func(msg string) {
-		msgs = append(msgs, msg)
-	})
+	e := echoTester(&msgs)
 	if _, err := evalStmts(e, prog.Stmts); err != nil {
 		t.Fatalf("eval failed: %v", err)
 	}
@@ -2092,7 +2088,7 @@ func TestTypePredicateFunctions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse failed: %v", err)
 	}
-	if _, err := evalStmts(newEnv(nil), prog.Stmts); err != nil {
+	if _, err := evalStmts(newEnv(Hooks{}), prog.Stmts); err != nil {
 		t.Fatalf("eval failed: %v", err)
 	}
 }
@@ -2127,7 +2123,7 @@ func TestTypePredicateFunctionArityErrors(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parse failed: %v", err)
 			}
-			_, err = Eval(prog)
+			_, err = Eval(prog, Hooks{})
 			if err == nil {
 				t.Fatal("expected eval error")
 			}
@@ -2157,9 +2153,7 @@ func TestModuleDefaultArgUsesCapturedScope(t *testing.T) {
 		t.Fatalf("parse failed: %v", err)
 	}
 	var msgs []string
-	e := newEnv(func(msg string) {
-		msgs = append(msgs, msg)
-	})
+	e := echoTester(&msgs)
 	if _, err := evalStmts(e, prog.Stmts); err != nil {
 		t.Fatalf("eval failed: %v", err)
 	}
@@ -2189,9 +2183,7 @@ func TestAnonymousFunctions(t *testing.T) {
 		t.Fatalf("parse failed: %v", err)
 	}
 	var msgs []string
-	e := newEnv(func(msg string) {
-		msgs = append(msgs, msg)
-	})
+	e := echoTester(&msgs)
 	if _, err := evalStmts(e, prog.Stmts); err != nil {
 		t.Fatalf("eval failed: %v", err)
 	}
@@ -2225,9 +2217,7 @@ func TestFunctionValueShadowsNamedFunctionInCalls(t *testing.T) {
 		t.Fatalf("parse failed: %v", err)
 	}
 	var msgs []string
-	e := newEnv(func(msg string) {
-		msgs = append(msgs, msg)
-	})
+	e := echoTester(&msgs)
 	if _, err := evalStmts(e, prog.Stmts); err != nil {
 		t.Fatalf("eval failed: %v", err)
 	}
@@ -2246,7 +2236,7 @@ func TestPassingNamedFunctionAsValueErrors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse failed: %v", err)
 	}
-	_, err = Eval(prog)
+	_, err = Eval(prog, Hooks{})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -2683,4 +2673,13 @@ func TestClipModifier(t *testing.T) {
 			})
 		}
 	})
+}
+
+func echoTester(msgs *[]string) *env {
+	e := newEnv(Hooks{
+		Echo: func(msg string) {
+			*msgs = append(*msgs, msg)
+		},
+	})
+	return e
 }

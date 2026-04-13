@@ -373,17 +373,36 @@ func parsePolygonData(e *env, st *CallStmt) ([]model2d.Coord, [][]int, error) {
 }
 
 func parseSphere(e *env, st *CallStmt) (*model3d.Sphere, error) {
-	args, err := bindArgs(e, st.Call, []ArgSpec{
-		{Name: "r", Pos: 0, Default: Num(1.0)},
-	})
-	if err != nil {
-		return nil, err
-	}
-	r, err := argNum(args, "r")
+	r, err := parseRadiusArg(e, st)
 	if err != nil {
 		return nil, err
 	}
 	return &model3d.Sphere{Radius: r}, nil
+}
+
+func parseRadiusArg(e *env, st *CallStmt) (float64, error) {
+	bound, err := bindArgsDetailed(e, st.Call, []ArgSpec{
+		{Name: "r", Pos: 0, Default: Num(1.0)},
+		{Name: "d", Pos: -1, Default: Value{}},
+	})
+	if err != nil {
+		return 0, err
+	}
+	if bound.Provided["r"] && bound.NamedProvided["d"] {
+		return 0, fmt.Errorf("%s(): cannot provide both r and d", st.Call.Name)
+	}
+	r, err := argNum(bound.Values, "r")
+	if err != nil {
+		return 0, err
+	}
+	if bound.NamedProvided["d"] {
+		d, err := argNum(bound.Values, "d")
+		if err != nil {
+			return 0, err
+		}
+		r = d / 2
+	}
+	return r, nil
 }
 
 func parseFnSolidArgs(e *env, st *CallStmt) (int, []float64, []float64, *FuncClosure, error) {
@@ -680,13 +699,7 @@ func parseCapsule(e *env, st *CallStmt) (*model3d.Capsule, error) {
 }
 
 func parseCircle(e *env, st *CallStmt) (*model2d.Circle, error) {
-	args, err := bindArgs(e, st.Call, []ArgSpec{
-		{Name: "r", Pos: 0, Default: Num(1.0)},
-	})
-	if err != nil {
-		return nil, err
-	}
-	r, err := argNum(args, "r")
+	r, err := parseRadiusArg(e, st)
 	if err != nil {
 		return nil, err
 	}

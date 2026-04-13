@@ -147,6 +147,128 @@ func TestSolidConversions(t *testing.T) {
 	}
 }
 
+func TestSphereDiameterEquivalentToRadius(t *testing.T) {
+	t.Run("NamedDiameter", func(t *testing.T) {
+		a := mustEvalSolid(t, `sphere(d=2.5);`)
+		b := mustEvalSolid(t, `sphere(r=1.25);`)
+		assertSolids3DEqual(t, a, b)
+	})
+
+	t.Run("PositionalStillRadius", func(t *testing.T) {
+		a := mustEvalSolid(t, `sphere(1.25);`)
+		b := mustEvalSolid(t, `sphere(r=1.25);`)
+		assertSolids3DEqual(t, a, b)
+	})
+}
+
+func TestCircleDiameterEquivalentToRadius(t *testing.T) {
+	t.Run("NamedDiameter", func(t *testing.T) {
+		a := mustEvalShape(t, `circle(d=2.5);`)
+		b := mustEvalShape(t, `circle(r=1.25);`)
+		if a.Kind != ShapeSolid2D || b.Kind != ShapeSolid2D {
+			t.Fatalf("expected ShapeSolid2D outputs, got %v and %v", a.Kind, b.Kind)
+		}
+		assertSolids2DEqual(t, a.S2, b.S2)
+	})
+
+	t.Run("PositionalStillRadius", func(t *testing.T) {
+		a := mustEvalShape(t, `circle(1.25);`)
+		b := mustEvalShape(t, `circle(r=1.25);`)
+		if a.Kind != ShapeSolid2D || b.Kind != ShapeSolid2D {
+			t.Fatalf("expected ShapeSolid2D outputs, got %v and %v", a.Kind, b.Kind)
+		}
+		assertSolids2DEqual(t, a.S2, b.S2)
+	})
+}
+
+func TestSphereDerivedPrimitivesDiameterEquivalentToRadius(t *testing.T) {
+	t.Run("SphereSDFNamedDiameter", func(t *testing.T) {
+		a := mustEvalShape(t, `sphere_sdf(d=2.5);`)
+		b := mustEvalShape(t, `sphere_sdf(r=1.25);`)
+		if a.Kind != ShapeSDF3D || b.Kind != ShapeSDF3D {
+			t.Fatalf("expected ShapeSDF3D outputs, got %v and %v", a.Kind, b.Kind)
+		}
+		assertSDFsEqual3D(t, a.SDF3, b.SDF3, model3d.XYZ(-2, -2, -2), model3d.XYZ(2, 2, 2), 1e-8)
+	})
+
+	t.Run("SphereSDFPositionalStillRadius", func(t *testing.T) {
+		a := mustEvalShape(t, `sphere_sdf(1.25);`)
+		b := mustEvalShape(t, `sphere_sdf(r=1.25);`)
+		if a.Kind != ShapeSDF3D || b.Kind != ShapeSDF3D {
+			t.Fatalf("expected ShapeSDF3D outputs, got %v and %v", a.Kind, b.Kind)
+		}
+		assertSDFsEqual3D(t, a.SDF3, b.SDF3, model3d.XYZ(-2, -2, -2), model3d.XYZ(2, 2, 2), 1e-8)
+	})
+
+	t.Run("SphereMetaballNamedDiameter", func(t *testing.T) {
+		a := mustEvalSolid(t, `metaball_solid(1) sphere_metaball(d=2.5);`)
+		b := mustEvalSolid(t, `metaball_solid(1) sphere_metaball(r=1.25);`)
+		assertSolids3DEqual(t, a, b)
+	})
+
+	t.Run("SphereMetaballPositionalStillRadius", func(t *testing.T) {
+		a := mustEvalSolid(t, `metaball_solid(1) sphere_metaball(1.25);`)
+		b := mustEvalSolid(t, `metaball_solid(1) sphere_metaball(r=1.25);`)
+		assertSolids3DEqual(t, a, b)
+	})
+}
+
+func TestCircleDerivedPrimitivesDiameterEquivalentToRadius(t *testing.T) {
+	t.Run("CircleSDFNamedDiameter", func(t *testing.T) {
+		a := mustEvalShape(t, `circle_sdf(d=2.5);`)
+		b := mustEvalShape(t, `circle_sdf(r=1.25);`)
+		if a.Kind != ShapeSDF2D || b.Kind != ShapeSDF2D {
+			t.Fatalf("expected ShapeSDF2D outputs, got %v and %v", a.Kind, b.Kind)
+		}
+		assertSDFsEqual2D(t, a.SDF2, b.SDF2, model2d.XY(-2, -2), model2d.XY(2, 2), 1e-8)
+	})
+
+	t.Run("CircleSDFPositionalStillRadius", func(t *testing.T) {
+		a := mustEvalShape(t, `circle_sdf(1.25);`)
+		b := mustEvalShape(t, `circle_sdf(r=1.25);`)
+		if a.Kind != ShapeSDF2D || b.Kind != ShapeSDF2D {
+			t.Fatalf("expected ShapeSDF2D outputs, got %v and %v", a.Kind, b.Kind)
+		}
+		assertSDFsEqual2D(t, a.SDF2, b.SDF2, model2d.XY(-2, -2), model2d.XY(2, 2), 1e-8)
+	})
+
+	t.Run("CircleMetaballNamedDiameter", func(t *testing.T) {
+		a := mustEvalShape(t, `metaball_solid(1) circle_metaball(d=2.5);`)
+		b := mustEvalShape(t, `metaball_solid(1) circle_metaball(r=1.25);`)
+		if a.Kind != ShapeSolid2D || b.Kind != ShapeSolid2D {
+			t.Fatalf("expected ShapeSolid2D outputs, got %v and %v", a.Kind, b.Kind)
+		}
+		assertSolids2DEqual(t, a.S2, b.S2)
+	})
+
+	t.Run("CircleMetaballPositionalStillRadius", func(t *testing.T) {
+		a := mustEvalShape(t, `metaball_solid(1) circle_metaball(1.25);`)
+		b := mustEvalShape(t, `metaball_solid(1) circle_metaball(r=1.25);`)
+		if a.Kind != ShapeSolid2D || b.Kind != ShapeSolid2D {
+			t.Fatalf("expected ShapeSolid2D outputs, got %v and %v", a.Kind, b.Kind)
+		}
+		assertSolids2DEqual(t, a.S2, b.S2)
+	})
+
+	t.Run("CircleHullNamedDiameter", func(t *testing.T) {
+		a := mustEvalShape(t, `hull_solid() circle_hull(d=2.5);`)
+		b := mustEvalShape(t, `hull_solid() circle_hull(r=1.25);`)
+		if a.Kind != ShapeSolid2D || b.Kind != ShapeSolid2D {
+			t.Fatalf("expected ShapeSolid2D outputs, got %v and %v", a.Kind, b.Kind)
+		}
+		assertSolids2DEqual(t, a.S2, b.S2)
+	})
+
+	t.Run("CircleHullPositionalStillRadius", func(t *testing.T) {
+		a := mustEvalShape(t, `hull_solid() circle_hull(1.25);`)
+		b := mustEvalShape(t, `hull_solid() circle_hull(r=1.25);`)
+		if a.Kind != ShapeSolid2D || b.Kind != ShapeSolid2D {
+			t.Fatalf("expected ShapeSolid2D outputs, got %v and %v", a.Kind, b.Kind)
+		}
+		assertSolids2DEqual(t, a.S2, b.S2)
+	})
+}
+
 func TestHull2DConversions(t *testing.T) {
 	hullShape := mustEvalShape(t, `
 		union() {

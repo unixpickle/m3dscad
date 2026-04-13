@@ -909,6 +909,50 @@ func TestCylinderArgErrors(t *testing.T) {
 	}
 }
 
+func TestSphereAndCircleRadiusDiameterArgErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		src     string
+		wantErr string
+	}{
+		{
+			name:    "SphereNamedRAndDConflict",
+			src:     `sphere(r=1, d=2);`,
+			wantErr: "cannot provide both r and d",
+		},
+		{
+			name:    "SpherePositionalAndDConflict",
+			src:     `sphere(1, d=2);`,
+			wantErr: "cannot provide both r and d",
+		},
+		{
+			name:    "CircleNamedRAndDConflict",
+			src:     `circle(r=1, d=2);`,
+			wantErr: "cannot provide both r and d",
+		},
+		{
+			name:    "CirclePositionalAndDConflict",
+			src:     `circle(1, d=2);`,
+			wantErr: "cannot provide both r and d",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			prog, err := Parse(tc.src)
+			if err != nil {
+				t.Fatalf("parse failed: %v", err)
+			}
+			_, err = Eval(prog)
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("expected error containing %q, got %v", tc.wantErr, err)
+			}
+		})
+	}
+}
+
 func TestBindArgsStrictErrors(t *testing.T) {
 	tests := []struct {
 		name    string

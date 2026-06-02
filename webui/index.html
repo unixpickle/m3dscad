@@ -4,7 +4,6 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>m3dscad WebUI</title>
-    <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
     <div class="app" id="app">
@@ -27,6 +26,10 @@
             <label>
               <span>Grid</span>
               <input id="grid" type="number" step="1" min="8" max="512" value="128" />
+            </label>
+            <label class="toolbar-checkbox" for="useWebGPU">
+              <input id="useWebGPU" type="checkbox" />
+              <span>WebGPU</span>
             </label>
             <button id="compile">Compile</button>
             <button id="resetView">Reset View</button>
@@ -59,7 +62,6 @@
         </div>
       </div>
     </div>
-    <script src="./wasm_exec.js"></script>
-    <script src="./main.bundle.js"></script>
+    <script type="module" src="/src/main.js"></script>
   </body>
 </html>

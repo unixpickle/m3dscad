@@ -5,6 +5,7 @@ import (
 
 	"github.com/unixpickle/model3d/model2d"
 	"github.com/unixpickle/model3d/model3d"
+	"github.com/unixpickle/webgpu-mesh/shapekernel"
 )
 
 func handleUnion(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
@@ -37,13 +38,29 @@ func handleDifference(e *env, st *CallStmt, children []ShapeRep, _ *ShapeRep) (S
 	}
 	switch kind {
 	case ShapeSolid3D:
-		return shapeSolid3D(model3d.Subtract(children[0].S3, subUnion.S3)), nil
+		var k *shapekernel.ShapeKernel
+		if children[0].Kernel != nil && subUnion.Kernel != nil {
+			k = asPtr(shapekernel.SubtractSolid(*children[0].Kernel, *subUnion.Kernel))
+		}
+		return shapeSolid3D(model3d.Subtract(children[0].S3, subUnion.S3), k), nil
 	case ShapeSolid2D:
-		return shapeSolid2D(model2d.Subtract(children[0].S2, subUnion.S2)), nil
+		var k *shapekernel.ShapeKernel
+		if children[0].Kernel != nil && subUnion.Kernel != nil {
+			k = asPtr(shapekernel.SubtractSolid(*children[0].Kernel, *subUnion.Kernel))
+		}
+		return shapeSolid2D(model2d.Subtract(children[0].S2, subUnion.S2), k), nil
 	case ShapeSDF3D:
-		return shapeSDF3D(model3d.SubtractSDF(children[0].SDF3, subUnion.SDF3)), nil
+		var k *shapekernel.ShapeKernel
+		if children[0].Kernel != nil && subUnion.Kernel != nil {
+			k = asPtr(shapekernel.SubtractSDF(*children[0].Kernel, *subUnion.Kernel))
+		}
+		return shapeSDF3D(model3d.SubtractSDF(children[0].SDF3, subUnion.SDF3), k), nil
 	case ShapeSDF2D:
-		return shapeSDF2D(model2d.SubtractSDF(children[0].SDF2, subUnion.SDF2)), nil
+		var k *shapekernel.ShapeKernel
+		if children[0].Kernel != nil && subUnion.Kernel != nil {
+			k = asPtr(shapekernel.SubtractSDF(*children[0].Kernel, *subUnion.Kernel))
+		}
+		return shapeSDF2D(model2d.SubtractSDF(children[0].SDF2, subUnion.SDF2), k), nil
 	case ShapeMetaball2D:
 		return ShapeRep{
 			Kind: ShapeMetaball2D,
@@ -78,17 +95,37 @@ func handleIntersection(e *env, st *CallStmt, children []ShapeRep, _ *ShapeRep) 
 		for _, ch := range children {
 			solids = append(solids, ch.S3)
 		}
-		return shapeSolid3D(model3d.IntersectedSolid(solids)), nil
+		kernels, useKernel := concatKernels(children)
+		var k *shapekernel.ShapeKernel
+		if useKernel {
+			k = asPtr(shapekernel.IntersectSolids(kernels))
+		}
+		return shapeSolid3D(model3d.IntersectedSolid(solids), k), nil
 	case ShapeSolid2D:
 		solids := make([]model2d.Solid, 0, len(children))
 		for _, ch := range children {
 			solids = append(solids, ch.S2)
 		}
-		return shapeSolid2D(model2d.IntersectedSolid(solids)), nil
+		kernels, useKernel := concatKernels(children)
+		var k *shapekernel.ShapeKernel
+		if useKernel {
+			k = asPtr(shapekernel.IntersectSolids(kernels))
+		}
+		return shapeSolid2D(model2d.IntersectedSolid(solids), k), nil
 	case ShapeSDF3D:
-		return shapeSDF3D(sdfIntersect3D(children)), nil
+		kernels, useKernel := concatKernels(children)
+		var k *shapekernel.ShapeKernel
+		if useKernel {
+			k = asPtr(shapekernel.IntersectSDFs(kernels))
+		}
+		return shapeSDF3D(sdfIntersect3D(children), k), nil
 	case ShapeSDF2D:
-		return shapeSDF2D(sdfIntersect2D(children)), nil
+		kernels, useKernel := concatKernels(children)
+		var k *shapekernel.ShapeKernel
+		if useKernel {
+			k = asPtr(shapekernel.IntersectSDFs(kernels))
+		}
+		return shapeSDF2D(sdfIntersect2D(children), k), nil
 	case ShapeMesh2D, ShapeMesh3D:
 		return ShapeRep{}, fmt.Errorf("intersection() not supported for meshes")
 	default:

@@ -192,7 +192,7 @@ body {
   color: var(--muted);
 }
 
-.toolbar-group input {
+.toolbar-group input[type="number"] {
   width: 80px;
   background: #111422;
   border: 1px solid var(--border);
@@ -201,6 +201,21 @@ body {
   border-radius: 4px;
   font-family: inherit;
   font-size: 12px;
+}
+
+.toolbar-checkbox {
+  cursor: pointer;
+}
+
+.toolbar-checkbox input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+  accent-color: var(--accent-2);
+}
+
+.toolbar-checkbox[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .toolbar-group button {

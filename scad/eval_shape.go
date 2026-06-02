@@ -5,6 +5,7 @@ import (
 
 	"github.com/unixpickle/model3d/model2d"
 	"github.com/unixpickle/model3d/model3d"
+	"github.com/unixpickle/webgpu-mesh/shapekernel"
 )
 
 type ShapeKind int
@@ -35,6 +36,52 @@ func (s ShapeKind) Dimension() int {
 type WeightedMetaballs[T any] struct {
 	Balls   []T
 	Weights []float64
+	Kernels []*shapekernel.ShapeKernel
+}
+
+func (m *WeightedMetaballs[T]) Map(fn func(T, *shapekernel.ShapeKernel) (T, *shapekernel.ShapeKernel)) *WeightedMetaballs[T] {
+	if m == nil {
+		return &WeightedMetaballs[T]{}
+	}
+	out := &WeightedMetaballs[T]{
+		Balls:   make([]T, len(m.Balls)),
+		Weights: append([]float64{}, m.Weights...),
+		Kernels: append([]*shapekernel.ShapeKernel{}, m.Kernels...),
+	}
+	for i, mb := range m.Balls {
+		out.Balls[i], out.Kernels[i] = fn(mb, out.Kernels[i])
+	}
+	return out
+}
+
+func (m *WeightedMetaballs[T]) Scale(weight float64) *WeightedMetaballs[T] {
+	if m == nil {
+		return &WeightedMetaballs[T]{}
+	}
+	out := &WeightedMetaballs[T]{
+		Balls:   append([]T{}, m.Balls...),
+		Weights: make([]float64, len(m.Weights)),
+		Kernels: append([]*shapekernel.ShapeKernel{}, m.Kernels...),
+	}
+	for i, w := range m.Weights {
+		out.Weights[i] = w * weight
+	}
+	return out
+}
+
+func (m *WeightedMetaballs[T]) Join(other *WeightedMetaballs[T]) *WeightedMetaballs[T] {
+	out := &WeightedMetaballs[T]{}
+	if m != nil {
+		out.Balls = append(out.Balls, m.Balls...)
+		out.Weights = append(out.Weights, m.Weights...)
+		out.Kernels = append(out.Kernels, m.Kernels...)
+	}
+	if other != nil {
+		out.Balls = append(out.Balls, other.Balls...)
+		out.Weights = append(out.Weights, other.Weights...)
+		out.Kernels = append(out.Kernels, other.Kernels...)
+	}
+	return out
 }
 
 type Metaball2D = WeightedMetaballs[model2d.Metaball]
@@ -88,41 +135,49 @@ func (h *Hull2D) bounds() (model2d.Coord, model2d.Coord) {
 	return min, max
 }
 
-func (h *Hull2D) Solid() model2d.Solid {
+func (h *Hull2D) Solid() ShapeRep {
+	if h == nil || len(h.Circles) == 0 {
+		min, max := h.bounds()
+		emptySolid := model2d.CheckedFuncSolid(min, max, func(model2d.Coord) bool { return false })
+		return shapeSolid2D(emptySolid, asPtr(shapekernel.Empty(shapekernel.Solid2D)))
+	}
 	if h.MaxRadius() > 0 {
-		return h.ArcHull()
+		arcHull := h.ArcHull()
+		return shapeSolid2D(arcHull, asPtr(shapekernel.ArcHullSolid(arcHull)))
 	}
 	mesh := h.CenterMesh()
 	if mesh.NumSegments() > 0 {
-		return mesh.Solid()
+		return shapeSolid2D(mesh.Solid(), meshSolidKernel2D(mesh))
 	}
 	min, max := h.bounds()
-	if h == nil || len(h.Circles) == 0 {
-		return model2d.CheckedFuncSolid(min, max, func(model2d.Coord) bool { return false })
-	}
 	center := h.Circles[0].Center
-	return model2d.CheckedFuncSolid(min, max, func(c model2d.Coord) bool { return c == center })
+	pointSolid := model2d.CheckedFuncSolid(min, max, func(c model2d.Coord) bool { return c == center })
+	return shapeSolid2D(pointSolid, asPtr(shapekernel.ArcHullSolid(h.ArcHull())))
 }
 
-func (h *Hull2D) SDF() model2d.SDF {
+func (h *Hull2D) SDF() ShapeRep {
+	if h == nil || len(h.Circles) == 0 {
+		min, max := h.bounds()
+		emptySDF := model2d.FuncSDF(min, max, func(model2d.Coord) float64 { return -1 })
+		return shapeSDF2D(emptySDF, asPtr(shapekernel.Empty(shapekernel.SDF2D)))
+	}
 	if h.MaxRadius() > 0 {
-		return h.ArcHull()
+		arcHull := h.ArcHull()
+		return shapeSDF2D(arcHull, asPtr(shapekernel.ArcHullSDF(arcHull)))
 	}
 	mesh := h.CenterMesh()
 	if mesh.NumSegments() > 0 {
-		return model2d.MeshToSDF(mesh)
+		return shapeSDF2D(model2d.MeshToSDF(mesh), meshSDFKernel2D(mesh))
 	}
 	min, max := h.bounds()
-	if h == nil || len(h.Circles) == 0 {
-		return model2d.FuncSDF(min, max, func(model2d.Coord) float64 { return -1 })
-	}
 	center := h.Circles[0].Center
-	return model2d.FuncSDF(min, max, func(c model2d.Coord) float64 {
+	pointSDF := model2d.FuncSDF(min, max, func(c model2d.Coord) float64 {
 		if c == center {
 			return 0
 		}
 		return -c.Dist(center)
 	})
+	return shapeSDF2D(pointSDF, asPtr(shapekernel.ArcHullSDF(h.ArcHull())))
 }
 
 func (h *Hull2D) Map(fn func(*model2d.Circle) *model2d.Circle) *Hull2D {
@@ -147,47 +202,6 @@ func (h *Hull2D) Join(other *Hull2D) *Hull2D {
 	return out
 }
 
-func (m *WeightedMetaballs[T]) Map(fn func(T) T) *WeightedMetaballs[T] {
-	if m == nil {
-		return &WeightedMetaballs[T]{}
-	}
-	out := &WeightedMetaballs[T]{
-		Balls:   make([]T, len(m.Balls)),
-		Weights: append([]float64{}, m.Weights...),
-	}
-	for i, mb := range m.Balls {
-		out.Balls[i] = fn(mb)
-	}
-	return out
-}
-
-func (m *WeightedMetaballs[T]) Scale(weight float64) *WeightedMetaballs[T] {
-	if m == nil {
-		return &WeightedMetaballs[T]{}
-	}
-	out := &WeightedMetaballs[T]{
-		Balls:   append([]T{}, m.Balls...),
-		Weights: make([]float64, len(m.Weights)),
-	}
-	for i, w := range m.Weights {
-		out.Weights[i] = w * weight
-	}
-	return out
-}
-
-func (m *WeightedMetaballs[T]) Join(other *WeightedMetaballs[T]) *WeightedMetaballs[T] {
-	out := &WeightedMetaballs[T]{}
-	if m != nil {
-		out.Balls = append(out.Balls, m.Balls...)
-		out.Weights = append(out.Weights, m.Weights...)
-	}
-	if other != nil {
-		out.Balls = append(out.Balls, other.Balls...)
-		out.Weights = append(out.Weights, other.Weights...)
-	}
-	return out
-}
-
 type ShapeRep struct {
 	Kind ShapeKind
 	S2   model2d.Solid
@@ -199,31 +213,84 @@ type ShapeRep struct {
 	MB2  *Metaball2D
 	MB3  *Metaball3D
 	H2   *Hull2D
+
+	Kernel *shapekernel.ShapeKernel
 }
 
-func shapeSolid2D(s model2d.Solid) ShapeRep { return ShapeRep{Kind: ShapeSolid2D, S2: s} }
-func shapeSolid3D(s model3d.Solid) ShapeRep { return ShapeRep{Kind: ShapeSolid3D, S3: s} }
-func shapeMesh2D(m *model2d.Mesh) ShapeRep  { return ShapeRep{Kind: ShapeMesh2D, M2: m} }
-func shapeMesh3D(m *model3d.Mesh) ShapeRep  { return ShapeRep{Kind: ShapeMesh3D, M3: m} }
-func shapeSDF2D(s model2d.SDF) ShapeRep     { return ShapeRep{Kind: ShapeSDF2D, SDF2: s} }
-func shapeSDF3D(s model3d.SDF) ShapeRep     { return ShapeRep{Kind: ShapeSDF3D, SDF3: s} }
-func shapeHull2D(h *Hull2D) ShapeRep        { return ShapeRep{Kind: ShapeHull2D, H2: h} }
-func shapeMetaball2D(m model2d.Metaball) ShapeRep {
+func shapeSolid2D(s model2d.Solid, k *shapekernel.ShapeKernel) ShapeRep {
+	return ShapeRep{Kind: ShapeSolid2D, S2: s, Kernel: k}
+}
+
+func shapeSolid3D(s model3d.Solid, k *shapekernel.ShapeKernel) ShapeRep {
+	return ShapeRep{Kind: ShapeSolid3D, S3: s, Kernel: k}
+}
+
+func shapeMesh2D(m *model2d.Mesh) ShapeRep {
+	return ShapeRep{Kind: ShapeMesh2D, M2: m}
+}
+
+func shapeMesh3D(m *model3d.Mesh) ShapeRep {
+	return ShapeRep{Kind: ShapeMesh3D, M3: m}
+}
+
+func shapeSDF2D(s model2d.SDF, k *shapekernel.ShapeKernel) ShapeRep {
+	return ShapeRep{Kind: ShapeSDF2D, SDF2: s, Kernel: k}
+}
+
+func shapeSDF3D(s model3d.SDF, k *shapekernel.ShapeKernel) ShapeRep {
+	return ShapeRep{Kind: ShapeSDF3D, SDF3: s, Kernel: k}
+}
+
+func shapeHull2D(h *Hull2D) ShapeRep {
+	return ShapeRep{Kind: ShapeHull2D, H2: h}
+}
+
+func shapeMetaball2D(m model2d.Metaball, k *shapekernel.ShapeKernel) ShapeRep {
+	return shapeMultiMetaball2D(&Metaball2D{
+		Balls:   []model2d.Metaball{m},
+		Weights: []float64{1},
+		Kernels: []*shapekernel.ShapeKernel{k},
+	})
+}
+
+func shapeMultiMetaball2D(m *Metaball2D) ShapeRep {
 	return ShapeRep{
 		Kind: ShapeMetaball2D,
-		MB2: &Metaball2D{
-			Balls:   []model2d.Metaball{m},
-			Weights: []float64{1},
-		},
+		MB2:  m,
 	}
 }
-func shapeMetaball3D(m model3d.Metaball) ShapeRep {
+
+func shapeMetaball3D(m model3d.Metaball, k *shapekernel.ShapeKernel) ShapeRep {
+	return shapeMultiMetaball3D(&Metaball3D{
+		Balls:   []model3d.Metaball{m},
+		Weights: []float64{1},
+		Kernels: []*shapekernel.ShapeKernel{k},
+	})
+}
+
+func shapeMultiMetaball3D(m *Metaball3D) ShapeRep {
 	return ShapeRep{
 		Kind: ShapeMetaball3D,
-		MB3: &Metaball3D{
-			Balls:   []model3d.Metaball{m},
-			Weights: []float64{1},
-		},
+		MB3:  m,
+	}
+}
+
+func SDFToSolid(sdf ShapeRep) ShapeRep {
+	switch sdf.Kind {
+	case ShapeSDF2D:
+		var k *shapekernel.ShapeKernel
+		if sdf.Kernel != nil {
+			k = asPtr(shapekernel.SDFToSolid(*sdf.Kernel))
+		}
+		return shapeSolid2D(model2d.SDFToSolid(sdf.SDF2, 0), k)
+	case ShapeSDF3D:
+		var k *shapekernel.ShapeKernel
+		if sdf.Kernel != nil {
+			k = asPtr(shapekernel.SDFToSolid(*sdf.Kernel))
+		}
+		return shapeSolid3D(model3d.SDFToSolid(sdf.SDF3, 0), k)
+	default:
+		panic("expected SDF argument")
 	}
 }
 
@@ -235,13 +302,17 @@ func handleSolid(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (Shap
 	case ShapeSolid2D, ShapeSolid3D:
 		return *childUnion, nil
 	case ShapeMesh2D:
-		return shapeSolid2D(childUnion.M2.Solid()), nil
+		return shapeSolid2D(
+			childUnion.M2.Solid(),
+			asPtr(shapekernel.Mesh2DSolid(childUnion.M2)),
+		), nil
 	case ShapeMesh3D:
-		return shapeSolid3D(childUnion.M3.Solid()), nil
-	case ShapeSDF2D:
-		return shapeSolid2D(model2d.SDFToSolid(childUnion.SDF2, 0)), nil
-	case ShapeSDF3D:
-		return shapeSolid3D(model3d.SDFToSolid(childUnion.SDF3, 0)), nil
+		return shapeSolid3D(
+			childUnion.M3.Solid(),
+			asPtr(shapekernel.Mesh3DSolid(childUnion.M3)),
+		), nil
+	case ShapeSDF2D, ShapeSDF3D:
+		return SDFToSolid(*childUnion), nil
 	default:
 		return ShapeRep{}, fmt.Errorf("solid(): unsupported shape kind")
 	}
@@ -264,29 +335,49 @@ func unionAll(children []ShapeRep) (ShapeRep, error) {
 		for i, ch := range children {
 			solids[i] = ch.S3
 		}
-		return shapeSolid3D(solids), nil
+		kernels, useKernel := concatKernels(children)
+		var k *shapekernel.ShapeKernel
+		if useKernel {
+			k = asPtr(shapekernel.UnionSolids(kernels))
+		}
+		return shapeSolid3D(solids, k), nil
 	case ShapeSolid2D:
 		solids := make(model2d.JoinedSolid, len(children))
 		for i, ch := range children {
 			solids[i] = ch.S2
 		}
-		return shapeSolid2D(solids), nil
+		kernels, useKernel := concatKernels(children)
+		var k *shapekernel.ShapeKernel
+		if useKernel {
+			k = asPtr(shapekernel.UnionSolids(kernels))
+		}
+		return shapeSolid2D(solids, k), nil
 	case ShapeSDF3D:
-		return shapeSDF3D(sdfUnion3D(children)), nil
+		kernels, useKernel := concatKernels(children)
+		var k *shapekernel.ShapeKernel
+		if useKernel {
+			k = asPtr(shapekernel.UnionSDFs(kernels))
+		}
+		return shapeSDF3D(sdfUnion3D(children), k), nil
 	case ShapeSDF2D:
-		return shapeSDF2D(sdfUnion2D(children)), nil
+		kernels, useKernel := concatKernels(children)
+		var k *shapekernel.ShapeKernel
+		if useKernel {
+			k = asPtr(shapekernel.UnionSDFs(kernels))
+		}
+		return shapeSDF2D(sdfUnion2D(children), k), nil
 	case ShapeMetaball2D:
 		var out *Metaball2D
 		for _, ch := range children {
 			out = out.Join(ch.MB2)
 		}
-		return ShapeRep{Kind: ShapeMetaball2D, MB2: out}, nil
+		return shapeMultiMetaball2D(out), nil
 	case ShapeMetaball3D:
 		var out *Metaball3D
 		for _, ch := range children {
 			out = out.Join(ch.MB3)
 		}
-		return ShapeRep{Kind: ShapeMetaball3D, MB3: out}, nil
+		return shapeMultiMetaball3D(out), nil
 	case ShapeHull2D:
 		var out *Hull2D
 		for _, ch := range children {
@@ -324,17 +415,37 @@ func intersectAll(children []ShapeRep) (ShapeRep, error) {
 		for _, ch := range children {
 			solids = append(solids, ch.S3)
 		}
-		return shapeSolid3D(model3d.IntersectedSolid(solids)), nil
+		kernels, useKernel := concatKernels(children)
+		var k *shapekernel.ShapeKernel
+		if useKernel {
+			k = asPtr(shapekernel.IntersectSolids(kernels))
+		}
+		return shapeSolid3D(model3d.IntersectedSolid(solids), k), nil
 	case ShapeSolid2D:
 		solids := make([]model2d.Solid, 0, len(children))
 		for _, ch := range children {
 			solids = append(solids, ch.S2)
 		}
-		return shapeSolid2D(model2d.IntersectedSolid(solids)), nil
+		kernels, useKernel := concatKernels(children)
+		var k *shapekernel.ShapeKernel
+		if useKernel {
+			k = asPtr(shapekernel.IntersectSolids(kernels))
+		}
+		return shapeSolid2D(model2d.IntersectedSolid(solids), k), nil
 	case ShapeSDF3D:
-		return shapeSDF3D(sdfIntersect3D(children)), nil
+		kernels, useKernel := concatKernels(children)
+		var k *shapekernel.ShapeKernel
+		if useKernel {
+			k = asPtr(shapekernel.IntersectSDFs(kernels))
+		}
+		return shapeSDF3D(sdfIntersect3D(children), k), nil
 	case ShapeSDF2D:
-		return shapeSDF2D(sdfIntersect2D(children)), nil
+		kernels, useKernel := concatKernels(children)
+		var k *shapekernel.ShapeKernel
+		if useKernel {
+			k = asPtr(shapekernel.IntersectSDFs(kernels))
+		}
+		return shapeSDF2D(sdfIntersect2D(children), k), nil
 	case ShapeMesh2D, ShapeMesh3D:
 		return ShapeRep{}, fmt.Errorf("intersection() not supported for meshes")
 	default:

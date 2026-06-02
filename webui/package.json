@@ -3,7 +3,12 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "build": "esbuild main.js --bundle --format=iife --target=es2020 --outfile=main.bundle.js"
+    "build": "vite build",
+    "dev": "vite",
+    "format": "biome format --write .",
+    "lint": "biome check .",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@codemirror/commands": "^6.10.0",
@@ -12,6 +17,8 @@
     "codemirror": "^6.0.2"
   },
   "devDependencies": {
-    "esbuild": "^0.25.10"
+    "@biomejs/biome": "^1.9.4",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.10"
   }
 }

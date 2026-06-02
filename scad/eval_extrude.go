@@ -7,6 +7,7 @@ import (
 	"github.com/unixpickle/model3d/model2d"
 	"github.com/unixpickle/model3d/model3d"
 	"github.com/unixpickle/model3d/toolbox3d"
+	"github.com/unixpickle/webgpu-mesh/shapekernel"
 )
 
 func handleLinearExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
@@ -48,7 +49,17 @@ func handleLinearExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRe
 	z0, z1 := linearExtrudeZBounds(height, center)
 	switch childUnion.Kind {
 	case ShapeSolid2D:
-		return shapeSolid3D(linearExtrude(childUnion.S2, height, center, twist, scale)), nil
+		var k *shapekernel.ShapeKernel
+		if childUnion.Kernel != nil {
+			k = asPtr(shapekernel.LinearExtrudeSolid(
+				*childUnion.Kernel,
+				float32(height),
+				center,
+				float32(twist*math.Pi/180),
+				sliceToVec2(scale[:]),
+			))
+		}
+		return shapeSolid3D(linearExtrude(childUnion.S2, height, center, twist, scale), k), nil
 	case ShapeMesh2D:
 		if err := checkExtrudeTransform("Mesh", twist, scale); err != nil {
 			return ShapeRep{}, err
@@ -65,7 +76,11 @@ func handleLinearExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRe
 		if err := checkExtrudeTransform("SDF", twist, scale); err != nil {
 			return ShapeRep{}, err
 		}
-		return shapeSDF3D(model3d.ProfileSDF(childUnion.SDF2, z0, z1)), nil
+		var k *shapekernel.ShapeKernel
+		if childUnion.Kernel != nil {
+			k = asPtr(shapekernel.LinearExtrudeSDF(*childUnion.Kernel, float32(height), center))
+		}
+		return shapeSDF3D(model3d.ProfileSDF(childUnion.SDF2, z0, z1), k), nil
 	default:
 		return ShapeRep{}, fmt.Errorf("linear_extrude(): unknown 2D kind")
 	}
@@ -118,7 +133,23 @@ func handleInsetExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	return shapeSolid3D(toolbox3d.Extrude(childUnion.SDF2, z0, z1, insetFn)), nil
+	var k *shapekernel.ShapeKernel
+	if childUnion.Kernel != nil {
+		bottomKernelFn, ok1 := insetExtrudeKernelFunc(bottomFn)
+		topKernelFn, ok2 := insetExtrudeKernelFunc(topFn)
+		if ok1 && ok2 {
+			k = asPtr(shapekernel.InsetExtrude(
+				*childUnion.Kernel,
+				float32(height),
+				center,
+				float32(bottom),
+				float32(top),
+				bottomKernelFn,
+				topKernelFn,
+			))
+		}
+	}
+	return shapeSolid3D(toolbox3d.Extrude(childUnion.SDF2, z0, z1, insetFn), k), nil
 }
 
 func linearExtrude(s model2d.Solid, height float64, center bool, twist float64, scale [2]float64) model3d.Solid {
@@ -232,13 +263,25 @@ func handleRotateExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRe
 		if !full {
 			return ShapeRep{}, fmt.Errorf("rotate_extrude(): SDF input requires full 360 angle")
 		}
-		return shapeSDF3D(model3d.RevolveSDF(childUnion.SDF2)), nil
+		var k *shapekernel.ShapeKernel
+		if childUnion.Kernel != nil {
+			k = asPtr(shapekernel.RevolveSDF(*childUnion.Kernel))
+		}
+		return shapeSDF3D(model3d.RevolveSDF(childUnion.SDF2), k), nil
 	}
 	solid, err := model3d.RevolveSolidRange(childUnion.S2, angle*math.Pi/180, start*math.Pi/180)
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	return shapeSolid3D(solid), nil
+	var k *shapekernel.ShapeKernel
+	if childUnion.Kernel != nil {
+		k = asPtr(shapekernel.RevolveSolidRange(
+			*childUnion.Kernel,
+			float32(angle*math.Pi/180),
+			float32(start*math.Pi/180),
+		))
+	}
+	return shapeSolid3D(solid, k), nil
 }
 
 func inverseExtrudeTransform(x, y, t, twist float64, scale [2]float64) (float64, float64, bool) {

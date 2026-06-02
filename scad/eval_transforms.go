@@ -6,7 +6,20 @@ import (
 
 	"github.com/unixpickle/model3d/model2d"
 	"github.com/unixpickle/model3d/model3d"
+	"github.com/unixpickle/webgpu-mesh/shapekernel"
 )
+
+type transform2D struct {
+	OpName    string
+	Transform model2d.Transform
+	Kernel    func(shapekernel.ShapeKernel) shapekernel.ShapeKernel
+}
+
+type transform3D struct {
+	OpName    string
+	Transform model3d.Transform
+	Kernel    func(shapekernel.ShapeKernel) shapekernel.ShapeKernel
+}
 
 func handleTranslate(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
 	args, err := bindArgs(e, st.Call, []ArgSpec{
@@ -25,9 +38,9 @@ func handleTranslate(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (
 		if err != nil {
 			return ShapeRep{}, err
 		}
-		return applyTransform2D("translate", *childUnion, xf)
+		return applyTransform2D(*childUnion, xf)
 	case 3:
-		return applyTransform3D("translate", *childUnion, translateTransform3D(vec))
+		return applyTransform3D(*childUnion, translateTransform3D(vec))
 	default:
 		return ShapeRep{}, fmt.Errorf("translate(): unsupported shape kind")
 	}
@@ -46,9 +59,9 @@ func handleScale(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (Shap
 	}
 	switch childUnion.Kind.Dimension() {
 	case 2:
-		return applyTransform2D("scale", *childUnion, scaleTransform2D(vec))
+		return applyTransform2D(*childUnion, scaleTransform2D(vec))
 	case 3:
-		return applyTransform3D("scale", *childUnion, scaleTransform3D(vec))
+		return applyTransform3D(*childUnion, scaleTransform3D(vec))
 	default:
 		return ShapeRep{}, fmt.Errorf("scale(): unsupported shape kind")
 	}
@@ -65,13 +78,13 @@ func handleRotate(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (Sha
 		if err != nil {
 			return ShapeRep{}, err
 		}
-		return applyTransform2D("rotate", *childUnion, xf)
+		return applyTransform2D(*childUnion, xf)
 	case 3:
 		xf, err := rotateTransform3D(spec)
 		if err != nil {
 			return ShapeRep{}, err
 		}
-		return applyTransform3D("rotate", *childUnion, xf)
+		return applyTransform3D(*childUnion, xf)
 	default:
 		return ShapeRep{}, fmt.Errorf("rotate(): unsupported shape kind")
 	}
@@ -94,118 +107,235 @@ func handleMirror(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (Sha
 		if err != nil {
 			return ShapeRep{}, err
 		}
-		return applyTransform2D("mirror", *childUnion, xf)
+		return applyTransform2D(*childUnion, xf)
 	case 3:
 		xf, err := mirrorTransform3D(vec)
 		if err != nil {
 			return ShapeRep{}, err
 		}
-		return applyTransform3D("mirror", *childUnion, xf)
+		return applyTransform3D(*childUnion, xf)
 	default:
 		return ShapeRep{}, fmt.Errorf("mirror(): unsupported shape kind")
 	}
 }
 
-func translateTransform2D(vec [3]float64) (model2d.Transform, error) {
+func translateTransform2D(vec [3]float64) (*transform2D, error) {
 	if vec[2] != 0 {
 		return nil, fmt.Errorf("translate(): z component not supported for 2D shapes")
 	}
-	return &model2d.Translate{Offset: model2d.XY(vec[0], vec[1])}, nil
+	return &transform2D{
+		OpName:    "translate",
+		Transform: &model2d.Translate{Offset: model2d.XY(vec[0], vec[1])},
+		Kernel: func(k shapekernel.ShapeKernel) shapekernel.ShapeKernel {
+			return shapekernel.Translate(k, sliceToVec2(vec[:]))
+		},
+	}, nil
 }
 
-func translateTransform3D(vec [3]float64) model3d.Transform {
-	return &model3d.Translate{Offset: model3d.XYZ(vec[0], vec[1], vec[2])}
+func translateTransform3D(vec [3]float64) *transform3D {
+	return &transform3D{
+		OpName:    "translate",
+		Transform: &model3d.Translate{Offset: model3d.XYZ(vec[0], vec[1], vec[2])},
+		Kernel: func(k shapekernel.ShapeKernel) shapekernel.ShapeKernel {
+			return shapekernel.Translate(k, sliceToVec3(vec[:]))
+		},
+	}
 }
 
-func scaleTransform2D(vec [3]float64) model2d.Transform {
+func scaleTransform2D(vec [3]float64) *transform2D {
 	scale := model2d.XY(vec[0], vec[1])
+	kernelFn := func(k shapekernel.ShapeKernel) shapekernel.ShapeKernel {
+		return shapekernel.Scale(k, sliceToVec2(vec[:2]))
+	}
 	if math.Abs(scale.X) == math.Abs(scale.Y) {
-		return &uniformVecScale2D{
-			VecScale:  model2d.VecScale{Scale: scale},
-			DistScale: math.Abs(scale.X),
+		return &transform2D{
+			OpName: "scale",
+			Transform: &uniformVecScale2D{
+				VecScale:  model2d.VecScale{Scale: scale},
+				DistScale: math.Abs(scale.X),
+			},
+			Kernel: kernelFn,
 		}
 	}
-	return &model2d.VecScale{Scale: scale}
+	return &transform2D{
+		OpName:    "scale",
+		Transform: &model2d.VecScale{Scale: scale},
+		Kernel:    kernelFn,
+	}
 }
 
-func scaleTransform3D(vec [3]float64) model3d.Transform {
+func scaleTransform3D(vec [3]float64) *transform3D {
 	scale := model3d.XYZ(vec[0], vec[1], vec[2])
+	kernelFn := func(k shapekernel.ShapeKernel) shapekernel.ShapeKernel {
+		return shapekernel.Scale(k, sliceToVec3(vec[:]))
+	}
 	if math.Abs(scale.X) == math.Abs(scale.Y) && math.Abs(scale.Y) == math.Abs(scale.Z) {
-		return &uniformVecScale3D{
-			VecScale:  model3d.VecScale{Scale: scale},
-			DistScale: math.Abs(scale.X),
+		return &transform3D{
+			OpName: "scale",
+			Transform: &uniformVecScale3D{
+				VecScale:  model3d.VecScale{Scale: scale},
+				DistScale: math.Abs(scale.X),
+			},
+			Kernel: kernelFn,
 		}
 	}
-	return &model3d.VecScale{Scale: scale}
+	return &transform3D{
+		OpName:    "scale",
+		Transform: &model3d.VecScale{Scale: scale},
+		Kernel:    kernelFn,
+	}
 }
 
-func rotateTransform2D(spec rotateSpec) (model2d.Transform, error) {
+func rotateTransform3D(spec rotateSpec) (*transform3D, error) {
+	if spec.AxisAngle {
+		axis := model3d.XYZ(spec.Axis[0], spec.Axis[1], spec.Axis[2])
+		norm := axis.Norm()
+		if norm == 0 {
+			return nil, fmt.Errorf("rotate(): axis must be non-zero")
+		}
+		axis = axis.Scale(1 / norm)
+		return &transform3D{
+			OpName:    "rotate",
+			Transform: model3d.Rotation(axis, spec.AngleDeg*math.Pi/180),
+			Kernel: func(s shapekernel.ShapeKernel) shapekernel.ShapeKernel {
+				return shapekernel.Rotate3D(
+					s,
+					coordToVec3(axis),
+					float32(spec.AngleDeg*math.Pi/180),
+				)
+			},
+		}, nil
+	}
+
+	return &transform3D{
+		OpName: "rotate",
+		Transform: model3d.JoinedTransform{
+			model3d.Rotation(model3d.XYZ(1, 0, 0), spec.Angles[0]*math.Pi/180),
+			model3d.Rotation(model3d.XYZ(0, 1, 0), spec.Angles[1]*math.Pi/180),
+			model3d.Rotation(model3d.XYZ(0, 0, 1), spec.Angles[2]*math.Pi/180),
+		},
+		Kernel: func(s shapekernel.ShapeKernel) shapekernel.ShapeKernel {
+			for i := 0; i < 3; i++ {
+				if spec.Angles[i] != 0 {
+					var axis shapekernel.Vec3
+					axis[i] = 1
+					s = shapekernel.Rotate3D(s, axis, float32(spec.Angles[i]*math.Pi/180))
+				}
+			}
+			return s
+		},
+	}, nil
+}
+
+func mirrorTransform3D(vec [3]float64) (*transform3D, error) {
+	axis := model3d.XYZ(vec[0], vec[1], vec[2])
+	if axis.Norm() == 0 {
+		return nil, fmt.Errorf("mirror(): axis must be non-zero")
+	}
+	return &transform3D{
+		OpName:    "mirror",
+		Transform: model3d.Mirror(axis),
+		Kernel: func(s shapekernel.ShapeKernel) shapekernel.ShapeKernel {
+			return shapekernel.Mirror3D(s, coordToVec3(axis))
+		},
+	}, nil
+}
+
+func rotateTransform2D(spec rotateSpec) (*transform2D, error) {
 	angle, err := rotateAngle2D(spec)
 	if err != nil {
 		return nil, err
 	}
-	return model2d.Rotation(angle), nil
+	return &transform2D{
+		OpName:    "rotate",
+		Transform: model2d.Rotation(angle),
+		Kernel: func(s shapekernel.ShapeKernel) shapekernel.ShapeKernel {
+			return shapekernel.Rotate2D(s, float32(angle))
+		},
+	}, nil
 }
 
-func mirrorTransform2D(vec [3]float64) (model2d.Transform, error) {
+func mirrorTransform2D(vec [3]float64) (*transform2D, error) {
 	if vec[2] != 0 {
 		return nil, fmt.Errorf("mirror(): z component not supported for 2D shapes")
 	}
 	if vec[0] == 0 && vec[1] == 0 {
 		return nil, fmt.Errorf("mirror(): axis must be non-zero")
 	}
-	return model2d.Mirror(model2d.XY(vec[0], vec[1])), nil
+	return &transform2D{
+		OpName:    "mirror",
+		Transform: model2d.Mirror(model2d.XY(vec[0], vec[1])),
+		Kernel: func(s shapekernel.ShapeKernel) shapekernel.ShapeKernel {
+			return shapekernel.Mirror2D(s, sliceToVec2(vec[:]))
+		},
+	}, nil
 }
 
-func applyTransform2D(opName string, shape ShapeRep, xf model2d.Transform) (ShapeRep, error) {
+func applyTransform2D(shape ShapeRep, xf *transform2D) (ShapeRep, error) {
 	switch shape.Kind {
 	case ShapeSolid2D:
-		return shapeSolid2D(model2d.TransformSolid(xf, shape.S2)), nil
+		var k *shapekernel.ShapeKernel
+		if shape.Kernel != nil {
+			k = asPtr(xf.Kernel(*shape.Kernel))
+		}
+		return shapeSolid2D(model2d.TransformSolid(xf.Transform, shape.S2), k), nil
 	case ShapeMesh2D:
-		return shapeMesh2D(shape.M2.Transform(xf)), nil
+		return shapeMesh2D(shape.M2.Transform(xf.Transform)), nil
 	case ShapeSDF2D:
-		sdf, err := applySDFTransform2D(opName, shape.SDF2, xf)
+		sdf, err := applySDFTransform2D(xf.OpName, shape.SDF2, xf.Transform)
 		if err != nil {
 			return ShapeRep{}, err
 		}
-		return shapeSDF2D(sdf), nil
+		var k *shapekernel.ShapeKernel
+		if shape.Kernel != nil {
+			k = asPtr(xf.Kernel(*shape.Kernel))
+		}
+		return shapeSDF2D(sdf, k), nil
 	case ShapeMetaball2D:
-		mb, err := applyMetaballTransform2D(opName, shape.MB2, xf)
+		mb, err := applyMetaballTransform2D(shape.MB2, xf)
 		if err != nil {
 			return ShapeRep{}, err
 		}
 		return ShapeRep{Kind: ShapeMetaball2D, MB2: mb}, nil
 	case ShapeHull2D:
-		hull, err := applyHullTransform2D(opName, shape.H2, xf)
+		hull, err := applyHullTransform2D(xf.OpName, shape.H2, xf.Transform)
 		if err != nil {
 			return ShapeRep{}, err
 		}
 		return shapeHull2D(hull), nil
 	default:
-		return ShapeRep{}, fmt.Errorf("%s(): unsupported shape kind", opName)
+		return ShapeRep{}, fmt.Errorf("%s(): unsupported shape kind", xf.OpName)
 	}
 }
 
-func applyTransform3D(opName string, shape ShapeRep, xf model3d.Transform) (ShapeRep, error) {
+func applyTransform3D(shape ShapeRep, xf *transform3D) (ShapeRep, error) {
 	switch shape.Kind {
 	case ShapeSolid3D:
-		return shapeSolid3D(model3d.TransformSolid(xf, shape.S3)), nil
+		var k *shapekernel.ShapeKernel
+		if shape.Kernel != nil {
+			k = asPtr(xf.Kernel(*shape.Kernel))
+		}
+		return shapeSolid3D(model3d.TransformSolid(xf.Transform, shape.S3), k), nil
 	case ShapeMesh3D:
-		return shapeMesh3D(shape.M3.Transform(xf)), nil
+		return shapeMesh3D(shape.M3.Transform(xf.Transform)), nil
 	case ShapeSDF3D:
-		sdf, err := applySDFTransform3D(opName, shape.SDF3, xf)
+		sdf, err := applySDFTransform3D(xf.OpName, shape.SDF3, xf.Transform)
 		if err != nil {
 			return ShapeRep{}, err
 		}
-		return shapeSDF3D(sdf), nil
+		var k *shapekernel.ShapeKernel
+		if shape.Kernel != nil {
+			k = asPtr(xf.Kernel(*shape.Kernel))
+		}
+		return shapeSDF3D(sdf, k), nil
 	case ShapeMetaball3D:
-		mb, err := applyMetaballTransform3D(opName, shape.MB3, xf)
+		mb, err := applyMetaballTransform3D(shape.MB3, xf)
 		if err != nil {
 			return ShapeRep{}, err
 		}
 		return ShapeRep{Kind: ShapeMetaball3D, MB3: mb}, nil
 	default:
-		return ShapeRep{}, fmt.Errorf("%s(): unsupported shape kind", opName)
+		return ShapeRep{}, fmt.Errorf("%s(): unsupported shape kind", xf.OpName)
 	}
 }
 
@@ -231,33 +361,45 @@ func applySDFTransform3D(opName string, sdf model3d.SDF, xf model3d.Transform) (
 	return model3d.TransformSDF(distXf, sdf), nil
 }
 
-func applyMetaballTransform2D(opName string, mb *Metaball2D, xf model2d.Transform) (*Metaball2D, error) {
-	if vecScale, ok := xf.(*model2d.VecScale); ok {
-		return mb.Map(func(m model2d.Metaball) model2d.Metaball {
-			return model2d.VecScaleMetaball(m, vecScale.Scale)
+func applyMetaballTransform2D(mb *Metaball2D, xf *transform2D) (*Metaball2D, error) {
+	if vecScale, ok := xf.Transform.(*model2d.VecScale); ok {
+		return mb.Map(func(m model2d.Metaball, k *shapekernel.ShapeKernel) (model2d.Metaball, *shapekernel.ShapeKernel) {
+			if k != nil {
+				k = asPtr(xf.Kernel(*k))
+			}
+			return model2d.VecScaleMetaball(m, vecScale.Scale), k
 		}), nil
 	}
-	distXf, ok := xf.(model2d.DistTransform)
+	distXf, ok := xf.Transform.(model2d.DistTransform)
 	if !ok {
-		return nil, fmt.Errorf("%s(): transform not supported for metaballs", opName)
+		return nil, fmt.Errorf("%s(): transform not supported for metaballs", xf.OpName)
 	}
-	return mb.Map(func(m model2d.Metaball) model2d.Metaball {
-		return model2d.TransformMetaball(distXf, m)
+	return mb.Map(func(m model2d.Metaball, k *shapekernel.ShapeKernel) (model2d.Metaball, *shapekernel.ShapeKernel) {
+		if k != nil {
+			k = asPtr(xf.Kernel(*k))
+		}
+		return model2d.TransformMetaball(distXf, m), k
 	}), nil
 }
 
-func applyMetaballTransform3D(opName string, mb *Metaball3D, xf model3d.Transform) (*Metaball3D, error) {
-	if vecScale, ok := xf.(*model3d.VecScale); ok {
-		return mb.Map(func(m model3d.Metaball) model3d.Metaball {
-			return model3d.VecScaleMetaball(m, vecScale.Scale)
+func applyMetaballTransform3D(mb *Metaball3D, xf *transform3D) (*Metaball3D, error) {
+	if vecScale, ok := xf.Transform.(*model3d.VecScale); ok {
+		return mb.Map(func(m model3d.Metaball, k *shapekernel.ShapeKernel) (model3d.Metaball, *shapekernel.ShapeKernel) {
+			if k != nil {
+				k = asPtr(xf.Kernel(*k))
+			}
+			return model3d.VecScaleMetaball(m, vecScale.Scale), k
 		}), nil
 	}
-	distXf, ok := xf.(model3d.DistTransform)
+	distXf, ok := xf.Transform.(model3d.DistTransform)
 	if !ok {
-		return nil, fmt.Errorf("%s(): transform not supported for metaballs", opName)
+		return nil, fmt.Errorf("%s(): transform not supported for metaballs", xf.OpName)
 	}
-	return mb.Map(func(m model3d.Metaball) model3d.Metaball {
-		return model3d.TransformMetaball(distXf, m)
+	return mb.Map(func(m model3d.Metaball, k *shapekernel.ShapeKernel) (model3d.Metaball, *shapekernel.ShapeKernel) {
+		if k != nil {
+			k = asPtr(xf.Kernel(*k))
+		}
+		return model3d.TransformMetaball(distXf, m), k
 	}), nil
 }
 
@@ -324,7 +466,7 @@ func handleTransform(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (
 				return false
 			}
 			return childUnion.S3.Contains(model3d.XYZ(mapped[0], mapped[1], mapped[2]))
-		})), nil
+		}), nil), nil
 	case ShapeSolid2D:
 		min, max, fn, err := parseTransformBoundsArgs(e, st, 2)
 		if err != nil {
@@ -338,7 +480,7 @@ func handleTransform(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (
 				return false
 			}
 			return childUnion.S2.Contains(model2d.XY(mapped[0], mapped[1]))
-		})), nil
+		}), nil), nil
 	case ShapeSDF3D:
 		min, max, fn, err := parseTransformBoundsArgs(e, st, 3)
 		if err != nil {
@@ -352,7 +494,7 @@ func handleTransform(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (
 				return -1
 			}
 			return childUnion.SDF3.SDF(model3d.XYZ(mapped[0], mapped[1], mapped[2]))
-		})), nil
+		}), nil), nil
 	case ShapeSDF2D:
 		min, max, fn, err := parseTransformBoundsArgs(e, st, 2)
 		if err != nil {
@@ -366,7 +508,7 @@ func handleTransform(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (
 				return -1
 			}
 			return childUnion.SDF2.SDF(model2d.XY(mapped[0], mapped[1]))
-		})), nil
+		}), nil), nil
 	case ShapeMesh3D:
 		oldMin := childUnion.M3.Min()
 		oldMax := childUnion.M3.Max()
@@ -418,6 +560,12 @@ type clipSpec struct {
 }
 
 func handleClip(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
+	makeKernel := func(min, max shapekernel.Vector) *shapekernel.ShapeKernel {
+		if childUnion.Kernel == nil {
+			return nil
+		}
+		return asPtr(shapekernel.Clip(*childUnion.Kernel, min, max))
+	}
 	switch childUnion.Kind {
 	case ShapeSolid3D:
 		spec, err := parseClipSpec(e, st, 3)
@@ -427,10 +575,13 @@ func handleClip(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (Shape
 		min, max, empty := clipBounds3D(childUnion.S3.Min(), childUnion.S3.Max(), spec)
 		if empty {
 			emptySolid := model3d.CheckedFuncSolid(min, min, func(model3d.Coord3D) bool { return false })
-			return shapeSolid3D(emptySolid), nil
+			return shapeSolid3D(emptySolid, asPtr(shapekernel.Empty(shapekernel.Solid3D))), nil
 		}
 		rect := model3d.NewRect(min, max)
-		return shapeSolid3D(model3d.IntersectedSolid{childUnion.S3, rect}), nil
+		return shapeSolid3D(
+			model3d.IntersectedSolid{childUnion.S3, rect},
+			makeKernel(coordToVec3(min), coordToVec3(max)),
+		), nil
 	case ShapeSolid2D:
 		spec, err := parseClipSpec(e, st, 2)
 		if err != nil {
@@ -439,10 +590,13 @@ func handleClip(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (Shape
 		min, max, empty := clipBounds2D(childUnion.S2.Min(), childUnion.S2.Max(), spec)
 		if empty {
 			emptySolid := model2d.CheckedFuncSolid(min, min, func(model2d.Coord) bool { return false })
-			return shapeSolid2D(emptySolid), nil
+			return shapeSolid2D(emptySolid, asPtr(shapekernel.Empty(shapekernel.Solid2D))), nil
 		}
 		rect := model2d.NewRect(min, max)
-		return shapeSolid2D(model2d.IntersectedSolid{childUnion.S2, rect}), nil
+		return shapeSolid2D(
+			model2d.IntersectedSolid{childUnion.S2, rect},
+			makeKernel(coordToVec2(min), coordToVec2(max)),
+		), nil
 	case ShapeSDF3D:
 		spec, err := parseClipSpec(e, st, 3)
 		if err != nil {
@@ -451,13 +605,13 @@ func handleClip(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (Shape
 		min, max, empty := clipBounds3D(childUnion.SDF3.Min(), childUnion.SDF3.Max(), spec)
 		if empty {
 			emptySDF := model3d.FuncSDF(min, min, func(model3d.Coord3D) float64 { return -1 })
-			return shapeSDF3D(emptySDF), nil
+			return shapeSDF3D(emptySDF, asPtr(shapekernel.Empty(shapekernel.SDF3D))), nil
 		}
 		clipRect := model3d.NewRect(min, max)
-		return shapeSDF3D(sdfIntersect3D([]ShapeRep{
-			*childUnion,
-			shapeSDF3D(clipRect),
-		})), nil
+		return shapeSDF3D(
+			model3d.IntersectSDFs([]model3d.SDF{childUnion.SDF3, clipRect}),
+			makeKernel(coordToVec3(min), coordToVec3(max)),
+		), nil
 	case ShapeSDF2D:
 		spec, err := parseClipSpec(e, st, 2)
 		if err != nil {
@@ -466,13 +620,13 @@ func handleClip(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (Shape
 		min, max, empty := clipBounds2D(childUnion.SDF2.Min(), childUnion.SDF2.Max(), spec)
 		if empty {
 			emptySDF := model2d.FuncSDF(min, min, func(model2d.Coord) float64 { return -1 })
-			return shapeSDF2D(emptySDF), nil
+			return shapeSDF2D(emptySDF, asPtr(shapekernel.Empty(shapekernel.SDF2D))), nil
 		}
 		clipRect := model2d.NewRect(min, max)
-		return shapeSDF2D(sdfIntersect2D([]ShapeRep{
-			*childUnion,
-			shapeSDF2D(clipRect),
-		})), nil
+		return shapeSDF2D(
+			model2d.IntersectSDFs([]model2d.SDF{childUnion.SDF2, clipRect}),
+			makeKernel(coordToVec2(min), coordToVec2(max)),
+		), nil
 	default:
 		return ShapeRep{}, fmt.Errorf("clip(): requires a solid or SDF")
 	}
@@ -764,17 +918,27 @@ func parseInsetDelta(e *env, st *CallStmt) (float64, error) {
 }
 
 func insetSDF(opName string, childUnion *ShapeRep, delta float64) (ShapeRep, error) {
+	// This pattern prevents calling a shapekernel method on the wrong
+	// type when the user called inset_sdf() on a non-SDF object.
+	makeKernel := func() *shapekernel.ShapeKernel {
+		var k *shapekernel.ShapeKernel
+		if childUnion.Kernel != nil {
+			k = asPtr(shapekernel.InsetSDF(*childUnion.Kernel, float32(delta)))
+		}
+		return k
+	}
+
 	switch childUnion.Kind {
 	case ShapeSDF2D:
 		min, max := insetBounds2D(childUnion.SDF2.Min(), childUnion.SDF2.Max(), delta)
 		return shapeSDF2D(model2d.FuncSDF(min, max, func(c model2d.Coord) float64 {
 			return childUnion.SDF2.SDF(c) - delta
-		})), nil
+		}), makeKernel()), nil
 	case ShapeSDF3D:
 		min, max := insetBounds3D(childUnion.SDF3.Min(), childUnion.SDF3.Max(), delta)
 		return shapeSDF3D(model3d.FuncSDF(min, max, func(c model3d.Coord3D) float64 {
 			return childUnion.SDF3.SDF(c) - delta
-		})), nil
+		}), makeKernel()), nil
 	default:
 		return ShapeRep{}, fmt.Errorf("%s(): requires an SDF", opName)
 	}
@@ -810,29 +974,4 @@ func insetBounds3D(min, max model3d.Coord3D, delta float64) (model3d.Coord3D, mo
 		min.Z, max.Z = mid, mid
 	}
 	return min, max
-}
-
-func rotateTransform3D(spec rotateSpec) (model3d.Transform, error) {
-	if spec.AxisAngle {
-		axis := model3d.XYZ(spec.Axis[0], spec.Axis[1], spec.Axis[2])
-		norm := axis.Norm()
-		if norm == 0 {
-			return nil, fmt.Errorf("rotate(): axis must be non-zero")
-		}
-		axis = axis.Scale(1 / norm)
-		return model3d.Rotation(axis, spec.AngleDeg*math.Pi/180), nil
-	}
-	return model3d.JoinedTransform{
-		model3d.Rotation(model3d.XYZ(1, 0, 0), spec.Angles[0]*math.Pi/180),
-		model3d.Rotation(model3d.XYZ(0, 1, 0), spec.Angles[1]*math.Pi/180),
-		model3d.Rotation(model3d.XYZ(0, 0, 1), spec.Angles[2]*math.Pi/180),
-	}, nil
-}
-
-func mirrorTransform3D(vec [3]float64) (model3d.Transform, error) {
-	axis := model3d.XYZ(vec[0], vec[1], vec[2])
-	if axis.Norm() == 0 {
-		return nil, fmt.Errorf("mirror(): axis must be non-zero")
-	}
-	return model3d.Mirror(axis), nil
 }

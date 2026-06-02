@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"syscall/js"
 
+	"github.com/unixpickle/model3d/model2d"
 	"github.com/unixpickle/model3d/model3d"
 
 	"github.com/unixpickle/m3dscad/scad"
@@ -16,36 +17,50 @@ func main() {
 	select {}
 }
 
-func compile(_ js.Value, args []js.Value) (res any) {
-	defer func() {
-		if rec := recover(); rec != nil {
-			res = jsError(panicMessage(rec))
-		}
-	}()
-
+func compile(_ js.Value, args []js.Value) any {
 	if len(args) < 2 {
-		return jsError("compile(code, gridSize) requires 2 arguments")
+		return newPromise(func() (js.Value, error) {
+			return js.Null(), fmt.Errorf("compile(code, gridSize, options?) requires at least 2 arguments")
+		})
 	}
 	code := args[0].String()
 	gridSize := args[1].Int()
 	if gridSize < 2 {
-		return jsError("gridSize must be >= 2")
+		return newPromise(func() (js.Value, error) {
+			return js.Null(), fmt.Errorf("gridSize must be >= 2")
+		})
+	}
+	useWebGPU := false
+	if len(args) >= 3 && args[2].Type() == js.TypeObject {
+		opt := args[2].Get("useWebGPU")
+		if opt.Type() == js.TypeBoolean {
+			useWebGPU = opt.Bool()
+		}
 	}
 
-	prog, err := scad.Parse(code)
-	if err != nil {
-		return jsError(err.Error())
-	}
-	shape, err := scad.EvalWithEcho(prog, wasmEchoHandler)
-	if err != nil {
-		return jsError(err.Error())
-	}
+	return newPromise(func() (res js.Value, err error) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				err = fmt.Errorf("%s", panicMessage(rec))
+			}
+		}()
+		logWASMMessage(fmt.Sprintf("[m3dscad] compile start: grid=%d webgpu=%t", gridSize, useWebGPU))
+		prog, err := scad.Parse(code)
+		if err != nil {
+			return js.Null(), err
+		}
+		hooks := wasmHooks(useWebGPU)
+		shape, err := scad.Eval(prog, hooks)
+		if err != nil {
+			return js.Null(), err
+		}
 
-	mesh, err := shapeToMesh(shape, gridSize)
-	if err != nil {
-		return jsError(err.Error())
-	}
-	return meshResponse(mesh)
+		mesh, err := shapeToMesh(shape, gridSize, hooks)
+		if err != nil {
+			return js.Null(), err
+		}
+		return meshResponse(mesh), nil
+	})
 }
 
 func wasmEchoHandler(msg string) {
@@ -55,26 +70,63 @@ func wasmEchoHandler(msg string) {
 	js.Global().Call("postMessage", echoMsg)
 }
 
-func shapeToMesh(shape scad.ShapeRep, gridSize int) (*model3d.Mesh, error) {
+func logWASMMessage(msg string) {
+	logMsg := js.Global().Get("Object").New()
+	logMsg.Set("type", "log")
+	logMsg.Set("message", msg)
+	js.Global().Call("postMessage", logMsg)
+}
+
+func wasmHooks(useWebGPU bool) scad.Hooks {
+	return scad.Hooks{
+		Echo: wasmEchoHandler,
+		MarchingSquares: func(obj scad.ShapeRep, delta float64, iters int) (*model2d.Mesh, error) {
+			return mesh2DWithHooks(obj, delta, iters, useWebGPU)
+		},
+		MarchingCubes: func(obj scad.ShapeRep, delta float64, iters int) (*model3d.Mesh, error) {
+			return mesh3DWithMarchingCubes(obj, delta, iters, useWebGPU)
+		},
+		DualContour: func(obj scad.ShapeRep, delta float64, repair, clip bool) (*model3d.Mesh, error) {
+			return mesh3DWithDualContour(obj, delta, repair, clip, useWebGPU)
+		},
+	}
+}
+
+func cpuMarchingSquares(obj scad.ShapeRep, delta float64, iters int) (*model2d.Mesh, error) {
+	return model2d.MarchingSquaresSearch(obj.S2, delta, iters), nil
+}
+
+func cpuMarchingCubes(obj scad.ShapeRep, delta float64, iters int) (*model3d.Mesh, error) {
+	return model3d.MarchingCubesSearch(obj.S3, delta, iters), nil
+}
+
+func cpuDualContour(obj scad.ShapeRep, delta float64, repair, clip bool) (*model3d.Mesh, error) {
+	return model3d.DualContour(obj.S3, delta, repair, clip), nil
+}
+
+func shapeToMesh(shape scad.ShapeRep, gridSize int, hooks scad.Hooks) (*model3d.Mesh, error) {
 	switch shape.Kind {
 	case scad.ShapeMesh3D:
+		logWASMMessage("[m3dscad] preview path: existing mesh output (no meshing hook)")
 		return shape.M3, nil
 	case scad.ShapeSolid3D:
 		delta, err := marchingDelta(shape.S3, gridSize)
 		if err != nil {
 			return nil, err
 		}
-		return model3d.DualContour(shape.S3, delta, true, false), nil
+		return hooks.DualContour(shape, delta, true, false)
 	case scad.ShapeSDF3D:
-		solid := model3d.SDFToSolid(shape.SDF3, 0)
-		delta, err := marchingDelta(solid, gridSize)
+		solid := scad.SDFToSolid(shape)
+		delta, err := marchingDelta(solid.S3, gridSize)
 		if err != nil {
 			return nil, err
 		}
-		return model3d.DualContour(solid, delta, true, false), nil
+		return hooks.DualContour(solid, delta, true, false)
 	case scad.ShapeSolid2D, scad.ShapeMesh2D, scad.ShapeSDF2D:
+		logWASMMessage(fmt.Sprintf("[m3dscad] preview path: unsupported 2D output kind=%v", shape.Kind))
 		return nil, fmt.Errorf("2D outputs are not supported in the 3D preview")
 	default:
+		logWASMMessage(fmt.Sprintf("[m3dscad] preview path: unsupported output kind=%v", shape.Kind))
 		return nil, fmt.Errorf("unsupported output kind")
 	}
 }
@@ -88,6 +140,24 @@ func marchingDelta(solid model3d.Solid, gridSize int) (float64, error) {
 		return 0, fmt.Errorf("shape has zero size")
 	}
 	return maxDim / float64(gridSize), nil
+}
+
+func newPromise(f func() (js.Value, error)) js.Value {
+	executor := js.FuncOf(func(_ js.Value, args []js.Value) any {
+		resolve := args[0]
+		reject := args[1]
+		go func() {
+			result, err := f()
+			if err != nil {
+				reject.Invoke(err.Error())
+				return
+			}
+			resolve.Invoke(result)
+		}()
+		return nil
+	})
+	defer executor.Release()
+	return js.Global().Get("Promise").New(executor)
 }
 
 func meshResponse(mesh *model3d.Mesh) js.Value {

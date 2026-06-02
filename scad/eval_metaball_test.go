@@ -78,6 +78,40 @@ func TestMetaballSolidWithNegationAndFalloff(t *testing.T) {
 	}
 }
 
+func TestMetaballSolidKernelUsesBallWeights(t *testing.T) {
+	shape := mustEvalShape(t, `
+		metaball_solid(1, falloff="gaussian") {
+			cube_metaball([4, 2, 2], center=true);
+		}
+	`)
+	if shape.Kind != ShapeSolid3D {
+		t.Fatalf("expected ShapeSolid3D, got %v", shape.Kind)
+	}
+	if shape.Kernel == nil {
+		t.Fatal("expected shape kernel")
+	}
+	if strings.Contains(shape.Kernel.Code, "0.000000 *") {
+		t.Fatalf("expected generated kernel to preserve metaball weights, got code:\n%s", shape.Kernel.Code)
+	}
+	if !strings.Contains(shape.Kernel.Code, "1.000000 *") {
+		t.Fatalf("expected generated kernel to include unit metaball weight, got code:\n%s", shape.Kernel.Code)
+	}
+}
+
+func TestTransformedMetaballPreservesKernelForMetaballSolid(t *testing.T) {
+	shape := mustEvalShape(t, `
+		metaball_solid(1, falloff="gaussian") {
+			translate([1, 2, 3]) sphere_metaball(r=1);
+		}
+	`)
+	if shape.Kind != ShapeSolid3D {
+		t.Fatalf("expected ShapeSolid3D, got %v", shape.Kind)
+	}
+	if shape.Kernel == nil {
+		t.Fatal("expected transformed metaball solid to preserve a shape kernel")
+	}
+}
+
 func TestMetaballSolid2DOutputKind(t *testing.T) {
 	shape := mustEvalShape(t, `metaball_solid(1) circle_metaball(r=1);`)
 	if shape.Kind != ShapeSolid2D {

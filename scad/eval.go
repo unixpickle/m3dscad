@@ -9,6 +9,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/unixpickle/model3d/model2d"
+	"github.com/unixpickle/model3d/model3d"
 )
 
 type moduleDef struct {
@@ -50,6 +53,15 @@ type Hooks struct {
 	// Echo is called for the built-in echo().
 	// If it is nil, log.Println is used.
 	Echo EchoHandler
+
+	// MarchingCubes is used to create a mesh from a 3D solid.
+	MarchingCubes func(obj ShapeRep, delta float64, iters int) (*model3d.Mesh, error)
+
+	// DualContour is used to create a mesh from a 3D solid.
+	DualContour func(obj ShapeRep, delta float64, repair, clip bool) (*model3d.Mesh, error)
+
+	// MarchingSquares is used to create a mesh from a 23D solid.
+	MarchingSquares func(obj ShapeRep, delta float64, iters int) (*model2d.Mesh, error)
 }
 
 // An EchoHandler is called when a script executes the built-in echo()
@@ -62,7 +74,24 @@ func defaultEchoHandler(msg string) {
 
 func newEnv(hooks Hooks) *env {
 	if hooks.Echo == nil {
-		hooks.Echo = defaultEchoHandler
+		hooks.Echo = func(msg string) {
+			log.Println(msg)
+		}
+	}
+	if hooks.MarchingCubes == nil {
+		hooks.MarchingCubes = func(obj ShapeRep, delta float64, iters int) (*model3d.Mesh, error) {
+			return model3d.MarchingCubesSearch(obj.S3, delta, iters), nil
+		}
+	}
+	if hooks.DualContour == nil {
+		hooks.DualContour = func(obj ShapeRep, delta float64, repair, clip bool) (*model3d.Mesh, error) {
+			return model3d.DualContour(obj.S3, delta, repair, clip), nil
+		}
+	}
+	if hooks.MarchingSquares == nil {
+		hooks.MarchingSquares = func(obj ShapeRep, delta float64, iters int) (*model2d.Mesh, error) {
+			return model2d.MarchingSquaresSearch(obj.S2, delta, iters), nil
+		}
 	}
 	root := newScope()
 	root.vars["PI"] = Num(math.Pi)

@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GOROOT="$(go env GOROOT)"
+PUBLIC_DIR="${ROOT}/webui/public"
 
 WASM_EXEC=""
 if [[ -f "${GOROOT}/misc/wasm/wasm_exec.js" ]]; then
@@ -14,7 +15,8 @@ else
   exit 1
 fi
 
-cp "${WASM_EXEC}" "${ROOT}/webui/wasm_exec.js"
-(cd "${ROOT}" && GOOS=js GOARCH=wasm go build -o "${ROOT}/webui/m3dscad.wasm" ./webui/wasm)
+mkdir -p "${PUBLIC_DIR}"
+cp "${WASM_EXEC}" "${PUBLIC_DIR}/wasm_exec.js"
+(cd "${ROOT}" && GOOS=js GOARCH=wasm go build -o "${PUBLIC_DIR}/m3dscad.wasm" ./webui/wasm)
 
-echo "Built webui/m3dscad.wasm"
+echo "Built webui/public/m3dscad.wasm"

@@ -1,5 +1,6 @@
 *.stl
 .DS_Store
-webui/m3dscad.wasm
-webui/wasm_exec.js
+webui/dist
 webui/node_modules
+webui/public/m3dscad.wasm
+webui/public/wasm_exec.js

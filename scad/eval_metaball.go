@@ -6,6 +6,7 @@ import (
 
 	"github.com/unixpickle/model3d/model2d"
 	"github.com/unixpickle/model3d/model3d"
+	"github.com/unixpickle/webgpu-mesh/shapekernel"
 )
 
 func handleMetaball(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
@@ -14,9 +15,17 @@ func handleMetaball(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (S
 	}
 	switch childUnion.Kind {
 	case ShapeSDF2D:
-		return shapeMetaball2D(model2d.SDFToMetaball(childUnion.SDF2)), nil
+		var k *shapekernel.ShapeKernel
+		if childUnion.Kernel != nil {
+			k = asPtr(shapekernel.SDFToMetaball(*childUnion.Kernel))
+		}
+		return shapeMetaball2D(model2d.SDFToMetaball(childUnion.SDF2), k), nil
 	case ShapeSDF3D:
-		return shapeMetaball3D(model3d.SDFToMetaball(childUnion.SDF3)), nil
+		var k *shapekernel.ShapeKernel
+		if childUnion.Kernel != nil {
+			k = asPtr(shapekernel.SDFToMetaball(*childUnion.Kernel))
+		}
+		return shapeMetaball3D(model3d.SDFToMetaball(childUnion.SDF3), k), nil
 	default:
 		return ShapeRep{}, fmt.Errorf("metaball(): requires an SDF")
 	}
@@ -59,6 +68,26 @@ func handleMetaballSolid(e *env, st *CallStmt, children []ShapeRep, _ *ShapeRep)
 	if err != nil {
 		return ShapeRep{}, err
 	}
+
+	makeKernel := func(
+		weights []float64,
+		maybeKernels []*shapekernel.ShapeKernel,
+	) (*shapekernel.ShapeKernel, error) {
+		var k *shapekernel.ShapeKernel
+		if kernels, hasKernels := combineMetaballKernels(maybeKernels); hasKernels {
+			fk, err := metaballFalloffKernel(falloffName)
+			if err != nil {
+				return nil, err
+			}
+			kernelWeights := make([]float32, len(weights))
+			for i, x := range weights {
+				kernelWeights[i] = float32(x)
+			}
+			k = asPtr(shapekernel.WeightedMetaballSolid(fk, float32(threshold), kernels, kernelWeights))
+		}
+		return k, nil
+	}
+
 	switch kind {
 	case ShapeMetaball2D:
 		f, err := metaballFalloff2D(falloffName)
@@ -69,7 +98,11 @@ func handleMetaballSolid(e *env, st *CallStmt, children []ShapeRep, _ *ShapeRep)
 		for _, child := range children {
 			coll = coll.Join(child.MB2)
 		}
-		return shapeSolid2D(model2d.WeightedMetaballSolid(f, threshold, coll.Balls, coll.Weights)), nil
+		k, err := makeKernel(coll.Weights, coll.Kernels)
+		if err != nil {
+			return ShapeRep{}, err
+		}
+		return shapeSolid2D(model2d.WeightedMetaballSolid(f, threshold, coll.Balls, coll.Weights), k), nil
 	case ShapeMetaball3D:
 		f, err := metaballFalloff3D(falloffName)
 		if err != nil {
@@ -79,7 +112,11 @@ func handleMetaballSolid(e *env, st *CallStmt, children []ShapeRep, _ *ShapeRep)
 		for _, child := range children {
 			coll = coll.Join(child.MB3)
 		}
-		return shapeSolid3D(model3d.WeightedMetaballSolid(f, threshold, coll.Balls, coll.Weights)), nil
+		k, err := makeKernel(coll.Weights, coll.Kernels)
+		if err != nil {
+			return ShapeRep{}, err
+		}
+		return shapeSolid3D(model3d.WeightedMetaballSolid(f, threshold, coll.Balls, coll.Weights), k), nil
 	default:
 		return ShapeRep{}, fmt.Errorf("metaball_solid(): requires metaball children")
 	}
@@ -142,4 +179,37 @@ func metaballFalloff3D(name string) (model3d.MetaballFalloffFunc, error) {
 	default:
 		return nil, fmt.Errorf("metaball_solid(): unknown falloff %q", name)
 	}
+}
+
+func metaballFalloffKernel(name string) (shapekernel.ShapeKernel, error) {
+	switch strings.ToLower(name) {
+	case "linear":
+		return shapekernel.LinearMetaballFalloffFunc(), nil
+	case "quadratic":
+		return shapekernel.QuadraticMetaballFalloffFunc(), nil
+	case "cubic":
+		return shapekernel.CubicMetaballFalloffFunc(), nil
+	case "quartic":
+		return shapekernel.QuarticMetaballFalloffFunc(), nil
+	case "quintic":
+		return shapekernel.QuinticMetaballFalloffFunc(), nil
+	case "exponential":
+		return shapekernel.ExponentialMetaballFalloffFunc(), nil
+	case "gaussian":
+		return shapekernel.GaussianMetaballFalloffFunc(), nil
+	default:
+		return shapekernel.ShapeKernel{},
+			fmt.Errorf("metaball_solid(): unknown falloff %q for shape kernel", name)
+	}
+}
+
+func combineMetaballKernels(ks []*shapekernel.ShapeKernel) ([]shapekernel.ShapeKernel, bool) {
+	result := make([]shapekernel.ShapeKernel, len(ks))
+	for i, x := range ks {
+		if x == nil {
+			return nil, false
+		}
+		result[i] = *x
+	}
+	return result, true
 }

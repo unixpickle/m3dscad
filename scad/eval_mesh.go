@@ -5,6 +5,7 @@ import (
 
 	"github.com/unixpickle/model3d/model2d"
 	"github.com/unixpickle/model3d/model3d"
+	"github.com/unixpickle/webgpu-mesh/shapekernel"
 )
 
 func handleMarchingSquares(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
@@ -32,7 +33,10 @@ func handleMarchingSquares(e *env, st *CallStmt, _ []ShapeRep, childUnion *Shape
 	if subdiv < 1 {
 		return ShapeRep{}, fmt.Errorf("marching_squares(): subdiv must be >= 1")
 	}
-	mesh := model2d.MarchingSquaresSearch(childUnion.S2, delta, int(subdiv))
+	mesh, err := e.hooks.MarchingSquares(*childUnion, delta, int(subdiv))
+	if err != nil {
+		return ShapeRep{}, fmt.Errorf("marching_squares(): %w", err)
+	}
 	return shapeMesh2D(mesh), nil
 }
 
@@ -61,7 +65,10 @@ func handleMarchingCubes(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRe
 	if subdiv < 1 {
 		return ShapeRep{}, fmt.Errorf("marching_cubes(): subdiv must be >= 1")
 	}
-	mesh := model3d.MarchingCubesSearch(childUnion.S3, delta, int(subdiv))
+	mesh, err := e.hooks.MarchingCubes(*childUnion, delta, int(subdiv))
+	if err != nil {
+		return ShapeRep{}, fmt.Errorf("marching_cubes(): %w", err)
+	}
 	return shapeMesh3D(mesh), nil
 }
 
@@ -92,7 +99,10 @@ func handleDualContour(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep)
 	if delta <= 0 {
 		return ShapeRep{}, fmt.Errorf("dual_contour(): delta must be > 0")
 	}
-	mesh := model3d.DualContour(childUnion.S3, delta, repair, clip)
+	mesh, err := e.hooks.DualContour(*childUnion, delta, repair, clip)
+	if err != nil {
+		return ShapeRep{}, fmt.Errorf("dual_contour(): %w", err)
+	}
 	return shapeMesh3D(mesh), nil
 }
 
@@ -102,9 +112,15 @@ func handleMeshToSDF(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (
 	}
 	switch childUnion.Kind {
 	case ShapeMesh2D:
-		return shapeSDF2D(model2d.MeshToSDF(childUnion.M2)), nil
+		return shapeSDF2D(
+			model2d.MeshToSDF(childUnion.M2),
+			asPtr(shapekernel.Mesh2DSDF(childUnion.M2)),
+		), nil
 	case ShapeMesh3D:
-		return shapeSDF3D(model3d.MeshToSDF(childUnion.M3)), nil
+		return shapeSDF3D(
+			model3d.MeshToSDF(childUnion.M3),
+			asPtr(shapekernel.Mesh3DSDF(childUnion.M3)),
+		), nil
 	default:
 		return ShapeRep{}, fmt.Errorf("mesh_to_sdf(): requires a mesh")
 	}

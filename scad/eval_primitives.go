@@ -6,6 +6,7 @@ import (
 	"github.com/unixpickle/model3d/model2d"
 	"github.com/unixpickle/model3d/model3d"
 	"github.com/unixpickle/model3d/toolbox3d"
+	"github.com/unixpickle/webgpu-mesh/shapekernel"
 )
 
 func handleFnSolid(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -23,7 +24,7 @@ func handleFnSolid(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, e
 			}
 			return in
 		})
-		return shapeSolid3D(solid), nil
+		return shapeSolid3D(solid, nil), nil
 	}
 	min2 := model2d.XY(min[0], min[1])
 	max2 := model2d.XY(max[0], max[1])
@@ -34,7 +35,7 @@ func handleFnSolid(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, e
 		}
 		return in
 	})
-	return shapeSolid2D(solid), nil
+	return shapeSolid2D(solid, nil), nil
 }
 
 func handleSphere(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -42,7 +43,7 @@ func handleSphere(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, er
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	return shapeSolid3D(sphere), nil
+	return shapeSolid3D(sphere, asPtr(shapekernel.SphereSolid(float32(sphere.Radius)))), nil
 }
 
 func handleSphereMetaball(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -50,7 +51,8 @@ func handleSphereMetaball(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (Shap
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	return shapeMetaball3D(sphere), nil
+	k := asPtr(shapekernel.SDFToMetaball(shapekernel.SphereSDF(float32(sphere.Radius))))
+	return shapeMetaball3D(sphere, k), nil
 }
 
 func handleSphereSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -58,7 +60,8 @@ func handleSphereSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep,
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	return shapeSDF3D(sphere), nil
+	k := asPtr(shapekernel.SphereSDF(float32(sphere.Radius)))
+	return shapeSDF3D(sphere, k), nil
 }
 
 func handleCube(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -66,7 +69,7 @@ func handleCube(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, erro
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	return shapeSolid3D(rect), nil
+	return shapeSolid3D(rect, rect3DSolidKernel(rect)), nil
 }
 
 func handleCubeMetaball(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -74,7 +77,11 @@ func handleCubeMetaball(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeR
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	return shapeMetaball3D(rect), nil
+	k := rect3DSDFKernel(rect)
+	if k != nil {
+		k = asPtr(shapekernel.SDFToMetaball(*k))
+	}
+	return shapeMetaball3D(rect, k), nil
 }
 
 func handleCubeSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -82,7 +89,7 @@ func handleCubeSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, e
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	return shapeSDF3D(rect), nil
+	return shapeSDF3D(rect, rect3DSDFKernel(rect)), nil
 }
 
 func handleCylinder(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -90,7 +97,7 @@ func handleCylinder(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, 
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	return shapeSolid3D(cyl), nil
+	return shapeSolid3D(cyl, primitiveSolidKernel3D(cyl)), nil
 }
 
 func handleCylinderMetaball(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -102,7 +109,11 @@ func handleCylinderMetaball(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (Sh
 	if !ok {
 		return ShapeRep{}, fmt.Errorf("cylinder_metaball(): primitive does not implement metaball")
 	}
-	return shapeMetaball3D(metaball), nil
+	k := primitiveSDFKernel3D(cyl)
+	if k != nil {
+		k = asPtr(shapekernel.SDFToMetaball(*k))
+	}
+	return shapeMetaball3D(metaball, k), nil
 }
 
 func handleCylinderSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -110,7 +121,7 @@ func handleCylinderSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRe
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	return shapeSDF3D(cyl), nil
+	return shapeSDF3D(cyl, primitiveSDFKernel3D(cyl)), nil
 }
 
 func handleCapsule(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -118,7 +129,7 @@ func handleCapsule(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, e
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	return shapeSolid3D(capsule), nil
+	return shapeSolid3D(capsule, primitiveSolidKernel3D(capsule)), nil
 }
 
 func handleCapsuleMetaball(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -126,7 +137,11 @@ func handleCapsuleMetaball(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (Sha
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	return shapeMetaball3D(capsule), nil
+	k := primitiveSDFKernel3D(capsule)
+	if k != nil {
+		k = asPtr(shapekernel.SDFToMetaball(*k))
+	}
+	return shapeMetaball3D(capsule, k), nil
 }
 
 func handleCapsuleSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -134,7 +149,7 @@ func handleCapsuleSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	return shapeSDF3D(capsule), nil
+	return shapeSDF3D(capsule, primitiveSDFKernel3D(capsule)), nil
 }
 
 func handleCircle(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -142,7 +157,7 @@ func handleCircle(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, er
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	return shapeSolid2D(circle), nil
+	return shapeSolid2D(circle, primitiveSolidKernel2D(circle)), nil
 }
 
 func handleCircleMetaball(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -150,7 +165,11 @@ func handleCircleMetaball(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (Shap
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	return shapeMetaball2D(circle), nil
+	k := primitiveSDFKernel2D(circle)
+	if k != nil {
+		k = asPtr(shapekernel.SDFToMetaball(*k))
+	}
+	return shapeMetaball2D(circle, k), nil
 }
 
 func handleCircleSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -158,7 +177,7 @@ func handleCircleSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep,
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	return shapeSDF2D(circle), nil
+	return shapeSDF2D(circle, primitiveSDFKernel2D(circle)), nil
 }
 
 func handleCircleHull(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -176,7 +195,7 @@ func handleHullSolid(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (
 	if childUnion.Kind != ShapeHull2D {
 		return ShapeRep{}, fmt.Errorf("hull_solid(): requires a Hull2D")
 	}
-	return shapeSolid2D(childUnion.H2.Solid()), nil
+	return childUnion.H2.Solid(), nil
 }
 
 func handleHullSDF(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
@@ -186,7 +205,7 @@ func handleHullSDF(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (Sh
 	if childUnion.Kind != ShapeHull2D {
 		return ShapeRep{}, fmt.Errorf("hull_sdf(): requires a Hull2D")
 	}
-	return shapeSDF2D(childUnion.H2.SDF()), nil
+	return childUnion.H2.SDF(), nil
 }
 
 func handleTeardrop(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -194,7 +213,11 @@ func handleTeardrop(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, 
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	return shapeSolid2D(teardrop), nil
+	var k *shapekernel.ShapeKernel
+	if teardrop.Center == model2d.Origin && teardrop.Direction == model2d.Y(1) {
+		k = asPtr(shapekernel.Teardrop2DSolid(float32(teardrop.Radius)))
+	}
+	return shapeSolid2D(teardrop, k), nil
 }
 
 func handleSquare(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -202,7 +225,7 @@ func handleSquare(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, er
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	return shapeSolid2D(rect), nil
+	return shapeSolid2D(rect, rect2DSolidKernel(rect)), nil
 }
 
 func handleSquareMetaball(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -210,7 +233,11 @@ func handleSquareMetaball(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (Shap
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	return shapeMetaball2D(rect), nil
+	k := rect2DSDFKernel(rect)
+	if k != nil {
+		k = asPtr(shapekernel.SDFToMetaball(*k))
+	}
+	return shapeMetaball2D(rect, k), nil
 }
 
 func handleSquareSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -218,7 +245,7 @@ func handleSquareSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep,
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	return shapeSDF2D(rect), nil
+	return shapeSDF2D(rect, rect2DSDFKernel(rect)), nil
 }
 
 func handleLineJoin(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -249,25 +276,34 @@ func handleLineJoin(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, 
 		return ShapeRep{}, err
 	}
 	segs := make([]model3d.Segment, 0, len(points)-1)
+	kernelSegs := make([]shapekernel.Segment3, 0, len(points)-1)
 	for i := 0; i < len(points)-1; i++ {
-		segs = append(segs, model3d.NewSegment(points[i], points[i+1]))
+		p1, p2 := points[i], points[i+1]
+		segs = append(segs, model3d.NewSegment(p1, p2))
+		kernelSegs = append(kernelSegs, shapekernel.Segment3{coordToVec3(p1), coordToVec3(p2)})
 	}
 	switch norm {
 	case "l2":
-		return shapeSolid3D(toolbox3d.LineJoin(r, segs...)), nil
+		return shapeSolid3D(
+			toolbox3d.LineJoin(r, segs...),
+			asPtr(shapekernel.LineJoinSolid(float32(r), kernelSegs...)),
+		), nil
 	case "l1":
-		return shapeSolid3D(toolbox3d.L1LineJoin(r, segs...)), nil
+		return shapeSolid3D(
+			toolbox3d.L1LineJoin(r, segs...),
+			asPtr(shapekernel.L1LineJoinSolid(float32(r), kernelSegs...)),
+		), nil
 	default:
 		return ShapeRep{}, fmt.Errorf(`line_join(): norm must be "l2" or "l1"`)
 	}
 }
 
 func handlePolygon(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
-	solid, err := parsePolygonSolid(e, st)
+	mesh, err := parsePolygonMesh(e, st)
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	return shapeSolid2D(solid), nil
+	return shapeSolid2D(mesh.Solid(), asPtr(shapekernel.Mesh2DSolid(mesh))), nil
 }
 
 func handlePolygonHull(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -283,7 +319,7 @@ func handlePolygonSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	return shapeSDF2D(model2d.MeshToSDF(mesh)), nil
+	return shapeSDF2D(model2d.MeshToSDF(mesh), asPtr(shapekernel.Mesh2DSDF(mesh))), nil
 }
 
 func handlePolygonMesh(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -292,29 +328,6 @@ func handlePolygonMesh(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRe
 		return ShapeRep{}, err
 	}
 	return shapeMesh2D(mesh), nil
-}
-
-func parsePolygonSolid(e *env, st *CallStmt) (model2d.Solid, error) {
-	points, paths, err := parsePolygonData(e, st)
-	if err != nil {
-		return nil, err
-	}
-	primary, err := polygonPathSolid(points, paths[0])
-	if err != nil {
-		return nil, err
-	}
-	if len(paths) == 1 {
-		return primary, nil
-	}
-	holes := make([]model2d.Solid, 0, len(paths)-1)
-	for _, p := range paths[1:] {
-		s, err := polygonPathSolid(points, p)
-		if err != nil {
-			return nil, err
-		}
-		holes = append(holes, s)
-	}
-	return model2d.Subtract(primary, model2d.JoinedSolid(holes)), nil
 }
 
 func parsePolygonMesh(e *env, st *CallStmt) (*model2d.Mesh, error) {

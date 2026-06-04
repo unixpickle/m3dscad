@@ -577,9 +577,8 @@ func handleClip(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (Shape
 			emptySolid := model3d.CheckedFuncSolid(min, min, func(model3d.Coord3D) bool { return false })
 			return shapeSolid3D(emptySolid, asPtr(shapekernel.Empty(shapekernel.Solid3D))), nil
 		}
-		rect := model3d.NewRect(min, max)
 		return shapeSolid3D(
-			model3d.IntersectedSolid{childUnion.S3, rect},
+			model3d.ClipSolid(childUnion.S3, min, max),
 			makeKernel(coordToVec3(min), coordToVec3(max)),
 		), nil
 	case ShapeSolid2D:
@@ -592,9 +591,8 @@ func handleClip(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (Shape
 			emptySolid := model2d.CheckedFuncSolid(min, min, func(model2d.Coord) bool { return false })
 			return shapeSolid2D(emptySolid, asPtr(shapekernel.Empty(shapekernel.Solid2D))), nil
 		}
-		rect := model2d.NewRect(min, max)
 		return shapeSolid2D(
-			model2d.IntersectedSolid{childUnion.S2, rect},
+			model2d.ClipSolid(childUnion.S2, min, max),
 			makeKernel(coordToVec2(min), coordToVec2(max)),
 		), nil
 	case ShapeSDF3D:
@@ -607,9 +605,8 @@ func handleClip(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (Shape
 			emptySDF := model3d.FuncSDF(min, min, func(model3d.Coord3D) float64 { return -1 })
 			return shapeSDF3D(emptySDF, asPtr(shapekernel.Empty(shapekernel.SDF3D))), nil
 		}
-		clipRect := model3d.NewRect(min, max)
 		return shapeSDF3D(
-			model3d.IntersectSDFs([]model3d.SDF{childUnion.SDF3, clipRect}),
+			model3d.ClipSDF(childUnion.SDF3, min, max),
 			makeKernel(coordToVec3(min), coordToVec3(max)),
 		), nil
 	case ShapeSDF2D:
@@ -622,9 +619,8 @@ func handleClip(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (Shape
 			emptySDF := model2d.FuncSDF(min, min, func(model2d.Coord) float64 { return -1 })
 			return shapeSDF2D(emptySDF, asPtr(shapekernel.Empty(shapekernel.SDF2D))), nil
 		}
-		clipRect := model2d.NewRect(min, max)
 		return shapeSDF2D(
-			model2d.IntersectSDFs([]model2d.SDF{childUnion.SDF2, clipRect}),
+			model2d.ClipSDF(childUnion.SDF2, min, max),
 			makeKernel(coordToVec2(min), coordToVec2(max)),
 		), nil
 	default:
@@ -930,48 +926,10 @@ func insetSDF(opName string, childUnion *ShapeRep, delta float64) (ShapeRep, err
 
 	switch childUnion.Kind {
 	case ShapeSDF2D:
-		min, max := insetBounds2D(childUnion.SDF2.Min(), childUnion.SDF2.Max(), delta)
-		return shapeSDF2D(model2d.FuncSDF(min, max, func(c model2d.Coord) float64 {
-			return childUnion.SDF2.SDF(c) - delta
-		}), makeKernel()), nil
+		return shapeSDF2D(model2d.InsetSDF(childUnion.SDF2, delta), makeKernel()), nil
 	case ShapeSDF3D:
-		min, max := insetBounds3D(childUnion.SDF3.Min(), childUnion.SDF3.Max(), delta)
-		return shapeSDF3D(model3d.FuncSDF(min, max, func(c model3d.Coord3D) float64 {
-			return childUnion.SDF3.SDF(c) - delta
-		}), makeKernel()), nil
+		return shapeSDF3D(model3d.InsetSDF(childUnion.SDF3, delta), makeKernel()), nil
 	default:
 		return ShapeRep{}, fmt.Errorf("%s(): requires an SDF", opName)
 	}
-}
-
-func insetBounds2D(min, max model2d.Coord, delta float64) (model2d.Coord, model2d.Coord) {
-	min = min.AddScalar(delta)
-	max = max.AddScalar(-delta)
-	if min.X > max.X {
-		mid := (min.X + max.X) / 2
-		min.X, max.X = mid, mid
-	}
-	if min.Y > max.Y {
-		mid := (min.Y + max.Y) / 2
-		min.Y, max.Y = mid, mid
-	}
-	return min, max
-}
-
-func insetBounds3D(min, max model3d.Coord3D, delta float64) (model3d.Coord3D, model3d.Coord3D) {
-	min = min.AddScalar(delta)
-	max = max.AddScalar(-delta)
-	if min.X > max.X {
-		mid := (min.X + max.X) / 2
-		min.X, max.X = mid, mid
-	}
-	if min.Y > max.Y {
-		mid := (min.Y + max.Y) / 2
-		min.Y, max.Y = mid, mid
-	}
-	if min.Z > max.Z {
-		mid := (min.Z + max.Z) / 2
-		min.Z, max.Z = mid, mid
-	}
-	return min, max
 }

@@ -21,3 +21,5 @@ require (
 )
 
 replace github.com/unixpickle/webgpu-mesh => /Users/alex/code/github.com/unixpickle/webgpu-meshes
+
+replace github.com/unixpickle/model3d => /Users/alex/code/github.com/unixpickle/model3d

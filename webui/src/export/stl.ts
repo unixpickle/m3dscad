@@ -1,4 +1,7 @@
-export function buildBinarySTL(positions, normals) {
+export function buildBinarySTL(
+  positions: Float32Array,
+  normals: Float32Array,
+): ArrayBuffer {
   const triCount = Math.floor(positions.length / 9);
   const buffer = new ArrayBuffer(84 + triCount * 50);
   const view = new DataView(buffer);

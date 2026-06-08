@@ -1,6 +1,8 @@
+import type { Bounds, CameraState, Mat4, Vec3 } from "../types";
+
 export const CAMERA_FOV_RAD = (60 * Math.PI) / 180;
 
-export function resizeCanvas(canvas) {
+export function resizeCanvas(canvas: HTMLCanvasElement): void {
   const ratio = window.devicePixelRatio || 1;
   const width = Math.floor(canvas.clientWidth * ratio);
   const height = Math.floor(canvas.clientHeight * ratio);
@@ -10,7 +12,7 @@ export function resizeCanvas(canvas) {
   }
 }
 
-export function cameraEye(camera) {
+export function cameraEye(camera: CameraState): Vec3 {
   return [
     camera.target[0] +
       camera.radius * Math.cos(camera.theta) * Math.sin(camera.phi),
@@ -20,7 +22,11 @@ export function cameraEye(camera) {
   ];
 }
 
-export function buildMatrices(camera, canvas, bounds) {
+export function buildMatrices(
+  camera: CameraState,
+  canvas: HTMLCanvasElement,
+  bounds: Bounds | null,
+): { model: Mat4; view: Mat4; proj: Mat4; eye: Vec3 } {
   const aspect = canvas.width / Math.max(canvas.height, 1);
   const eye = cameraEye(camera);
   const { near, far } = clipPlanesForBounds(eye, bounds);
@@ -30,7 +36,10 @@ export function buildMatrices(camera, canvas, bounds) {
   return { model, view, proj, eye };
 }
 
-export function clipPlanesForBounds(eye, bounds) {
+export function clipPlanesForBounds(
+  eye: Vec3,
+  bounds: Bounds | null,
+): { near: number; far: number } {
   if (!bounds) {
     return { near: 0.01, far: 1000 };
   }
@@ -58,11 +67,16 @@ export function clipPlanesForBounds(eye, bounds) {
   return { near, far };
 }
 
-export function mat4Identity() {
+export function mat4Identity(): Mat4 {
   return new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
 }
 
-export function mat4Perspective(fov, aspect, near, far) {
+export function mat4Perspective(
+  fov: number,
+  aspect: number,
+  near: number,
+  far: number,
+): Mat4 {
   const f = 1 / Math.tan(fov / 2);
   const nf = 1 / (near - far);
   return new Float32Array([
@@ -85,7 +99,7 @@ export function mat4Perspective(fov, aspect, near, far) {
   ]);
 }
 
-export function mat4LookAt(eye, target, up) {
+export function mat4LookAt(eye: Vec3, target: Vec3, up: Vec3): Mat4 {
   const z0 = eye[0] - target[0];
   const z1 = eye[1] - target[1];
   const z2 = eye[2] - target[2];
@@ -126,12 +140,12 @@ export function mat4LookAt(eye, target, up) {
   ]);
 }
 
-export function normalize3(v) {
+export function normalize3(v: Vec3): Vec3 {
   const len = Math.hypot(v[0], v[1], v[2]) || 1;
   return [v[0] / len, v[1] / len, v[2] / len];
 }
 
-export function getCameraBasis(camera) {
+export function getCameraBasis(camera: CameraState): { right: Vec3; up: Vec3 } {
   const eye = cameraEye(camera);
   const forward = normalize3([
     camera.target[0] - eye[0],
@@ -148,7 +162,12 @@ export function getCameraBasis(camera) {
   return { right, up };
 }
 
-export function panCamera(camera, dx, dy, canvas) {
+export function panCamera(
+  camera: CameraState,
+  dx: number,
+  dy: number,
+  canvas: HTMLCanvasElement,
+): void {
   const viewportHeight = Math.max(canvas.clientHeight, 1);
   const worldPerPixel =
     (2 * camera.radius * Math.tan(CAMERA_FOV_RAD / 2)) / viewportHeight;
@@ -162,11 +181,11 @@ export function panCamera(camera, dx, dy, canvas) {
   ];
 }
 
-export function dot3(a, b) {
+export function dot3(a: Vec3, b: Vec3): number {
   return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 }
 
-export function cross3(a, b) {
+export function cross3(a: Vec3, b: Vec3): Vec3 {
   return [
     a[1] * b[2] - a[2] * b[1],
     a[2] * b[0] - a[0] * b[2],

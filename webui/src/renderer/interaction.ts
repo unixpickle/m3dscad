@@ -1,13 +1,22 @@
-import { panCamera } from "./math.js";
+import { panCamera } from "./math";
+import type { MeshRenderer } from "./mesh_renderer";
 
-function clampCameraPhi(renderer) {
+interface PointerPoint {
+  x: number;
+  y: number;
+}
+
+function clampCameraPhi(renderer: MeshRenderer): void {
   renderer.camera.phi = Math.min(
     Math.max(renderer.camera.phi, 0.1),
     Math.PI - 0.1,
   );
 }
 
-export function setupInteraction(renderer, canvas) {
+export function setupInteraction(
+  renderer: MeshRenderer,
+  canvas: HTMLCanvasElement,
+): void {
   canvas.style.touchAction = "none";
   canvas.addEventListener("contextmenu", (event) => {
     event.preventDefault();
@@ -47,31 +56,47 @@ export function setupInteraction(renderer, canvas) {
     renderer.requestRender();
   });
 
-  const pointers = new Map();
-  let lastPinchDist = null;
+  const pointers = new Map<number, PointerPoint>();
+  let lastPinchDist: number | null = null;
+  let lastPinchCenter: PointerPoint | null = null;
 
-  const updatePinch = () => {
+  const updatePinch = (): void => {
     if (pointers.size !== 2) {
       lastPinchDist = null;
+      lastPinchCenter = null;
       return;
     }
     const pts = Array.from(pointers.values());
     const dx = pts[0].x - pts[1].x;
     const dy = pts[0].y - pts[1].y;
     const dist = Math.hypot(dx, dy);
-    if (lastPinchDist != null && lastPinchDist > 0) {
+    const center = {
+      x: (pts[0].x + pts[1].x) / 2,
+      y: (pts[0].y + pts[1].y) / 2,
+    };
+    if (lastPinchCenter != null) {
+      panCamera(
+        renderer.camera,
+        center.x - lastPinchCenter.x,
+        center.y - lastPinchCenter.y,
+        canvas,
+      );
+    }
+    if (lastPinchDist != null && lastPinchDist > 0 && dist > 0) {
       const scale = lastPinchDist / dist;
       renderer.camera.radius *= scale;
       renderer.camera.radius = Math.max(renderer.camera.radius, 0.4);
-      renderer.requestRender();
     }
     lastPinchDist = dist;
+    lastPinchCenter = center;
+    renderer.requestRender();
   };
 
   canvas.addEventListener("pointerdown", (event) => {
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (event.pointerType === "mouse") {
       if (event.button !== 0 && event.button !== 2) {
+        pointers.delete(event.pointerId);
         return;
       }
       renderer.dragging = true;
@@ -85,6 +110,7 @@ export function setupInteraction(renderer, canvas) {
       renderer.dragging = false;
       renderer.dragMode = null;
       lastPinchDist = null;
+      lastPinchCenter = null;
     }
     canvas.setPointerCapture(event.pointerId);
   });
@@ -111,7 +137,7 @@ export function setupInteraction(renderer, canvas) {
     }
   });
 
-  const onPointerEnd = (event) => {
+  const onPointerEnd = (event: PointerEvent): void => {
     pointers.delete(event.pointerId);
     if (pointers.size === 1) {
       const remaining = Array.from(pointers.values())[0];
@@ -119,10 +145,12 @@ export function setupInteraction(renderer, canvas) {
       renderer.dragMode = "rotate";
       renderer.lastPos = [remaining.x, remaining.y];
       lastPinchDist = null;
+      lastPinchCenter = null;
     } else if (pointers.size === 0) {
       renderer.dragging = false;
       renderer.dragMode = null;
       lastPinchDist = null;
+      lastPinchCenter = null;
     }
     if (canvas.hasPointerCapture(event.pointerId)) {
       canvas.releasePointerCapture(event.pointerId);

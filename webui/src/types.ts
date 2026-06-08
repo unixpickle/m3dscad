@@ -3,6 +3,9 @@ export interface Bounds {
   max: [number, number, number] | number[];
 }
 
+export type Vec3 = [number, number, number];
+export type Mat4 = Float32Array<ArrayBuffer>;
+
 export interface MeshData {
   positions: Float32Array;
   normals: Float32Array;
@@ -13,7 +16,16 @@ export interface CameraState {
   theta: number;
   phi: number;
   radius: number;
-  target: [number, number, number] | number[];
+  target: Vec3;
+}
+
+export interface AxisElements {
+  axisLineX: SVGLineElement;
+  axisLineY: SVGLineElement;
+  axisLineZ: SVGLineElement;
+  axisLabelX: SVGTextElement;
+  axisLabelY: SVGTextElement;
+  axisLabelZ: SVGTextElement;
 }
 
 export interface OverlayOptions {

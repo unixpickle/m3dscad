@@ -1,24 +1,38 @@
 import "../style.css";
-import { createEditor, loadInitialSource } from "./editor.js";
-import { buildBinarySTL } from "./export/stl.js";
-import { MeshRenderer } from "./renderer/mesh-renderer.js";
-import { setupMobileToggle, setupResizer } from "./ui/layout.js";
-import { createOverlayController } from "./ui/overlay.js";
+import { createEditor, loadInitialSource } from "./editor";
+import { buildBinarySTL } from "./export/stl";
+import { MeshRenderer } from "./renderer/mesh_renderer";
+import type { AxisElements } from "./types";
+import { setupMobileToggle, setupResizer } from "./ui/layout";
+import { createOverlayController } from "./ui/overlay";
 import { isWebGPUSupported } from "./webgpu/meshing";
 import {
   COMPILATION_CANCELED_ERROR,
   GO_EXITED_ERROR,
   createWorkerClient,
-} from "./worker-client";
+} from "./worker_client";
 
 const WEBGPU_STORAGE_KEY = "m3dscad_use_webgpu";
 
-function requireElement(id) {
+interface ExportMesh {
+  positions: Float32Array;
+  normals: Float32Array;
+}
+
+function requireElement<T extends HTMLElement = HTMLElement>(id: string): T {
   const element = document.getElementById(id);
   if (!element) {
     throw new Error(`Missing required element #${id}`);
   }
-  return element;
+  return element as unknown as T;
+}
+
+function requireSVGElement<T extends SVGElement = SVGElement>(id: string): T {
+  const element = document.getElementById(id);
+  if (!element) {
+    throw new Error(`Missing required element #${id}`);
+  }
+  return element as unknown as T;
 }
 
 const codeHostEl = requireElement("code");
@@ -26,25 +40,25 @@ const statusEl = requireElement("status");
 const overlayCard = requireElement("overlayCard");
 const overlayText = requireElement("overlayText");
 const spinnerEl = requireElement("spinner");
-const cancelBtn = requireElement("cancel");
-const compileBtn = requireElement("compile");
-const resetViewBtn = requireElement("resetView");
-const downloadBtn = requireElement("download");
-const gridEl = requireElement("grid");
-const useWebGPUEl = requireElement("useWebGPU");
-const canvas = requireElement("preview");
+const cancelBtn = requireElement<HTMLButtonElement>("cancel");
+const compileBtn = requireElement<HTMLButtonElement>("compile");
+const resetViewBtn = requireElement<HTMLButtonElement>("resetView");
+const downloadBtn = requireElement<HTMLButtonElement>("download");
+const gridEl = requireElement<HTMLInputElement>("grid");
+const useWebGPUEl = requireElement<HTMLInputElement>("useWebGPU");
+const canvas = requireElement<HTMLCanvasElement>("preview");
 const resizer = requireElement("resizer");
 const appEl = requireElement("app");
-const toggleCodeBtn = requireElement("toggleCode");
-const togglePreviewBtn = requireElement("togglePreview");
+const toggleCodeBtn = requireElement<HTMLButtonElement>("toggleCode");
+const togglePreviewBtn = requireElement<HTMLButtonElement>("togglePreview");
 
-const axisElements = {
-  axisLineX: requireElement("axisLineX"),
-  axisLineY: requireElement("axisLineY"),
-  axisLineZ: requireElement("axisLineZ"),
-  axisLabelX: requireElement("axisLabelX"),
-  axisLabelY: requireElement("axisLabelY"),
-  axisLabelZ: requireElement("axisLabelZ"),
+const axisElements: AxisElements = {
+  axisLineX: requireSVGElement<SVGLineElement>("axisLineX"),
+  axisLineY: requireSVGElement<SVGLineElement>("axisLineY"),
+  axisLineZ: requireSVGElement<SVGLineElement>("axisLineZ"),
+  axisLabelX: requireSVGElement<SVGTextElement>("axisLabelX"),
+  axisLabelY: requireSVGElement<SVGTextElement>("axisLabelY"),
+  axisLabelZ: requireSVGElement<SVGTextElement>("axisLabelZ"),
 };
 
 const overlay = createOverlayController({
@@ -66,12 +80,12 @@ useWebGPUEl.addEventListener("change", () => {
   window.localStorage.setItem(WEBGPU_STORAGE_KEY, String(useWebGPUEl.checked));
 });
 
-function clearMeshResult() {
+function clearMeshResult(): void {
   lastMesh = null;
   downloadBtn.disabled = true;
 }
 
-function handleWorkerError(errText) {
+function handleWorkerError(errText: string): void {
   statusEl.textContent = errText;
   overlay.set(errText, { idle: true });
   clearMeshResult();
@@ -85,7 +99,7 @@ const editor = createEditor({
   },
 });
 
-let lastMesh = null;
+let lastMesh: ExportMesh | null = null;
 
 const renderer = new MeshRenderer(canvas, {
   axisElements,
@@ -115,7 +129,7 @@ const workerClient = createWorkerClient({
   onWorkerError: handleWorkerError,
 });
 
-async function compile() {
+async function compile(): Promise<void> {
   if (workerClient.isBusy()) {
     return;
   }
@@ -144,16 +158,17 @@ async function compile() {
     downloadBtn.disabled = result.positions.length === 0;
     statusEl.textContent = `Triangles: ${result.positions.length / 9}`;
     overlay.set("", { idle: true });
-  } catch (err) {
-    if (err?.message === COMPILATION_CANCELED_ERROR) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : undefined;
+    if (message === COMPILATION_CANCELED_ERROR) {
       return;
     }
-    if (err?.message === GO_EXITED_ERROR) {
+    if (message === GO_EXITED_ERROR) {
       statusEl.textContent = "WASM runtime exited. Reinitializing...";
       overlay.set(statusEl.textContent, { idle: true });
       return;
     }
-    const errText = err?.message || "WASM initialization failed.";
+    const errText = message || "WASM initialization failed.";
     handleWorkerError(errText);
   }
 }

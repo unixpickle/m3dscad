@@ -12,14 +12,29 @@ difference() {
 }
 `;
 
-export function loadInitialSource() {
+interface EditorOptions {
+  parent: HTMLElement;
+  initialSource: string;
+  onSave?: () => void;
+}
+
+export interface SourceEditor {
+  getSource(): string;
+  view: EditorView;
+}
+
+export function loadInitialSource(): string {
   const storedSource = window.localStorage.getItem(SOURCE_STORAGE_KEY);
   return storedSource && storedSource.trim().length > 0
     ? storedSource
     : DEFAULT_SOURCE;
 }
 
-export function createEditor({ parent, initialSource, onSave }) {
+export function createEditor({
+  parent,
+  initialSource,
+  onSave,
+}: EditorOptions): SourceEditor {
   const editorView = new EditorView({
     state: EditorState.create({
       doc: initialSource,

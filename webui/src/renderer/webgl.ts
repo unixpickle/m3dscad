@@ -29,8 +29,15 @@ export const fragmentShader = `
   }
 `;
 
-export function createShader(gl, type, source) {
+export function createShader(
+  gl: WebGLRenderingContext,
+  type: number,
+  source: string,
+): WebGLShader {
   const shader = gl.createShader(type);
+  if (!shader) {
+    throw new Error("Failed to create shader.");
+  }
   gl.shaderSource(shader, source);
   gl.compileShader(shader);
   if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
@@ -41,8 +48,15 @@ export function createShader(gl, type, source) {
   return shader;
 }
 
-export function createProgram(gl, vsSource, fsSource) {
+export function createProgram(
+  gl: WebGLRenderingContext,
+  vsSource: string,
+  fsSource: string,
+): WebGLProgram {
   const program = gl.createProgram();
+  if (!program) {
+    throw new Error("Failed to create WebGL program.");
+  }
   const vs = createShader(gl, gl.VERTEX_SHADER, vsSource);
   const fs = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
   gl.attachShader(program, vs);

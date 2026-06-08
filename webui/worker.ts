@@ -1,6 +1,10 @@
 /// <reference lib="webworker" />
 
-import type { WebGPUMeshRequestPayload, WorkerRequest, WorkerResponse } from "./src/types";
+import type {
+  WebGPUMeshRequestPayload,
+  WorkerRequest,
+  WorkerResponse,
+} from "./src/types";
 import { handleWebGPUMeshRequest } from "./src/webgpu/meshing";
 
 const goExitedError = "Go program has already exited";
@@ -24,9 +28,7 @@ interface WorkerGlobalWithRuntime extends DedicatedWorkerGlobalScope {
     gridSize: number,
     options: CompileOptions,
   ) => Promise<unknown> | unknown;
-  m3dscadWebGPUMesh?: (
-    request: WebGPUMeshRequestPayload,
-  ) => Promise<unknown>;
+  m3dscadWebGPUMesh?: (request: WebGPUMeshRequestPayload) => Promise<unknown>;
 }
 
 const workerScope = self as WorkerGlobalWithRuntime;
@@ -57,7 +59,10 @@ function installWebGPUBridge(): void {
   workerScope.m3dscadWebGPUMesh = (request) => handleWebGPUMeshRequest(request);
 }
 
-function instantiateWasm(go: GoRuntime, wasmUrl: string): Promise<WebAssembly.WebAssemblyInstantiatedSource> {
+function instantiateWasm(
+  go: GoRuntime,
+  wasmUrl: string,
+): Promise<WebAssembly.WebAssemblyInstantiatedSource> {
   return fetch(wasmUrl).then((resp) => {
     if (!resp.ok) {
       throw new Error(
@@ -134,54 +139,57 @@ function compileResultMessage(
   } as WorkerResponse;
 }
 
-workerScope.addEventListener("message", (event: MessageEvent<WorkerRequest>) => {
-  const msg = event.data;
-  if (!msg) {
-    return;
-  }
-  if (msg.type === "init") {
-    void initWasm().catch((err: unknown) => {
-      postWorkerMessage({
-        type: "init_error",
-        error: err instanceof Error ? err.message : String(err),
-      });
-    });
-    return;
-  }
-  if (msg.type !== "compile") {
-    return;
-  }
-  void initWasm()
-    .then(() => {
-      if (!ready || typeof workerScope.m3dscadCompile !== "function") {
-        postCompileError(msg.id, goExitedError);
-        return;
-      }
-      return Promise.resolve(
-        workerScope.m3dscadCompile(msg.code, msg.gridSize, {
-          useWebGPU: Boolean(msg.useWebGPU),
-        }),
-      )
-        .then((result) => {
-          const response = compileResultMessage(msg.id, result);
-          if (!response) {
-            resetWasmState();
-            postCompileError(msg.id, goExitedError);
-            return;
-          }
-          postWorkerMessage(response);
-        })
-        .catch((err: unknown) => {
-          postCompileError(
-            msg.id,
-            err instanceof Error ? err.message : String(err),
-          );
+workerScope.addEventListener(
+  "message",
+  (event: MessageEvent<WorkerRequest>) => {
+    const msg = event.data;
+    if (!msg) {
+      return;
+    }
+    if (msg.type === "init") {
+      void initWasm().catch((err: unknown) => {
+        postWorkerMessage({
+          type: "init_error",
+          error: err instanceof Error ? err.message : String(err),
         });
-    })
-    .catch((err: unknown) => {
-      postCompileError(
-        msg.id,
-        err instanceof Error ? err.message : String(err),
-      );
-    });
-});
+      });
+      return;
+    }
+    if (msg.type !== "compile") {
+      return;
+    }
+    void initWasm()
+      .then(() => {
+        if (!ready || typeof workerScope.m3dscadCompile !== "function") {
+          postCompileError(msg.id, goExitedError);
+          return;
+        }
+        return Promise.resolve(
+          workerScope.m3dscadCompile(msg.code, msg.gridSize, {
+            useWebGPU: Boolean(msg.useWebGPU),
+          }),
+        )
+          .then((result) => {
+            const response = compileResultMessage(msg.id, result);
+            if (!response) {
+              resetWasmState();
+              postCompileError(msg.id, goExitedError);
+              return;
+            }
+            postWorkerMessage(response);
+          })
+          .catch((err: unknown) => {
+            postCompileError(
+              msg.id,
+              err instanceof Error ? err.message : String(err),
+            );
+          });
+      })
+      .catch((err: unknown) => {
+        postCompileError(
+          msg.id,
+          err instanceof Error ? err.message : String(err),
+        );
+      });
+  },
+);

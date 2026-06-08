@@ -6,20 +6,17 @@ import type {
 import { dualContourWebGPU } from "../webgpu_meshes/dual_contouring";
 import { marchingCubesWebGPU } from "../webgpu_meshes/marching_cubes";
 import { marchingSquaresWebGPU } from "../webgpu_meshes/marching_squares";
+import type { GPUDevice } from "../webgpu_meshes/webgpu_types";
 
 interface GPUAdapterLike {
-  requestDevice(): Promise<GPUDeviceLike>;
-}
-
-interface GPUDeviceLike {
-  lost: Promise<unknown>;
+  requestDevice(): Promise<GPUDevice>;
 }
 
 interface NavigatorGPULike {
   requestAdapter(): Promise<GPUAdapterLike | null>;
 }
 
-let devicePromise: Promise<GPUDeviceLike> | null = null;
+let devicePromise: Promise<GPUDevice> | null = null;
 
 function getNavigatorGPU(): NavigatorGPULike | undefined {
   if (typeof navigator === "undefined") {
@@ -36,7 +33,7 @@ export function isWebGPUSupported(): boolean {
   return typeof getNavigatorGPU() !== "undefined";
 }
 
-async function getWebGPUDevice(): Promise<GPUDeviceLike> {
+async function getWebGPUDevice(): Promise<GPUDevice> {
   if (!devicePromise) {
     const gpu = getNavigatorGPU();
     if (!gpu) {

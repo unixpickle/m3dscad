@@ -1,6 +1,13 @@
-import { cameraEye, cross3, dot3, normalize3 } from "./math.js";
+import type { AxisElements, CameraState, Vec3 } from "../types";
+import { cameraEye, cross3, dot3, normalize3 } from "./math";
 
-function setAxis(lineEl, labelEl, sx, sy, depth) {
+function setAxis(
+  lineEl: SVGLineElement,
+  labelEl: SVGTextElement,
+  sx: number,
+  sy: number,
+  depth: number,
+): void {
   const cx = 32;
   const cy = 32;
   const extent = 16;
@@ -20,7 +27,13 @@ function setAxis(lineEl, labelEl, sx, sy, depth) {
   labelEl.style.opacity = opacity.toFixed(2);
 }
 
-export function updateAxisIndicator(camera, axisElements) {
+export function updateAxisIndicator(
+  camera: CameraState,
+  axisElements: AxisElements | undefined,
+): void {
+  if (!axisElements) {
+    return;
+  }
   const {
     axisLineX,
     axisLineY,
@@ -35,7 +48,7 @@ export function updateAxisIndicator(camera, axisElements) {
     camera.target[1] - eye[1],
     camera.target[2] - eye[2],
   ]);
-  const worldUp = [0, 0, 1];
+  const worldUp: Vec3 = [0, 0, 1];
   const right = normalize3(cross3(forward, worldUp));
   const up = normalize3(cross3(right, forward));
   setAxis(

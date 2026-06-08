@@ -1,4 +1,27 @@
-export function setupMobileToggle({ appEl, toggleCodeBtn, togglePreviewBtn }) {
+interface RenderRequester {
+  requestRender(): void;
+}
+
+interface MobileToggleOptions {
+  appEl: HTMLElement;
+  toggleCodeBtn: HTMLButtonElement;
+  togglePreviewBtn: HTMLButtonElement;
+}
+
+interface ResizerOptions {
+  resizer: HTMLElement;
+  appEl: HTMLElement;
+  getRenderer: () => RenderRequester | null;
+  minLeft?: number;
+  minRight?: number;
+  mobileBreakpoint?: number;
+}
+
+export function setupMobileToggle({
+  appEl,
+  toggleCodeBtn,
+  togglePreviewBtn,
+}: MobileToggleOptions): void {
   const showCode = () => {
     appEl.classList.add("show-code");
     appEl.classList.remove("show-preview");
@@ -23,9 +46,9 @@ export function setupResizer({
   minLeft = 260,
   minRight = 320,
   mobileBreakpoint = 900,
-}) {
+}: ResizerOptions): void {
   let dragging = false;
-  let preferredLeft = null;
+  let preferredLeft: number | null = null;
 
   const requestRender = () => {
     const renderer = getRenderer();
@@ -34,10 +57,10 @@ export function setupResizer({
     }
   };
 
-  const clampLeft = (left, width) =>
+  const clampLeft = (left: number, width: number): number =>
     Math.min(Math.max(left, minLeft), Math.max(minLeft, width - minRight));
 
-  const applyLayout = (left) => {
+  const applyLayout = (left: number): void => {
     if (window.innerWidth <= mobileBreakpoint) {
       appEl.style.gridTemplateColumns = "";
       requestRender();
@@ -51,7 +74,7 @@ export function setupResizer({
     requestRender();
   };
 
-  const onMove = (event) => {
+  const onMove = (event: MouseEvent): void => {
     if (!dragging) {
       return;
     }

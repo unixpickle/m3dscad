@@ -13,13 +13,13 @@ import (
 	"github.com/unixpickle/m3dscad/scad"
 )
 
-func mesh2DWithHooks(obj scad.ShapeRep, delta float64, iters int, useWebGPU bool) (*model2d.Mesh, error) {
-	if !useWebGPU || obj.Kernel == nil || obj.Kernel.Kind != shapekernel.Solid2D {
-		logMeshingBackend("marching_squares", useWebGPUFallbackReason(useWebGPU, obj.Kernel, shapekernel.Solid2D))
+func mesh2DWithHooks(obj scad.ShapeRep, delta float64, iters int, backend meshBackend) (*model2d.Mesh, error) {
+	if !backend.UseWebGPU() || obj.Kernel == nil || obj.Kernel.Kind != shapekernel.Solid2D {
+		logMeshingBackend("marching_squares", useWebGPUFallbackReason(backend.UseWebGPU(), obj.Kernel, shapekernel.Solid2D))
 		return cpuMarchingSquares(obj, delta, iters)
 	}
-	logMeshingBackend("marching_squares", "WebGPU")
-	req, err := webGPUMeshRequest2D("marching_squares", obj.Kernel, obj.S2.Min(), obj.S2.Max(), delta)
+	logMeshingBackend("marching_squares", string(backend))
+	req, err := webGPUMeshRequest2D("marching_squares", backend.Numerics(), obj.Kernel, obj.S2.Min(), obj.S2.Max(), delta)
 	if err != nil {
 		return nil, err
 	}
@@ -31,13 +31,13 @@ func mesh2DWithHooks(obj scad.ShapeRep, delta float64, iters int, useWebGPU bool
 	return mesh2DFromJS(res)
 }
 
-func mesh3DWithMarchingCubes(obj scad.ShapeRep, delta float64, iters int, useWebGPU bool) (*model3d.Mesh, error) {
-	if !useWebGPU || obj.Kernel == nil || obj.Kernel.Kind != shapekernel.Solid3D {
-		logMeshingBackend("marching_cubes", useWebGPUFallbackReason(useWebGPU, obj.Kernel, shapekernel.Solid3D))
+func mesh3DWithMarchingCubes(obj scad.ShapeRep, delta float64, iters int, backend meshBackend) (*model3d.Mesh, error) {
+	if !backend.UseWebGPU() || obj.Kernel == nil || obj.Kernel.Kind != shapekernel.Solid3D {
+		logMeshingBackend("marching_cubes", useWebGPUFallbackReason(backend.UseWebGPU(), obj.Kernel, shapekernel.Solid3D))
 		return cpuMarchingCubes(obj, delta, iters)
 	}
-	logMeshingBackend("marching_cubes", "WebGPU")
-	req, err := webGPUMeshRequest3D("marching_cubes", obj.Kernel, obj.S3.Min(), obj.S3.Max(), delta)
+	logMeshingBackend("marching_cubes", string(backend))
+	req, err := webGPUMeshRequest3D("marching_cubes", backend.Numerics(), obj.Kernel, obj.S3.Min(), obj.S3.Max(), delta)
 	if err != nil {
 		return nil, err
 	}
@@ -49,13 +49,13 @@ func mesh3DWithMarchingCubes(obj scad.ShapeRep, delta float64, iters int, useWeb
 	return mesh3DFromJS(res)
 }
 
-func mesh3DWithDualContour(obj scad.ShapeRep, delta float64, repair, clip bool, useWebGPU bool) (*model3d.Mesh, error) {
-	if !useWebGPU || obj.Kernel == nil || obj.Kernel.Kind != shapekernel.Solid3D {
-		logMeshingBackend("dual_contour", useWebGPUFallbackReason(useWebGPU, obj.Kernel, shapekernel.Solid3D))
+func mesh3DWithDualContour(obj scad.ShapeRep, delta float64, repair, clip bool, backend meshBackend) (*model3d.Mesh, error) {
+	if !backend.UseWebGPU() || obj.Kernel == nil || obj.Kernel.Kind != shapekernel.Solid3D {
+		logMeshingBackend("dual_contour", useWebGPUFallbackReason(backend.UseWebGPU(), obj.Kernel, shapekernel.Solid3D))
 		return cpuDualContour(obj, delta, repair, clip)
 	}
-	logMeshingBackend("dual_contour", "WebGPU")
-	req, err := webGPUMeshRequest3D("dual_contour", obj.Kernel, obj.S3.Min(), obj.S3.Max(), delta)
+	logMeshingBackend("dual_contour", string(backend))
+	req, err := webGPUMeshRequest3D("dual_contour", backend.Numerics(), obj.Kernel, obj.S3.Min(), obj.S3.Max(), delta)
 	if err != nil {
 		return nil, err
 	}
@@ -68,8 +68,8 @@ func mesh3DWithDualContour(obj scad.ShapeRep, delta float64, repair, clip bool, 
 	return mesh3DFromJS(res)
 }
 
-func webGPUMeshRequest2D(method string, kernel *shapekernel.ShapeKernel, min, max model2d.Coord, delta float64) (js.Value, error) {
-	req, err := webGPUMeshRequest(method, kernel, 2, delta)
+func webGPUMeshRequest2D(method string, n shapekernel.Numerics, kernel *shapekernel.ShapeKernel, min, max model2d.Coord, delta float64) (js.Value, error) {
+	req, err := webGPUMeshRequest(method, n, kernel, 2, delta)
 	if err != nil {
 		return js.Null(), err
 	}
@@ -78,8 +78,8 @@ func webGPUMeshRequest2D(method string, kernel *shapekernel.ShapeKernel, min, ma
 	return req, nil
 }
 
-func webGPUMeshRequest3D(method string, kernel *shapekernel.ShapeKernel, min, max model3d.Coord3D, delta float64) (js.Value, error) {
-	req, err := webGPUMeshRequest(method, kernel, 3, delta)
+func webGPUMeshRequest3D(method string, n shapekernel.Numerics, kernel *shapekernel.ShapeKernel, min, max model3d.Coord3D, delta float64) (js.Value, error) {
+	req, err := webGPUMeshRequest(method, n, kernel, 3, delta)
 	if err != nil {
 		return js.Null(), err
 	}
@@ -88,11 +88,11 @@ func webGPUMeshRequest3D(method string, kernel *shapekernel.ShapeKernel, min, ma
 	return req, nil
 }
 
-func webGPUMeshRequest(method string, kernel *shapekernel.ShapeKernel, dim int, delta float64) (js.Value, error) {
+func webGPUMeshRequest(method string, n shapekernel.Numerics, kernel *shapekernel.ShapeKernel, dim int, delta float64) (js.Value, error) {
 	if kernel == nil {
 		return js.Null(), fmt.Errorf("WebGPU meshing requires a non-nil shape kernel")
 	}
-	serializedKernel, err := serializeShapeKernel(kernel, dim)
+	serializedKernel, err := serializeShapeKernel(n, kernel, dim)
 	if err != nil {
 		return js.Null(), err
 	}
@@ -103,10 +103,10 @@ func webGPUMeshRequest(method string, kernel *shapekernel.ShapeKernel, dim int, 
 	return req, nil
 }
 
-func serializeShapeKernel(kernel *shapekernel.ShapeKernel, dim int) (js.Value, error) {
+func serializeShapeKernel(n shapekernel.Numerics, kernel *shapekernel.ShapeKernel, dim int) (js.Value, error) {
 	result := js.Global().Get("Object").New()
 	result.Set("dimension", dim)
-	result.Set("wgsl", kernelWGSL(kernel, dim))
+	result.Set("wgsl", kernelWGSL(n, kernel, dim))
 	bindings := js.Global().Get("Array").New(len(kernel.Buffers))
 	for i, buffer := range kernel.Buffers {
 		bindingWGSLType, err := shapeKernelBindingWGSLType(buffer.WGSLType)
@@ -128,13 +128,66 @@ func serializeShapeKernel(kernel *shapekernel.ShapeKernel, dim int) (js.Value, e
 	return result, nil
 }
 
-func kernelWGSL(kernel *shapekernel.ShapeKernel, dim int) string {
+func kernelWGSL(n shapekernel.Numerics, kernel *shapekernel.ShapeKernel, dim int) string {
 	return fmt.Sprintf(
-		"%s\nfn solidOccupancy(p: vec%d<f32>) -> bool {\n\treturn %s(p);\n}\n",
+		"%s\n%s\n%s\nfn solidOccupancy(p: SolidVector) -> bool {\n\treturn %s(p);\n}\n",
+		n.Library,
 		kernel.Code,
-		dim,
+		solidNumericsWGSL(n, dim),
 		kernel.EntrypointName,
 	)
+}
+
+func solidNumericsWGSL(n shapekernel.Numerics, dim int) string {
+	s := n.Symbols
+	if dim == 2 {
+		return shapekernel.WGSL(`
+			alias SolidScalar = {{.N.Dtype}};
+			alias SolidVector = {{.N.Dtype2}};
+
+			fn solidScalarFromFloat(x: f32) -> SolidScalar {
+				return {{.N.FromFloat}}(x);
+			}
+
+			fn solidVectorFromFloat(p: vec2<f32>) -> SolidVector {
+				return {{.N.Make2}}({{.N.FromFloat}}(p.x), {{.N.FromFloat}}(p.y));
+			}
+
+			fn solidVectorAdd(a: SolidVector, b: SolidVector) -> SolidVector {
+				return {{.N.Add2}}(a, b);
+			}
+
+			fn solidVectorLinearCombination(a: SolidVector, aCoeff: f32, b: SolidVector, bCoeff: f32) -> SolidVector {
+				return {{.N.Add2}}(
+					{{.N.Scale2}}(a, {{.N.FromFloat}}(aCoeff)),
+					{{.N.Scale2}}(b, {{.N.FromFloat}}(bCoeff)),
+				);
+			}
+		`, "N", s)
+	}
+	return shapekernel.WGSL(`
+		alias SolidScalar = {{.N.Dtype}};
+		alias SolidVector = {{.N.Dtype3}};
+
+		fn solidScalarFromFloat(x: f32) -> SolidScalar {
+			return {{.N.FromFloat}}(x);
+		}
+
+		fn solidVectorFromFloat(p: vec3<f32>) -> SolidVector {
+			return {{.N.Make3}}({{.N.FromFloat}}(p.x), {{.N.FromFloat}}(p.y), {{.N.FromFloat}}(p.z));
+		}
+
+		fn solidVectorAdd(a: SolidVector, b: SolidVector) -> SolidVector {
+			return {{.N.Add3}}(a, b);
+		}
+
+		fn solidVectorLinearCombination(a: SolidVector, aCoeff: f32, b: SolidVector, bCoeff: f32) -> SolidVector {
+			return {{.N.Add3}}(
+				{{.N.Scale3}}(a, {{.N.FromFloat}}(aCoeff)),
+				{{.N.Scale3}}(b, {{.N.FromFloat}}(bCoeff)),
+			);
+		}
+	`, "N", s)
 }
 
 func requestWebGPUMesh(req js.Value) (js.Value, error) {

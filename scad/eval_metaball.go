@@ -17,13 +17,13 @@ func handleMetaball(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (S
 	case ShapeSDF2D:
 		var k *shapekernel.ShapeKernel
 		if childUnion.Kernel != nil {
-			k = asPtr(shapekernel.SDFToMetaball(*childUnion.Kernel))
+			k = asPtr(shapekernel.SDFToMetaball(e.hooks.Numerics, *childUnion.Kernel))
 		}
 		return shapeMetaball2D(model2d.SDFToMetaball(childUnion.SDF2), k), nil
 	case ShapeSDF3D:
 		var k *shapekernel.ShapeKernel
 		if childUnion.Kernel != nil {
-			k = asPtr(shapekernel.SDFToMetaball(*childUnion.Kernel))
+			k = asPtr(shapekernel.SDFToMetaball(e.hooks.Numerics, *childUnion.Kernel))
 		}
 		return shapeMetaball3D(model3d.SDFToMetaball(childUnion.SDF3), k), nil
 	default:
@@ -75,15 +75,15 @@ func handleMetaballSolid(e *env, st *CallStmt, children []ShapeRep, _ *ShapeRep)
 	) (*shapekernel.ShapeKernel, error) {
 		var k *shapekernel.ShapeKernel
 		if kernels, hasKernels := combineMetaballKernels(maybeKernels); hasKernels {
-			fk, err := metaballFalloffKernel(falloffName)
+			fk, err := metaballFalloffKernel(e.hooks.Numerics, falloffName)
 			if err != nil {
 				return nil, err
 			}
-			kernelWeights := make([]float32, len(weights))
+			kernelWeights := make([]float64, len(weights))
 			for i, x := range weights {
-				kernelWeights[i] = float32(x)
+				kernelWeights[i] = x
 			}
-			k = asPtr(shapekernel.WeightedMetaballSolid(fk, float32(threshold), kernels, kernelWeights))
+			k = asPtr(shapekernel.WeightedMetaballSolid(e.hooks.Numerics, fk, threshold, kernels, kernelWeights))
 		}
 		return k, nil
 	}
@@ -181,22 +181,22 @@ func metaballFalloff3D(name string) (model3d.MetaballFalloffFunc, error) {
 	}
 }
 
-func metaballFalloffKernel(name string) (shapekernel.ShapeKernel, error) {
+func metaballFalloffKernel(n shapekernel.Numerics, name string) (shapekernel.ShapeKernel, error) {
 	switch strings.ToLower(name) {
 	case "linear":
-		return shapekernel.LinearMetaballFalloffFunc(), nil
+		return shapekernel.LinearMetaballFalloffFunc(n), nil
 	case "quadratic":
-		return shapekernel.QuadraticMetaballFalloffFunc(), nil
+		return shapekernel.QuadraticMetaballFalloffFunc(n), nil
 	case "cubic":
-		return shapekernel.CubicMetaballFalloffFunc(), nil
+		return shapekernel.CubicMetaballFalloffFunc(n), nil
 	case "quartic":
-		return shapekernel.QuarticMetaballFalloffFunc(), nil
+		return shapekernel.QuarticMetaballFalloffFunc(n), nil
 	case "quintic":
-		return shapekernel.QuinticMetaballFalloffFunc(), nil
+		return shapekernel.QuinticMetaballFalloffFunc(n), nil
 	case "exponential":
-		return shapekernel.ExponentialMetaballFalloffFunc(), nil
+		return shapekernel.ExponentialMetaballFalloffFunc(n), nil
 	case "gaussian":
-		return shapekernel.GaussianMetaballFalloffFunc(), nil
+		return shapekernel.GaussianMetaballFalloffFunc(n), nil
 	default:
 		return shapekernel.ShapeKernel{},
 			fmt.Errorf("metaball_solid(): unknown falloff %q for shape kernel", name)

@@ -135,39 +135,39 @@ func (h *Hull2D) bounds() (model2d.Coord, model2d.Coord) {
 	return min, max
 }
 
-func (h *Hull2D) Solid() ShapeRep {
+func (h *Hull2D) Solid(n shapekernel.Numerics) ShapeRep {
 	if h == nil || len(h.Circles) == 0 {
 		min, max := h.bounds()
 		emptySolid := model2d.CheckedFuncSolid(min, max, func(model2d.Coord) bool { return false })
-		return shapeSolid2D(emptySolid, asPtr(shapekernel.Empty(shapekernel.Solid2D)))
+		return shapeSolid2D(emptySolid, asPtr(shapekernel.Empty(n, shapekernel.Solid2D)))
 	}
 	if h.MaxRadius() > 0 {
 		arcHull := h.ArcHull()
-		return shapeSolid2D(arcHull, asPtr(shapekernel.ArcHullSolid(arcHull)))
+		return shapeSolid2D(arcHull, asPtr(shapekernel.ArcHullSolid(n, arcHull)))
 	}
 	mesh := h.CenterMesh()
 	if mesh.NumSegments() > 0 {
-		return shapeSolid2D(mesh.Solid(), meshSolidKernel2D(mesh))
+		return shapeSolid2D(mesh.Solid(), meshSolidKernel2D(n, mesh))
 	}
 	min, max := h.bounds()
 	center := h.Circles[0].Center
 	pointSolid := model2d.CheckedFuncSolid(min, max, func(c model2d.Coord) bool { return c == center })
-	return shapeSolid2D(pointSolid, asPtr(shapekernel.ArcHullSolid(h.ArcHull())))
+	return shapeSolid2D(pointSolid, asPtr(shapekernel.ArcHullSolid(n, h.ArcHull())))
 }
 
-func (h *Hull2D) SDF() ShapeRep {
+func (h *Hull2D) SDF(n shapekernel.Numerics) ShapeRep {
 	if h == nil || len(h.Circles) == 0 {
 		min, max := h.bounds()
 		emptySDF := model2d.FuncSDF(min, max, func(model2d.Coord) float64 { return -1 })
-		return shapeSDF2D(emptySDF, asPtr(shapekernel.Empty(shapekernel.SDF2D)))
+		return shapeSDF2D(emptySDF, asPtr(shapekernel.Empty(n, shapekernel.SDF2D)))
 	}
 	if h.MaxRadius() > 0 {
 		arcHull := h.ArcHull()
-		return shapeSDF2D(arcHull, asPtr(shapekernel.ArcHullSDF(arcHull)))
+		return shapeSDF2D(arcHull, asPtr(shapekernel.ArcHullSDF(n, arcHull)))
 	}
 	mesh := h.CenterMesh()
 	if mesh.NumSegments() > 0 {
-		return shapeSDF2D(model2d.MeshToSDF(mesh), meshSDFKernel2D(mesh))
+		return shapeSDF2D(model2d.MeshToSDF(mesh), meshSDFKernel2D(n, mesh))
 	}
 	min, max := h.bounds()
 	center := h.Circles[0].Center
@@ -177,7 +177,7 @@ func (h *Hull2D) SDF() ShapeRep {
 		}
 		return -c.Dist(center)
 	})
-	return shapeSDF2D(pointSDF, asPtr(shapekernel.ArcHullSDF(h.ArcHull())))
+	return shapeSDF2D(pointSDF, asPtr(shapekernel.ArcHullSDF(n, h.ArcHull())))
 }
 
 func (h *Hull2D) Map(fn func(*model2d.Circle) *model2d.Circle) *Hull2D {
@@ -275,18 +275,18 @@ func shapeMultiMetaball3D(m *Metaball3D) ShapeRep {
 	}
 }
 
-func SDFToSolid(sdf ShapeRep) ShapeRep {
+func SDFToSolid(n shapekernel.Numerics, sdf ShapeRep) ShapeRep {
 	switch sdf.Kind {
 	case ShapeSDF2D:
 		var k *shapekernel.ShapeKernel
 		if sdf.Kernel != nil {
-			k = asPtr(shapekernel.SDFToSolid(*sdf.Kernel))
+			k = asPtr(shapekernel.SDFToSolid(n, *sdf.Kernel))
 		}
 		return shapeSolid2D(model2d.SDFToSolid(sdf.SDF2, 0), k)
 	case ShapeSDF3D:
 		var k *shapekernel.ShapeKernel
 		if sdf.Kernel != nil {
-			k = asPtr(shapekernel.SDFToSolid(*sdf.Kernel))
+			k = asPtr(shapekernel.SDFToSolid(n, *sdf.Kernel))
 		}
 		return shapeSolid3D(model3d.SDFToSolid(sdf.SDF3, 0), k)
 	default:
@@ -304,21 +304,21 @@ func handleSolid(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (Shap
 	case ShapeMesh2D:
 		return shapeSolid2D(
 			childUnion.M2.Solid(),
-			asPtr(shapekernel.Mesh2DSolid(childUnion.M2)),
+			asPtr(shapekernel.Mesh2DSolid(e.hooks.Numerics, childUnion.M2)),
 		), nil
 	case ShapeMesh3D:
 		return shapeSolid3D(
 			childUnion.M3.Solid(),
-			asPtr(shapekernel.Mesh3DSolid(childUnion.M3)),
+			asPtr(shapekernel.Mesh3DSolid(e.hooks.Numerics, childUnion.M3)),
 		), nil
 	case ShapeSDF2D, ShapeSDF3D:
-		return SDFToSolid(*childUnion), nil
+		return SDFToSolid(e.hooks.Numerics, *childUnion), nil
 	default:
 		return ShapeRep{}, fmt.Errorf("solid(): unsupported shape kind")
 	}
 }
 
-func unionAll(children []ShapeRep) (ShapeRep, error) {
+func unionAll(n shapekernel.Numerics, children []ShapeRep) (ShapeRep, error) {
 	if len(children) == 0 {
 		return ShapeRep{}, fmt.Errorf("no shapes produced")
 	}
@@ -338,7 +338,7 @@ func unionAll(children []ShapeRep) (ShapeRep, error) {
 		kernels, useKernel := concatKernels(children)
 		var k *shapekernel.ShapeKernel
 		if useKernel {
-			k = asPtr(shapekernel.UnionSolids(kernels))
+			k = asPtr(shapekernel.UnionSolids(n, kernels))
 		}
 		return shapeSolid3D(solids, k), nil
 	case ShapeSolid2D:
@@ -349,21 +349,21 @@ func unionAll(children []ShapeRep) (ShapeRep, error) {
 		kernels, useKernel := concatKernels(children)
 		var k *shapekernel.ShapeKernel
 		if useKernel {
-			k = asPtr(shapekernel.UnionSolids(kernels))
+			k = asPtr(shapekernel.UnionSolids(n, kernels))
 		}
 		return shapeSolid2D(solids, k), nil
 	case ShapeSDF3D:
 		kernels, useKernel := concatKernels(children)
 		var k *shapekernel.ShapeKernel
 		if useKernel {
-			k = asPtr(shapekernel.UnionSDFs(kernels))
+			k = asPtr(shapekernel.UnionSDFs(n, kernels))
 		}
 		return shapeSDF3D(sdfUnion3D(children), k), nil
 	case ShapeSDF2D:
 		kernels, useKernel := concatKernels(children)
 		var k *shapekernel.ShapeKernel
 		if useKernel {
-			k = asPtr(shapekernel.UnionSDFs(kernels))
+			k = asPtr(shapekernel.UnionSDFs(n, kernels))
 		}
 		return shapeSDF2D(sdfUnion2D(children), k), nil
 	case ShapeMetaball2D:
@@ -401,7 +401,7 @@ func unionAll(children []ShapeRep) (ShapeRep, error) {
 	}
 }
 
-func intersectAll(children []ShapeRep) (ShapeRep, error) {
+func intersectAll(n shapekernel.Numerics, children []ShapeRep) (ShapeRep, error) {
 	if len(children) == 0 {
 		return ShapeRep{}, fmt.Errorf("no shapes produced")
 	}
@@ -418,7 +418,7 @@ func intersectAll(children []ShapeRep) (ShapeRep, error) {
 		kernels, useKernel := concatKernels(children)
 		var k *shapekernel.ShapeKernel
 		if useKernel {
-			k = asPtr(shapekernel.IntersectSolids(kernels))
+			k = asPtr(shapekernel.IntersectSolids(n, kernels))
 		}
 		return shapeSolid3D(model3d.IntersectedSolid(solids), k), nil
 	case ShapeSolid2D:
@@ -429,21 +429,21 @@ func intersectAll(children []ShapeRep) (ShapeRep, error) {
 		kernels, useKernel := concatKernels(children)
 		var k *shapekernel.ShapeKernel
 		if useKernel {
-			k = asPtr(shapekernel.IntersectSolids(kernels))
+			k = asPtr(shapekernel.IntersectSolids(n, kernels))
 		}
 		return shapeSolid2D(model2d.IntersectedSolid(solids), k), nil
 	case ShapeSDF3D:
 		kernels, useKernel := concatKernels(children)
 		var k *shapekernel.ShapeKernel
 		if useKernel {
-			k = asPtr(shapekernel.IntersectSDFs(kernels))
+			k = asPtr(shapekernel.IntersectSDFs(n, kernels))
 		}
 		return shapeSDF3D(sdfIntersect3D(children), k), nil
 	case ShapeSDF2D:
 		kernels, useKernel := concatKernels(children)
 		var k *shapekernel.ShapeKernel
 		if useKernel {
-			k = asPtr(shapekernel.IntersectSDFs(kernels))
+			k = asPtr(shapekernel.IntersectSDFs(n, kernels))
 		}
 		return shapeSDF2D(sdfIntersect2D(children), k), nil
 	case ShapeMesh2D, ShapeMesh3D:

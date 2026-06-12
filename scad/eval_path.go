@@ -12,7 +12,7 @@ func handlePath(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, erro
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	return shapeSolid2D(mesh.Solid(), meshSolidKernel2D(mesh)), nil
+	return shapeSolid2D(mesh.Solid(), meshSolidKernel2D(e.hooks.Numerics, mesh)), nil
 }
 
 func handlePathSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -20,7 +20,7 @@ func handlePathSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, e
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	return shapeSDF2D(model2d.MeshToSDF(mesh), meshSDFKernel2D(mesh)), nil
+	return shapeSDF2D(model2d.MeshToSDF(mesh), meshSDFKernel2D(e.hooks.Numerics, mesh)), nil
 }
 
 func handlePathMesh(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {

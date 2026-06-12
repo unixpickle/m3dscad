@@ -1,6 +1,7 @@
 import type {
   CompileSuccess,
   InitRequest,
+  MeshBackend,
   MeshData,
   WorkerInboundMessage,
   WorkerRequest,
@@ -32,7 +33,7 @@ interface WorkerClient {
   compile(
     code: string,
     gridSize: number,
-    useWebGPU?: boolean,
+    meshBackend?: MeshBackend,
   ): Promise<MeshData | null>;
   cancel(): boolean;
   isReady(): boolean;
@@ -58,14 +59,14 @@ function compileMessage(
   id: number,
   code: string,
   gridSize: number,
-  useWebGPU: boolean,
+  meshBackend: MeshBackend,
 ): WorkerRequest {
   return {
     type: "compile",
     id,
     code,
     gridSize,
-    useWebGPU,
+    meshBackend,
   };
 }
 
@@ -188,7 +189,7 @@ export function createWorkerClient({
   async function compile(
     code: string,
     gridSize: number,
-    useWebGPU = false,
+    meshBackend: MeshBackend = "cpu",
   ): Promise<MeshData | null> {
     if (pendingRequestId != null || compilePreparing) {
       return null;
@@ -210,7 +211,7 @@ export function createWorkerClient({
         rejectCompile = reject;
       });
       worker.postMessage(
-        compileMessage(pendingRequestId, code, gridSize, useWebGPU),
+        compileMessage(pendingRequestId, code, gridSize, meshBackend),
       );
       return await resultPromise;
     } catch (err) {

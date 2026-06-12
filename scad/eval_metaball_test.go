@@ -90,10 +90,10 @@ func TestMetaballSolidKernelUsesBallWeights(t *testing.T) {
 	if shape.Kernel == nil {
 		t.Fatal("expected shape kernel")
 	}
-	if strings.Contains(shape.Kernel.Code, "0.000000 *") {
+	if strings.Contains(shape.Kernel.Code, "num_f32_mul(0.0,") {
 		t.Fatalf("expected generated kernel to preserve metaball weights, got code:\n%s", shape.Kernel.Code)
 	}
-	if !strings.Contains(shape.Kernel.Code, "1.000000 *") {
+	if !strings.Contains(shape.Kernel.Code, "num_f32_mul(1.0,") {
 		t.Fatalf("expected generated kernel to include unit metaball weight, got code:\n%s", shape.Kernel.Code)
 	}
 }

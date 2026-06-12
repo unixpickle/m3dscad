@@ -114,12 +114,12 @@ func handleMeshToSDF(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (
 	case ShapeMesh2D:
 		return shapeSDF2D(
 			model2d.MeshToSDF(childUnion.M2),
-			asPtr(shapekernel.Mesh2DSDF(childUnion.M2)),
+			asPtr(shapekernel.Mesh2DSDF(e.hooks.Numerics, childUnion.M2)),
 		), nil
 	case ShapeMesh3D:
 		return shapeSDF3D(
 			model3d.MeshToSDF(childUnion.M3),
-			asPtr(shapekernel.Mesh3DSDF(childUnion.M3)),
+			asPtr(shapekernel.Mesh3DSDF(e.hooks.Numerics, childUnion.M3)),
 		), nil
 	default:
 		return ShapeRep{}, fmt.Errorf("mesh_to_sdf(): requires a mesh")

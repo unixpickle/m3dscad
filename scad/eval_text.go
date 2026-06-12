@@ -20,7 +20,7 @@ func handleText(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, erro
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	return shapeSolid2D(mesh.Solid(), meshSolidKernel2D(mesh)), nil
+	return shapeSolid2D(mesh.Solid(), meshSolidKernel2D(e.hooks.Numerics, mesh)), nil
 }
 
 func handleTextMesh(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
@@ -36,7 +36,7 @@ func handleTextSDF(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, e
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	return shapeSDF2D(model2d.MeshToSDF(mesh), meshSDFKernel2D(mesh)), nil
+	return shapeSDF2D(model2d.MeshToSDF(mesh), meshSDFKernel2D(e.hooks.Numerics, mesh)), nil
 }
 
 func parseTextMesh(e *env, st *CallStmt) (*model2d.Mesh, error) {

@@ -10,6 +10,15 @@ import (
 	"github.com/unixpickle/model3d/model3d"
 
 	"github.com/unixpickle/m3dscad/scad"
+	"github.com/unixpickle/webgpu-mesh/shapekernel"
+)
+
+type meshBackend string
+
+const (
+	meshBackendCPU        meshBackend = "cpu"
+	meshBackendGPUFloat32 meshBackend = "gpu_f32"
+	meshBackendGPUFixed64 meshBackend = "gpu_fixed64"
 )
 
 func main() {
@@ -30,12 +39,18 @@ func compile(_ js.Value, args []js.Value) any {
 			return js.Null(), fmt.Errorf("gridSize must be >= 2")
 		})
 	}
-	useWebGPU := false
+	backend := meshBackendCPU
 	if len(args) >= 3 && args[2].Type() == js.TypeObject {
-		opt := args[2].Get("useWebGPU")
-		if opt.Type() == js.TypeBoolean {
-			useWebGPU = opt.Bool()
+		if opt := args[2].Get("meshBackend"); opt.Type() == js.TypeString {
+			backend = meshBackend(opt.String())
+		} else if opt := args[2].Get("useWebGPU"); opt.Type() == js.TypeBoolean && opt.Bool() {
+			backend = meshBackendGPUFloat32
 		}
+	}
+	if !backend.Valid() {
+		return newPromise(func() (js.Value, error) {
+			return js.Null(), fmt.Errorf("unknown mesh backend %q", backend)
+		})
 	}
 
 	return newPromise(func() (res js.Value, err error) {
@@ -44,12 +59,12 @@ func compile(_ js.Value, args []js.Value) any {
 				err = fmt.Errorf("%s", panicMessage(rec))
 			}
 		}()
-		logWASMMessage(fmt.Sprintf("[m3dscad] compile start: grid=%d webgpu=%t", gridSize, useWebGPU))
+		logWASMMessage(fmt.Sprintf("[m3dscad] compile start: grid=%d backend=%s", gridSize, backend))
 		prog, err := scad.Parse(code)
 		if err != nil {
 			return js.Null(), err
 		}
-		hooks := wasmHooks(useWebGPU)
+		hooks := wasmHooks(backend)
 		shape, err := scad.Eval(prog, hooks)
 		if err != nil {
 			return js.Null(), err
@@ -77,17 +92,33 @@ func logWASMMessage(msg string) {
 	js.Global().Call("postMessage", logMsg)
 }
 
-func wasmHooks(useWebGPU bool) scad.Hooks {
+func (b meshBackend) Valid() bool {
+	return b == meshBackendCPU || b == meshBackendGPUFloat32 || b == meshBackendGPUFixed64
+}
+
+func (b meshBackend) UseWebGPU() bool {
+	return b != meshBackendCPU
+}
+
+func (b meshBackend) Numerics() shapekernel.Numerics {
+	if b == meshBackendGPUFixed64 {
+		return shapekernel.Fixed64Numerics
+	}
+	return shapekernel.NativeFloat32Numerics
+}
+
+func wasmHooks(backend meshBackend) scad.Hooks {
 	return scad.Hooks{
-		Echo: wasmEchoHandler,
+		Numerics: backend.Numerics(),
+		Echo:     wasmEchoHandler,
 		MarchingSquares: func(obj scad.ShapeRep, delta float64, iters int) (*model2d.Mesh, error) {
-			return mesh2DWithHooks(obj, delta, iters, useWebGPU)
+			return mesh2DWithHooks(obj, delta, iters, backend)
 		},
 		MarchingCubes: func(obj scad.ShapeRep, delta float64, iters int) (*model3d.Mesh, error) {
-			return mesh3DWithMarchingCubes(obj, delta, iters, useWebGPU)
+			return mesh3DWithMarchingCubes(obj, delta, iters, backend)
 		},
 		DualContour: func(obj scad.ShapeRep, delta float64, repair, clip bool) (*model3d.Mesh, error) {
-			return mesh3DWithDualContour(obj, delta, repair, clip, useWebGPU)
+			return mesh3DWithDualContour(obj, delta, repair, clip, backend)
 		},
 	}
 }
@@ -116,7 +147,7 @@ func shapeToMesh(shape scad.ShapeRep, gridSize int, hooks scad.Hooks) (*model3d.
 		}
 		return hooks.DualContour(shape, delta, true, false)
 	case scad.ShapeSDF3D:
-		solid := scad.SDFToSolid(shape)
+		solid := scad.SDFToSolid(hooks.Numerics, shape)
 		delta, err := marchingDelta(solid.S3, gridSize)
 		if err != nil {
 			return nil, err

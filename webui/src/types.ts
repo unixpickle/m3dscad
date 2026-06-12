@@ -38,8 +38,10 @@ export interface CompileRequest {
   id: number;
   code: string;
   gridSize: number;
-  useWebGPU: boolean;
+  meshBackend: MeshBackend;
 }
+
+export type MeshBackend = "cpu" | "gpu_f32" | "gpu_fixed64";
 
 export interface InitRequest {
   type: "init";

@@ -2,7 +2,7 @@ import "../style.css";
 import { createEditor, loadInitialSource } from "./editor";
 import { buildBinarySTL } from "./export/stl";
 import { MeshRenderer } from "./renderer/mesh_renderer";
-import type { AxisElements } from "./types";
+import type { AxisElements, MeshBackend } from "./types";
 import { setupMobileToggle, setupResizer } from "./ui/layout";
 import { createOverlayController } from "./ui/overlay";
 import { isWebGPUSupported } from "./webgpu/meshing";
@@ -12,7 +12,7 @@ import {
   createWorkerClient,
 } from "./worker_client";
 
-const WEBGPU_STORAGE_KEY = "m3dscad_use_webgpu";
+const MESH_BACKEND_STORAGE_KEY = "m3dscad_mesh_backend";
 
 interface ExportMesh {
   positions: Float32Array;
@@ -45,7 +45,7 @@ const compileBtn = requireElement<HTMLButtonElement>("compile");
 const resetViewBtn = requireElement<HTMLButtonElement>("resetView");
 const downloadBtn = requireElement<HTMLButtonElement>("download");
 const gridEl = requireElement<HTMLInputElement>("grid");
-const useWebGPUEl = requireElement<HTMLInputElement>("useWebGPU");
+const meshBackendEl = requireElement<HTMLSelectElement>("meshBackend");
 const canvas = requireElement<HTMLCanvasElement>("preview");
 const resizer = requireElement("resizer");
 const appEl = requireElement("app");
@@ -69,16 +69,26 @@ const overlay = createOverlayController({
 });
 
 const webgpuSupported = isWebGPUSupported();
-const storedWebGPUSetting = window.localStorage.getItem(WEBGPU_STORAGE_KEY);
-useWebGPUEl.checked = webgpuSupported && storedWebGPUSetting === "true";
-useWebGPUEl.disabled = !webgpuSupported;
-if (!webgpuSupported) {
-  useWebGPUEl.title = "WebGPU is unavailable in this browser.";
-  useWebGPUEl.closest("label")?.setAttribute("aria-disabled", "true");
+const storedMeshBackend = window.localStorage.getItem(MESH_BACKEND_STORAGE_KEY);
+meshBackendEl.value =
+  webgpuSupported && isMeshBackend(storedMeshBackend)
+    ? storedMeshBackend
+    : "cpu";
+for (const option of meshBackendEl.options) {
+  if (option.value !== "cpu") {
+    option.disabled = !webgpuSupported;
+  }
 }
-useWebGPUEl.addEventListener("change", () => {
-  window.localStorage.setItem(WEBGPU_STORAGE_KEY, String(useWebGPUEl.checked));
+if (!webgpuSupported) {
+  meshBackendEl.title = "WebGPU is unavailable in this browser.";
+}
+meshBackendEl.addEventListener("change", () => {
+  window.localStorage.setItem(MESH_BACKEND_STORAGE_KEY, meshBackendEl.value);
 });
+
+function isMeshBackend(value: string | null): value is MeshBackend {
+  return value === "cpu" || value === "gpu_f32" || value === "gpu_fixed64";
+}
 
 function clearMeshResult(): void {
   lastMesh = null;
@@ -145,7 +155,7 @@ async function compile(): Promise<void> {
     const result = await workerClient.compile(
       editor.getSource(),
       gridSize,
-      useWebGPUEl.checked,
+      isMeshBackend(meshBackendEl.value) ? meshBackendEl.value : "cpu",
     );
     if (!result) {
       return;

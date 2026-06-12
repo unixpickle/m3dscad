@@ -32,7 +32,7 @@ func handleDifference(e *env, st *CallStmt, children []ShapeRep, _ *ShapeRep) (S
 	if len(children) == 1 {
 		return children[0], nil
 	}
-	subUnion, err := unionAll(children[1:])
+	subUnion, err := unionAll(e.hooks.Numerics, children[1:])
 	if err != nil {
 		return ShapeRep{}, err
 	}
@@ -40,25 +40,25 @@ func handleDifference(e *env, st *CallStmt, children []ShapeRep, _ *ShapeRep) (S
 	case ShapeSolid3D:
 		var k *shapekernel.ShapeKernel
 		if children[0].Kernel != nil && subUnion.Kernel != nil {
-			k = asPtr(shapekernel.SubtractSolid(*children[0].Kernel, *subUnion.Kernel))
+			k = asPtr(shapekernel.SubtractSolid(e.hooks.Numerics, *children[0].Kernel, *subUnion.Kernel))
 		}
 		return shapeSolid3D(model3d.Subtract(children[0].S3, subUnion.S3), k), nil
 	case ShapeSolid2D:
 		var k *shapekernel.ShapeKernel
 		if children[0].Kernel != nil && subUnion.Kernel != nil {
-			k = asPtr(shapekernel.SubtractSolid(*children[0].Kernel, *subUnion.Kernel))
+			k = asPtr(shapekernel.SubtractSolid(e.hooks.Numerics, *children[0].Kernel, *subUnion.Kernel))
 		}
 		return shapeSolid2D(model2d.Subtract(children[0].S2, subUnion.S2), k), nil
 	case ShapeSDF3D:
 		var k *shapekernel.ShapeKernel
 		if children[0].Kernel != nil && subUnion.Kernel != nil {
-			k = asPtr(shapekernel.SubtractSDF(*children[0].Kernel, *subUnion.Kernel))
+			k = asPtr(shapekernel.SubtractSDF(e.hooks.Numerics, *children[0].Kernel, *subUnion.Kernel))
 		}
 		return shapeSDF3D(model3d.SubtractSDF(children[0].SDF3, subUnion.SDF3), k), nil
 	case ShapeSDF2D:
 		var k *shapekernel.ShapeKernel
 		if children[0].Kernel != nil && subUnion.Kernel != nil {
-			k = asPtr(shapekernel.SubtractSDF(*children[0].Kernel, *subUnion.Kernel))
+			k = asPtr(shapekernel.SubtractSDF(e.hooks.Numerics, *children[0].Kernel, *subUnion.Kernel))
 		}
 		return shapeSDF2D(model2d.SubtractSDF(children[0].SDF2, subUnion.SDF2), k), nil
 	case ShapeMetaball2D:
@@ -98,7 +98,7 @@ func handleIntersection(e *env, st *CallStmt, children []ShapeRep, _ *ShapeRep) 
 		kernels, useKernel := concatKernels(children)
 		var k *shapekernel.ShapeKernel
 		if useKernel {
-			k = asPtr(shapekernel.IntersectSolids(kernels))
+			k = asPtr(shapekernel.IntersectSolids(e.hooks.Numerics, kernels))
 		}
 		return shapeSolid3D(model3d.IntersectedSolid(solids), k), nil
 	case ShapeSolid2D:
@@ -109,21 +109,21 @@ func handleIntersection(e *env, st *CallStmt, children []ShapeRep, _ *ShapeRep) 
 		kernels, useKernel := concatKernels(children)
 		var k *shapekernel.ShapeKernel
 		if useKernel {
-			k = asPtr(shapekernel.IntersectSolids(kernels))
+			k = asPtr(shapekernel.IntersectSolids(e.hooks.Numerics, kernels))
 		}
 		return shapeSolid2D(model2d.IntersectedSolid(solids), k), nil
 	case ShapeSDF3D:
 		kernels, useKernel := concatKernels(children)
 		var k *shapekernel.ShapeKernel
 		if useKernel {
-			k = asPtr(shapekernel.IntersectSDFs(kernels))
+			k = asPtr(shapekernel.IntersectSDFs(e.hooks.Numerics, kernels))
 		}
 		return shapeSDF3D(sdfIntersect3D(children), k), nil
 	case ShapeSDF2D:
 		kernels, useKernel := concatKernels(children)
 		var k *shapekernel.ShapeKernel
 		if useKernel {
-			k = asPtr(shapekernel.IntersectSDFs(kernels))
+			k = asPtr(shapekernel.IntersectSDFs(e.hooks.Numerics, kernels))
 		}
 		return shapeSDF2D(sdfIntersect2D(children), k), nil
 	case ShapeMesh2D, ShapeMesh3D:

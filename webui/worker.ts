@@ -1,6 +1,7 @@
 /// <reference lib="webworker" />
 
 import type {
+  MeshBackend,
   WebGPUMeshRequestPayload,
   WorkerRequest,
   WorkerResponse,
@@ -19,7 +20,7 @@ declare const Go: {
 };
 
 interface CompileOptions {
-  useWebGPU: boolean;
+  meshBackend: MeshBackend;
 }
 
 interface WorkerGlobalWithRuntime extends DedicatedWorkerGlobalScope {
@@ -93,6 +94,9 @@ function initWasm(): Promise<void> {
     const distRootUrl = new URL("../", workerScope.location.href);
     const wasmExecUrl = new URL("wasm_exec.js", distRootUrl);
     const wasmUrl = new URL("m3dscad.wasm", distRootUrl);
+    const cacheKey = new URL(workerScope.location.href).pathname;
+    wasmExecUrl.searchParams.set("v", cacheKey);
+    wasmUrl.searchParams.set("v", cacheKey);
     try {
       workerScope.importScripts(wasmExecUrl.href);
     } catch {
@@ -166,7 +170,7 @@ workerScope.addEventListener(
         }
         return Promise.resolve(
           workerScope.m3dscadCompile(msg.code, msg.gridSize, {
-            useWebGPU: Boolean(msg.useWebGPU),
+            meshBackend: msg.meshBackend || "cpu",
           }),
         )
           .then((result) => {

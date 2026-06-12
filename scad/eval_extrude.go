@@ -51,11 +51,11 @@ func handleLinearExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRe
 	case ShapeSolid2D:
 		var k *shapekernel.ShapeKernel
 		if childUnion.Kernel != nil {
-			k = asPtr(shapekernel.LinearExtrudeSolid(
+			k = asPtr(shapekernel.LinearExtrudeSolid(e.hooks.Numerics,
 				*childUnion.Kernel,
-				float32(height),
+				height,
 				center,
-				float32(twist*math.Pi/180),
+				twist*math.Pi/180,
 				sliceToVec2(scale[:]),
 			))
 		}
@@ -78,7 +78,7 @@ func handleLinearExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRe
 		}
 		var k *shapekernel.ShapeKernel
 		if childUnion.Kernel != nil {
-			k = asPtr(shapekernel.LinearExtrudeSDF(*childUnion.Kernel, float32(height), center))
+			k = asPtr(shapekernel.LinearExtrudeSDF(e.hooks.Numerics, *childUnion.Kernel, height, center))
 		}
 		return shapeSDF3D(model3d.ProfileSDF(childUnion.SDF2, z0, z1), k), nil
 	default:
@@ -138,12 +138,12 @@ func handleInsetExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep
 		bottomKernelFn, ok1 := insetExtrudeKernelFunc(bottomFn)
 		topKernelFn, ok2 := insetExtrudeKernelFunc(topFn)
 		if ok1 && ok2 {
-			k = asPtr(shapekernel.InsetExtrude(
+			k = asPtr(shapekernel.InsetExtrude(e.hooks.Numerics,
 				*childUnion.Kernel,
-				float32(height),
+				height,
 				center,
-				float32(bottom),
-				float32(top),
+				bottom,
+				top,
 				bottomKernelFn,
 				topKernelFn,
 			))
@@ -265,7 +265,7 @@ func handleRotateExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRe
 		}
 		var k *shapekernel.ShapeKernel
 		if childUnion.Kernel != nil {
-			k = asPtr(shapekernel.RevolveSDF(*childUnion.Kernel))
+			k = asPtr(shapekernel.RevolveSDF(e.hooks.Numerics, *childUnion.Kernel))
 		}
 		return shapeSDF3D(model3d.RevolveSDF(childUnion.SDF2), k), nil
 	}
@@ -275,10 +275,10 @@ func handleRotateExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRe
 	}
 	var k *shapekernel.ShapeKernel
 	if childUnion.Kernel != nil {
-		k = asPtr(shapekernel.RevolveSolidRange(
+		k = asPtr(shapekernel.RevolveSolidRange(e.hooks.Numerics,
 			*childUnion.Kernel,
-			float32(angle*math.Pi/180),
-			float32(start*math.Pi/180),
+			angle*math.Pi/180,
+			start*math.Pi/180,
 		))
 	}
 	return shapeSolid3D(solid, k), nil

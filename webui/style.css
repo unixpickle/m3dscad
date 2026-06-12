@@ -192,7 +192,8 @@ body {
   color: var(--muted);
 }
 
-.toolbar-group input[type="number"] {
+.toolbar-group input[type="number"],
+.toolbar-group select {
   width: 80px;
   background: #111422;
   border: 1px solid var(--border);
@@ -201,6 +202,10 @@ body {
   border-radius: 4px;
   font-family: inherit;
   font-size: 12px;
+}
+
+.toolbar-group select {
+  width: 130px;
 }
 
 .toolbar-checkbox {

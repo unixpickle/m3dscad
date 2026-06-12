@@ -12,6 +12,7 @@ import (
 
 	"github.com/unixpickle/model3d/model2d"
 	"github.com/unixpickle/model3d/model3d"
+	"github.com/unixpickle/webgpu-mesh/shapekernel"
 )
 
 type moduleDef struct {
@@ -50,6 +51,10 @@ func (e *env) Clone() *env {
 
 // Hooks provides built-in function implementations to the interpreter.
 type Hooks struct {
+	// Numerics controls the numeric WGSL representation used by shape kernels.
+	// If it is unset, shapekernel.NativeFloat32Numerics is used.
+	Numerics shapekernel.Numerics
+
 	// Echo is called for the built-in echo().
 	// If it is nil, log.Println is used.
 	Echo EchoHandler
@@ -73,6 +78,9 @@ func defaultEchoHandler(msg string) {
 }
 
 func newEnv(hooks Hooks) *env {
+	if hooks.Numerics.Literal == nil {
+		hooks.Numerics = shapekernel.NativeFloat32Numerics
+	}
 	if hooks.Echo == nil {
 		hooks.Echo = func(msg string) {
 			log.Println(msg)
@@ -199,7 +207,7 @@ func Eval(p *Program, hooks Hooks) (ShapeRep, error) {
 	if err != nil {
 		return ShapeRep{}, err
 	}
-	merged, err := unionAll(solids)
+	merged, err := unionAll(e.hooks.Numerics, solids)
 	if err != nil {
 		return ShapeRep{}, err
 	}
@@ -365,7 +373,7 @@ func evalCallStmt(e *env, st *CallStmt) (*ShapeRep, error) {
 					return err
 				}
 				if handler.NeedsChildUnion {
-					u, err := unionAll(children)
+					u, err := unionAll(e.hooks.Numerics, children)
 					if err != nil {
 						return err
 					}
@@ -400,7 +408,7 @@ func evalCallStmt(e *env, st *CallStmt) (*ShapeRep, error) {
 			if err != nil {
 				return err
 			}
-			u, err := unionAll(solids)
+			u, err := unionAll(e.hooks.Numerics, solids)
 			if err != nil {
 				return err
 			}
@@ -424,7 +432,7 @@ func evalStmtsAsOne(e *env, ss []Stmt) (*ShapeRep, error) {
 	if len(solids) == 0 {
 		return nil, nil
 	}
-	u, err := unionAll(solids)
+	u, err := unionAll(e.hooks.Numerics, solids)
 	if err != nil {
 		return nil, err
 	}
@@ -709,9 +717,9 @@ func evalForStmt(e *env, st *ForStmt) (*ShapeRep, error) {
 	}
 	var merged ShapeRep
 	if st.Intersection {
-		merged, err = intersectAll(results)
+		merged, err = intersectAll(e.hooks.Numerics, results)
 	} else {
-		merged, err = unionAll(results)
+		merged, err = unionAll(e.hooks.Numerics, results)
 	}
 	if err != nil {
 		return nil, err

@@ -3,7 +3,7 @@ package scad
 import (
 	"github.com/unixpickle/model3d/model2d"
 	"github.com/unixpickle/model3d/model3d"
-	"github.com/unixpickle/webgpu-mesh/shapekernel"
+	shapekernel "github.com/unixpickle/webgpu-meshes/shapekernel"
 )
 
 func rect2DSolidKernel(n shapekernel.Numerics, rect *model2d.Rect) *shapekernel.ShapeKernel {

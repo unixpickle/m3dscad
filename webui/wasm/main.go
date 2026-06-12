@@ -10,7 +10,7 @@ import (
 	"github.com/unixpickle/model3d/model3d"
 
 	"github.com/unixpickle/m3dscad/scad"
-	"github.com/unixpickle/webgpu-mesh/shapekernel"
+	shapekernel "github.com/unixpickle/webgpu-meshes/shapekernel"
 )
 
 type meshBackend string

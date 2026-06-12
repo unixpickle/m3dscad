@@ -7,7 +7,7 @@ import (
 	"github.com/unixpickle/model3d/model2d"
 	"github.com/unixpickle/model3d/model3d"
 	"github.com/unixpickle/model3d/toolbox3d"
-	"github.com/unixpickle/webgpu-mesh/shapekernel"
+	shapekernel "github.com/unixpickle/webgpu-meshes/shapekernel"
 )
 
 func handleLinearExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {

@@ -2,9 +2,11 @@ package scad
 
 import (
 	"fmt"
+	"io/fs"
 	"log"
 	"math"
 	"math/rand"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -34,14 +36,16 @@ type scope struct {
 }
 
 type env struct {
-	scopes []*scope
-	hooks  Hooks
+	scopes   []*scope
+	hooks    Hooks
+	useStack []string
 }
 
 func (e *env) WithScopes(s []*scope) *env {
 	return &env{
-		scopes: s,
-		hooks:  e.hooks,
+		scopes:   s,
+		hooks:    e.hooks,
+		useStack: e.useStack,
 	}
 }
 
@@ -51,6 +55,10 @@ func (e *env) Clone() *env {
 
 // Hooks provides built-in function implementations to the interpreter.
 type Hooks struct {
+	// FS contains files referenced by use statements and import() calls. Paths
+	// are resolved relative to the file containing the reference.
+	FS fs.FS
+
 	// Numerics controls the numeric WGSL representation used by shape kernels.
 	// If it is unset, shapekernel.NativeFloat32Numerics is used.
 	Numerics shapekernel.Numerics
@@ -194,7 +202,14 @@ func (e *env) withCapturedScopes(scopes []*scope, fn func() error) error {
 }
 
 func Parse(src string) (*Program, error) {
-	p, err := NewParser(src)
+	return ParseFile("", src)
+}
+
+// ParseFile parses src and attaches filename to all source positions. When the
+// program uses other files, filename should be a slash-separated path in the
+// namespace of Hooks.FS.
+func ParseFile(filename, src string) (*Program, error) {
+	p, err := NewParserFile(filename, src)
 	if err != nil {
 		return nil, err
 	}
@@ -203,6 +218,9 @@ func Parse(src string) (*Program, error) {
 
 func Eval(p *Program, hooks Hooks) (ShapeRep, error) {
 	e := newEnv(hooks)
+	if p.Filename != "" {
+		e.useStack = []string{p.Filename}
+	}
 	solids, err := evalStmts(e, p.Stmts)
 	if err != nil {
 		return ShapeRep{}, err
@@ -219,7 +237,7 @@ func evalStmts(e *env, ss []Stmt) ([]ShapeRep, error) {
 	// 1) definitions, 2) assignments, 3) geometry/control statements.
 	for _, s := range ss {
 		switch st := s.(type) {
-		case *ModuleDefStmt, *FuncDefStmt:
+		case *UseStmt, *ModuleDefStmt, *FuncDefStmt:
 			if _, err := evalStmt(e, st); err != nil {
 				return nil, err
 			}
@@ -236,7 +254,7 @@ func evalStmts(e *env, ss []Stmt) ([]ShapeRep, error) {
 	var out []ShapeRep
 	for _, s := range ss {
 		switch s.(type) {
-		case *ModuleDefStmt, *FuncDefStmt, *AssignStmt:
+		case *UseStmt, *ModuleDefStmt, *FuncDefStmt, *AssignStmt:
 			continue
 		}
 		got, err := evalStmt(e, s)
@@ -258,6 +276,9 @@ func evalStmt(e *env, s Stmt) (shape *ShapeRep, err error) {
 	}()
 
 	switch st := s.(type) {
+	case *UseStmt:
+		return nil, evalUse(e, st)
+
 	case *AssignStmt:
 		v, err := evalExpr(e, st.Expr)
 		if err != nil {
@@ -325,6 +346,80 @@ func evalStmt(e *env, s Stmt) (shape *ShapeRep, err error) {
 	default:
 		return nil, fmt.Errorf("unknown stmt type")
 	}
+}
+
+func evalUse(e *env, st *UseStmt) error {
+	if e.hooks.FS == nil {
+		return fmt.Errorf("cannot use %q: Hooks.FS is not configured", st.Path)
+	}
+	filename := strings.ReplaceAll(strings.TrimSpace(st.Path), "\\", "/")
+	base := "."
+	if st.P.Filename != "" {
+		base = path.Dir(st.P.Filename)
+	}
+	filename = path.Clean(path.Join(base, filename))
+	if !fs.ValidPath(filename) {
+		return fmt.Errorf("invalid use path %q", st.Path)
+	}
+	for _, active := range e.useStack {
+		if active == filename {
+			chain := append(append([]string{}, e.useStack...), filename)
+			return fmt.Errorf("circular use: %s", strings.Join(chain, " -> "))
+		}
+	}
+	src, err := fs.ReadFile(e.hooks.FS, filename)
+	if err != nil {
+		return fmt.Errorf("read used file %q: %w", filename, err)
+	}
+	prog, err := ParseFile(filename, string(src))
+	if err != nil {
+		return err
+	}
+
+	// A used file has its own lexical environment. Nested uses are installed in
+	// that environment so its definitions can see them, but only definitions
+	// declared directly in this file are copied into the caller.
+	lib := newEnv(e.hooks)
+	lib.useStack = append(append([]string{}, e.useStack...), filename)
+	for _, stmt := range prog.Stmts {
+		if use, ok := stmt.(*UseStmt); ok {
+			if _, err := evalStmt(lib, use); err != nil {
+				return err
+			}
+		}
+	}
+	for _, stmt := range prog.Stmts {
+		switch def := stmt.(type) {
+		case *ModuleDefStmt:
+			if _, err := evalStmt(lib, def); err != nil {
+				return err
+			}
+		case *FuncDefStmt:
+			if _, err := evalStmt(lib, def); err != nil {
+				return err
+			}
+		}
+	}
+	for _, stmt := range prog.Stmts {
+		if assign, ok := stmt.(*AssignStmt); ok {
+			if _, err := evalStmt(lib, assign); err != nil {
+				return err
+			}
+		}
+	}
+	for _, stmt := range prog.Stmts {
+		switch def := stmt.(type) {
+		case *ModuleDefStmt:
+			if err := e.defineModule(def.Name, lib.currentScope().mods[def.Name]); err != nil {
+				return err
+			}
+		case *FuncDefStmt:
+			if err := e.defineFunc(def.Name, lib.currentScope().fncs[def.Name]); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func evalCallStmt(e *env, st *CallStmt) (*ShapeRep, error) {

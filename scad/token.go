@@ -9,6 +9,7 @@ const (
 	TokIdent
 	TokNumber
 	TokString
+	TokUsePath
 
 	// Punctuation
 	TokLParen
@@ -45,16 +46,21 @@ const (
 )
 
 type Pos struct {
-	Offset int
-	Line   int
-	Col    int
+	Filename string
+	Offset   int
+	Line     int
+	Col      int
 }
 
 func (p Pos) String() string {
-	if p.Line == 0 && p.Col == 0 {
-		return fmt.Sprintf("offset %d", p.Offset)
+	prefix := ""
+	if p.Filename != "" {
+		prefix = p.Filename + ":"
 	}
-	return fmt.Sprintf("%d:%d", p.Line, p.Col)
+	if p.Line == 0 && p.Col == 0 {
+		return fmt.Sprintf("%soffset %d", prefix, p.Offset)
+	}
+	return fmt.Sprintf("%s%d:%d", prefix, p.Line, p.Col)
 }
 
 type Token struct {

@@ -1,8 +1,10 @@
 import "../style.css";
-import { createEditor, loadInitialSource } from "./editor";
+import { DEFAULT_SOURCE, createEditor } from "./editor";
 import { buildBinarySTL } from "./export/stl";
+import { BrowserFileSystem } from "./filesystem";
 import { MeshRenderer } from "./renderer/mesh_renderer";
 import type { AxisElements, MeshBackend } from "./types";
+import { createFileBrowser } from "./ui/file_browser";
 import { setupMobileToggle, setupResizer } from "./ui/layout";
 import { createOverlayController } from "./ui/overlay";
 import { isWebGPUSupported } from "./webgpu/meshing";
@@ -13,6 +15,7 @@ import {
 } from "./worker_client";
 
 const MESH_BACKEND_STORAGE_KEY = "m3dscad_mesh_backend";
+const LAST_OPEN_FILE_STORAGE_KEY = "m3dscad_last_open_file";
 
 interface ExportMesh {
   positions: Float32Array;
@@ -51,6 +54,29 @@ const resizer = requireElement("resizer");
 const appEl = requireElement("app");
 const toggleCodeBtn = requireElement<HTMLButtonElement>("toggleCode");
 const togglePreviewBtn = requireElement<HTMLButtonElement>("togglePreview");
+const fileBrowserEl = requireElement("fileBrowser");
+const editorFilenameEl = requireElement("editorFilename");
+const closeFilesBtn = requireElement<HTMLButtonElement>("closeFiles");
+
+const fileSystem = await BrowserFileSystem.open(DEFAULT_SOURCE);
+const initialEntries = await fileSystem.list();
+const storedActiveFilename = window.localStorage.getItem(
+  LAST_OPEN_FILE_STORAGE_KEY,
+);
+const initialActiveFilename =
+  storedActiveFilename === null ? "main.scad" : storedActiveFilename;
+let activeFilename: string | null = initialEntries.some(
+  (entry) =>
+    entry.kind === "file" &&
+    entry.path === initialActiveFilename &&
+    entry.path.toLowerCase().endsWith(".scad"),
+)
+  ? initialActiveFilename
+  : null;
+if (activeFilename) {
+  window.localStorage.setItem(LAST_OPEN_FILE_STORAGE_KEY, activeFilename);
+}
+editorFilenameEl.textContent = activeFilename || "No file open";
 
 const axisElements: AxisElements = {
   axisLineX: requireSVGElement<SVGLineElement>("axisLineX"),
@@ -103,11 +129,84 @@ function handleWorkerError(errText: string): void {
 
 const editor = createEditor({
   parent: codeHostEl,
-  initialSource: loadInitialSource(),
+  initialSource: activeFilename
+    ? await fileSystem.readTextFile(activeFilename)
+    : "",
   onSave: () => {
     void compile();
   },
+  onChange: (source) => {
+    const filename = activeFilename;
+    if (filename) {
+      void fileSystem.writeTextFile(filename, source);
+    }
+  },
 });
+
+const fileBrowser = createFileBrowser({
+  fileSystem,
+  elements: {
+    browser: fileBrowserEl,
+    app: appEl,
+    closeButton: closeFilesBtn,
+    openButton: requireElement<HTMLButtonElement>("openFiles"),
+    newFileButton: requireElement<HTMLButtonElement>("newFile"),
+    newDirectoryButton: requireElement<HTMLButtonElement>("newDirectory"),
+    uploadButton: requireElement<HTMLButtonElement>("uploadFiles"),
+    downloadDirectoryButton:
+      requireElement<HTMLButtonElement>("downloadDirectory"),
+    uploadInput: requireElement<HTMLInputElement>("fileUploadInput"),
+    breadcrumbs: requireElement("fileBreadcrumbs"),
+    fileList: requireElement("fileList"),
+    status: requireElement("fileBrowserStatus"),
+  },
+  onEditFile: async (filename) => {
+    const source = await fileSystem.readTextFile(filename);
+    activeFilename = filename;
+    window.localStorage.setItem(LAST_OPEN_FILE_STORAGE_KEY, filename);
+    editorFilenameEl.textContent = filename;
+    closeFilesBtn.disabled = false;
+    editor.setSource(source);
+    fileBrowser.hide();
+    editor.view.focus();
+  },
+  onRenameEntry: (oldPath, newPath, kind) => {
+    if (!activeFilename) {
+      return;
+    }
+    if (
+      activeFilename !== oldPath &&
+      !(kind === "directory" && activeFilename.startsWith(`${oldPath}/`))
+    ) {
+      return;
+    }
+    activeFilename = `${newPath}${activeFilename.slice(oldPath.length)}`;
+    window.localStorage.setItem(LAST_OPEN_FILE_STORAGE_KEY, activeFilename);
+    editorFilenameEl.textContent = activeFilename;
+  },
+  onDeleteEntry: async (path, kind) => {
+    if (!activeFilename) {
+      return;
+    }
+    if (
+      activeFilename !== path &&
+      !(kind === "directory" && activeFilename.startsWith(`${path}/`))
+    ) {
+      return;
+    }
+    activeFilename = null;
+    editorFilenameEl.textContent = "No file open";
+    closeFilesBtn.disabled = true;
+    editor.setSource("");
+  },
+});
+
+if (activeFilename) {
+  closeFilesBtn.disabled = false;
+} else {
+  closeFilesBtn.disabled = true;
+  await fileBrowser.show();
+}
 
 let lastMesh: ExportMesh | null = null;
 
@@ -120,6 +219,7 @@ const renderer = new MeshRenderer(canvas, {
 });
 
 const workerClient = createWorkerClient({
+  readFile: (path) => fileSystem.readFile(path),
   onReady: ({ silent }) => {
     overlay.set("", { idle: true });
     if (!silent) {
@@ -143,6 +243,12 @@ async function compile(): Promise<void> {
   if (workerClient.isBusy()) {
     return;
   }
+  const filename = activeFilename;
+  if (!filename) {
+    statusEl.textContent = "Open a .scad file before compiling.";
+    overlay.set("", { idle: true });
+    return;
+  }
   try {
     if (!workerClient.isReady()) {
       statusEl.textContent = "Loading WASM...";
@@ -156,6 +262,7 @@ async function compile(): Promise<void> {
       editor.getSource(),
       gridSize,
       isMeshBackend(meshBackendEl.value) ? meshBackendEl.value : "cpu",
+      filename,
     );
     if (!result) {
       return;

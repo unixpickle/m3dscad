@@ -1,7 +1,8 @@
 package scad
 
 type Program struct {
-	Stmts []Stmt
+	Filename string
+	Stmts    []Stmt
 }
 
 type Stmt interface {
@@ -15,6 +16,15 @@ type Expr interface {
 }
 
 // ---- statements ----
+
+// UseStmt imports the modules and functions defined directly by another file.
+type UseStmt struct {
+	Path string
+	P    Pos
+}
+
+func (*UseStmt) stmtNode()  {}
+func (s *UseStmt) pos() Pos { return s.P }
 
 type AssignStmt struct {
 	Name string

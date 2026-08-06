@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"io/fs"
 	"syscall/js"
 
 	"github.com/unixpickle/model3d/model2d"
@@ -40,11 +41,15 @@ func compile(_ js.Value, args []js.Value) any {
 		})
 	}
 	backend := meshBackendCPU
+	filename := "main.scad"
 	if len(args) >= 3 && args[2].Type() == js.TypeObject {
 		if opt := args[2].Get("meshBackend"); opt.Type() == js.TypeString {
 			backend = meshBackend(opt.String())
 		} else if opt := args[2].Get("useWebGPU"); opt.Type() == js.TypeBoolean && opt.Bool() {
 			backend = meshBackendGPUFloat32
+		}
+		if opt := args[2].Get("filename"); opt.Type() == js.TypeString && opt.String() != "" {
+			filename = opt.String()
 		}
 	}
 	if !backend.Valid() {
@@ -60,11 +65,11 @@ func compile(_ js.Value, args []js.Value) any {
 			}
 		}()
 		logWASMMessage(fmt.Sprintf("[m3dscad] compile start: grid=%d backend=%s", gridSize, backend))
-		prog, err := scad.Parse(code)
+		prog, err := scad.ParseFile(filename, code)
 		if err != nil {
 			return js.Null(), err
 		}
-		hooks := wasmHooks(backend)
+		hooks := wasmHooks(backend, jsFileSystem{})
 		shape, err := scad.Eval(prog, hooks)
 		if err != nil {
 			return js.Null(), err
@@ -107,8 +112,9 @@ func (b meshBackend) Numerics() shapekernel.Numerics {
 	return shapekernel.NativeFloat32Numerics
 }
 
-func wasmHooks(backend meshBackend) scad.Hooks {
+func wasmHooks(backend meshBackend, filesystem fs.FS) scad.Hooks {
 	return scad.Hooks{
+		FS:       filesystem,
 		Numerics: backend.Numerics(),
 		Echo:     wasmEchoHandler,
 		MarchingSquares: func(obj scad.ShapeRep, delta float64, iters int) (*model2d.Mesh, error) {

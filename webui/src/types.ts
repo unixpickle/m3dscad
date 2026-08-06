@@ -39,6 +39,7 @@ export interface CompileRequest {
   code: string;
   gridSize: number;
   meshBackend: MeshBackend;
+  filename: string;
 }
 
 export type MeshBackend = "cpu" | "gpu_f32" | "gpu_fixed64";
@@ -47,7 +48,29 @@ export interface InitRequest {
   type: "init";
 }
 
-export type WorkerRequest = CompileRequest | InitRequest;
+export interface FileReadRequest {
+  type: "fs_read";
+  id: number;
+  path: string;
+}
+
+export interface FileReadSuccess {
+  type: "fs_read_result";
+  id: number;
+  ok: true;
+  data: Uint8Array;
+}
+
+export interface FileReadError {
+  type: "fs_read_result";
+  id: number;
+  ok: false;
+  error: string;
+}
+
+export type FileReadResult = FileReadSuccess | FileReadError;
+
+export type WorkerRequest = CompileRequest | InitRequest | FileReadResult;
 
 export interface CompileSuccess {
   type: "result";
@@ -137,6 +160,7 @@ export type WebGPUMeshResultMessage =
 export type WorkerResponse =
   | CompileSuccess
   | CompileError
+  | FileReadRequest
   | ReadyMessage
   | InitErrorMessage
   | EchoMessage

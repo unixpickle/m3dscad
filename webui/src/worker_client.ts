@@ -1,5 +1,6 @@
 import type {
   CompileSuccess,
+  FileReadResult,
   InitRequest,
   MeshBackend,
   MeshData,
@@ -20,6 +21,7 @@ interface ReadyInfo {
 }
 
 interface WorkerClientOptions {
+  readFile: (path: string) => Promise<Uint8Array>;
   onReady?: (info: ReadyInfo) => void;
   onEcho?: (text: string) => void;
   onLog?: (text: string) => void;
@@ -34,6 +36,7 @@ interface WorkerClient {
     code: string,
     gridSize: number,
     meshBackend?: MeshBackend,
+    filename?: string,
   ): Promise<MeshData | null>;
   cancel(): boolean;
   isReady(): boolean;
@@ -60,6 +63,7 @@ function compileMessage(
   code: string,
   gridSize: number,
   meshBackend: MeshBackend,
+  filename: string,
 ): WorkerRequest {
   return {
     type: "compile",
@@ -67,16 +71,18 @@ function compileMessage(
     code,
     gridSize,
     meshBackend,
+    filename,
   };
 }
 
 export function createWorkerClient({
+  readFile,
   onReady,
   onEcho,
   onLog,
   onInitError,
   onWorkerError,
-}: WorkerClientOptions = {}): WorkerClient {
+}: WorkerClientOptions): WorkerClient {
   let worker: Worker | null = null;
   let workerReady = false;
   let workerInitPromise: Promise<void> = Promise.resolve();
@@ -113,7 +119,9 @@ export function createWorkerClient({
     }
     worker?.terminate();
 
-    worker = new Worker(new URL("../worker.ts", import.meta.url));
+    worker = new Worker(new URL("../worker.ts", import.meta.url), {
+      type: "module",
+    });
     const currentWorker = worker;
     workerInitPromise = new Promise<void>((resolve, reject) => {
       resolveWorkerInit = resolve;
@@ -132,6 +140,34 @@ export function createWorkerClient({
         resolveWorkerInit?.();
         clearWorkerInitHandlers();
         onReady?.({ silent });
+        return;
+      }
+      if (msg.type === "fs_read") {
+        void readFile(msg.path)
+          .then((contents) => {
+            if (worker !== currentWorker) {
+              return;
+            }
+            const data = new Uint8Array(contents);
+            const response: FileReadResult = {
+              type: "fs_read_result",
+              id: msg.id,
+              ok: true,
+              data,
+            };
+            currentWorker.postMessage(response, [data.buffer]);
+          })
+          .catch((error: unknown) => {
+            if (worker !== currentWorker) {
+              return;
+            }
+            currentWorker.postMessage({
+              type: "fs_read_result",
+              id: msg.id,
+              ok: false,
+              error: error instanceof Error ? error.message : String(error),
+            } satisfies FileReadResult);
+          });
         return;
       }
       if (msg.type === "echo") {
@@ -190,6 +226,7 @@ export function createWorkerClient({
     code: string,
     gridSize: number,
     meshBackend: MeshBackend = "cpu",
+    filename = "main.scad",
   ): Promise<MeshData | null> {
     if (pendingRequestId != null || compilePreparing) {
       return null;
@@ -211,7 +248,7 @@ export function createWorkerClient({
         rejectCompile = reject;
       });
       worker.postMessage(
-        compileMessage(pendingRequestId, code, gridSize, meshBackend),
+        compileMessage(pendingRequestId, code, gridSize, meshBackend, filename),
       );
       return await resultPromise;
     } catch (err) {

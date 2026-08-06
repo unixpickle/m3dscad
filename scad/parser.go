@@ -1,9 +1,10 @@
 package scad
 
 type Parser struct {
-	lx   *Lexer
-	cur  Token
-	peek Token
+	lx    *Lexer
+	cur   Token
+	peek  Token
+	depth int
 }
 
 type namedExprBind struct {
@@ -13,7 +14,12 @@ type namedExprBind struct {
 }
 
 func NewParser(src string) (*Parser, error) {
-	lx := NewLexer(src)
+	return NewParserFile("", src)
+}
+
+// NewParserFile creates a parser whose positions refer to filename.
+func NewParserFile(filename, src string) (*Parser, error) {
+	lx := NewLexerFile(filename, src)
 	t0, err := lx.Next()
 	if err != nil {
 		return nil, err
@@ -34,7 +40,7 @@ func (p *Parser) ParseProgram() (*Program, error) {
 		}
 		stmts = append(stmts, s)
 	}
-	return &Program{Stmts: stmts}, nil
+	return &Program{Filename: p.cur.Pos.Filename, Stmts: stmts}, nil
 }
 
 func (p *Parser) parseStmt() (Stmt, error) {
@@ -46,6 +52,8 @@ func (p *Parser) parseStmt() (Stmt, error) {
 	// keywords as identifiers
 	if p.cur.Kind == TokIdent {
 		switch p.cur.Lexeme {
+		case "use":
+			return p.parseUse()
 		case "module":
 			return p.parseModuleDef()
 		case "function":
@@ -108,12 +116,34 @@ func (p *Parser) parseStmt() (Stmt, error) {
 	return nil, PosErrorf(p.cur.Pos, "expected statement")
 }
 
+func (p *Parser) parseUse() (Stmt, error) {
+	pos := p.cur.Pos
+	if p.depth != 0 {
+		return nil, PosErrorf(pos, "use is only allowed at the top level")
+	}
+	p.advance()
+	if p.cur.Kind != TokUsePath {
+		return nil, PosErrorf(p.cur.Pos, "expected '<filename>' after use")
+	}
+	path := p.cur.Lexeme
+	if path == "" {
+		return nil, PosErrorf(p.cur.Pos, "use path cannot be empty")
+	}
+	p.advance()
+	if p.cur.Kind == TokSemi {
+		p.advance()
+	}
+	return &UseStmt{Path: path, P: pos}, nil
+}
+
 func (p *Parser) parseBlock() (*BlockStmt, error) {
 	pos := p.cur.Pos
 	if err := p.expect(TokLBrace, "expected '{'"); err != nil {
 		return nil, err
 	}
 	var stmts []Stmt
+	p.depth++
+	defer func() { p.depth-- }()
 	for p.cur.Kind != TokRBrace && p.cur.Kind != TokEOF {
 		s, err := p.parseStmt()
 		if err != nil {

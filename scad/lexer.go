@@ -6,17 +6,40 @@ import (
 )
 
 type Lexer struct {
-	s   string
-	i   int
-	pos Pos
+	s               string
+	i               int
+	pos             Pos
+	awaitingUsePath bool
 }
 
 func NewLexer(s string) *Lexer {
-	return &Lexer{s: s, pos: Pos{Line: 1, Col: 1}}
+	return NewLexerFile("", s)
+}
+
+// NewLexerFile creates a lexer whose positions refer to filename.
+func NewLexerFile(filename, s string) *Lexer {
+	return &Lexer{s: s, pos: Pos{Filename: filename, Line: 1, Col: 1}}
 }
 
 func (l *Lexer) Next() (Token, error) {
 	l.skipSpaceAndComments()
+	if l.awaitingUsePath {
+		l.awaitingUsePath = false
+		if l.i < len(l.s) && l.peek() == '<' {
+			startPos := l.pos
+			l.advance()
+			start := l.i
+			for l.i < len(l.s) && l.peek() != '>' {
+				l.advance()
+			}
+			if l.i >= len(l.s) {
+				return Token{}, PosErrorf(startPos, "unterminated use path")
+			}
+			path := l.s[start:l.i]
+			l.advance()
+			return Token{Kind: TokUsePath, Lexeme: path, Pos: startPos}, nil
+		}
+	}
 
 	if l.i >= len(l.s) {
 		return Token{Kind: TokEOF, Pos: l.pos}, nil
@@ -33,6 +56,9 @@ func (l *Lexer) Next() (Token, error) {
 			l.advance()
 		}
 		lex := l.s[start:l.i]
+		if lex == "use" {
+			l.awaitingUsePath = true
+		}
 		return Token{Kind: TokIdent, Lexeme: lex, Pos: startPos}, nil
 	}
 

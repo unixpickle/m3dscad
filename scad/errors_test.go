@@ -39,3 +39,9 @@ func TestPosErrorfWrapThenWithPos(t *testing.T) {
 		t.Fatalf("unexpected error string: got %q want %q", got, want)
 	}
 }
+
+func TestPosStringWithFilename(t *testing.T) {
+	if got, want := (Pos{Filename: "lib/shape.scad", Line: 3, Col: 9}).String(), "lib/shape.scad:3:9"; got != want {
+		t.Fatalf("unexpected position: got %q want %q", got, want)
+	}
+}

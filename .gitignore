@@ -1,4 +1,5 @@
 *.stl
+!testdata/openscad_scad/import_assets/*.stl
 .DS_Store
 webui/dist
 webui/node_modules

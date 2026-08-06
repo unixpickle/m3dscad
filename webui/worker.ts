@@ -21,6 +21,7 @@ declare const Go: {
 
 interface CompileOptions {
   meshBackend: MeshBackend;
+  filename: string;
 }
 
 interface WorkerGlobalWithRuntime extends DedicatedWorkerGlobalScope {
@@ -30,12 +31,21 @@ interface WorkerGlobalWithRuntime extends DedicatedWorkerGlobalScope {
     options: CompileOptions,
   ) => Promise<unknown> | unknown;
   m3dscadWebGPUMesh?: (request: WebGPUMeshRequestPayload) => Promise<unknown>;
+  m3dscadReadFile?: (path: string) => Promise<Uint8Array>;
 }
 
 const workerScope = self as WorkerGlobalWithRuntime;
 
 let ready = false;
 let wasmReadyPromise: Promise<void> | null = null;
+let nextFileReadId = 0;
+const pendingFileReads = new Map<
+  number,
+  {
+    resolve: (data: Uint8Array) => void;
+    reject: (error: Error) => void;
+  }
+>();
 
 function resetWasmState(): void {
   ready = false;
@@ -58,6 +68,15 @@ function postCompileError(id: number, error: string): void {
 
 function installWebGPUBridge(): void {
   workerScope.m3dscadWebGPUMesh = (request) => handleWebGPUMeshRequest(request);
+}
+
+function installFileSystemBridge(): void {
+  workerScope.m3dscadReadFile = (path) =>
+    new Promise<Uint8Array>((resolve, reject) => {
+      const id = ++nextFileReadId;
+      pendingFileReads.set(id, { resolve, reject });
+      postWorkerMessage({ type: "fs_read", id, path });
+    });
 }
 
 function instantiateWasm(
@@ -97,29 +116,33 @@ function initWasm(): Promise<void> {
     const cacheKey = new URL(workerScope.location.href).pathname;
     wasmExecUrl.searchParams.set("v", cacheKey);
     wasmUrl.searchParams.set("v", cacheKey);
-    try {
-      workerScope.importScripts(wasmExecUrl.href);
-    } catch {
-      reject(
-        new Error("Missing wasm_exec.js. Run ./webui/build_wasm.sh first."),
-      );
-      return;
-    }
-    const go = new Go();
-    installWebGPUBridge();
-    instantiateWasm(go, wasmUrl.href)
-      .then((result) => {
+    import(/* @vite-ignore */ wasmExecUrl.href)
+      .then(() => {
+        const go = new Go();
+        installWebGPUBridge();
+        installFileSystemBridge();
+        return instantiateWasm(go, wasmUrl.href).then((result) => ({
+          go,
+          result,
+        }));
+      })
+      .then(({ go, result }) => {
         Promise.resolve(go.run(result.instance))
           .catch(() => {})
           .finally(() => {
             resetWasmState();
           });
         ready = true;
-        postWorkerMessage({ type: "ready" });
         resolve();
       })
       .catch((err: unknown) => {
-        reject(err instanceof Error ? err : new Error(String(err)));
+        reject(
+          err instanceof Error
+            ? err
+            : new Error(
+                "Missing wasm_exec.js. Run ./webui/build_wasm.sh first.",
+              ),
+        );
       });
   });
   return wasmReadyPromise;
@@ -151,12 +174,30 @@ workerScope.addEventListener(
       return;
     }
     if (msg.type === "init") {
-      void initWasm().catch((err: unknown) => {
-        postWorkerMessage({
-          type: "init_error",
-          error: err instanceof Error ? err.message : String(err),
+      void initWasm()
+        .then(() => {
+          postWorkerMessage({ type: "ready" });
+        })
+        .catch((err: unknown) => {
+          ready = false;
+          postWorkerMessage({
+            type: "init_error",
+            error: err instanceof Error ? err.message : String(err),
+          });
         });
-      });
+      return;
+    }
+    if (msg.type === "fs_read_result") {
+      const pending = pendingFileReads.get(msg.id);
+      if (!pending) {
+        return;
+      }
+      pendingFileReads.delete(msg.id);
+      if (msg.ok) {
+        pending.resolve(msg.data);
+      } else {
+        pending.reject(new Error(msg.error));
+      }
       return;
     }
     if (msg.type !== "compile") {
@@ -171,6 +212,7 @@ workerScope.addEventListener(
         return Promise.resolve(
           workerScope.m3dscadCompile(msg.code, msg.gridSize, {
             meshBackend: msg.meshBackend || "cpu",
+            filename: msg.filename || "main.scad",
           }),
         )
           .then((result) => {

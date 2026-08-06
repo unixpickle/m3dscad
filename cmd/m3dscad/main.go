@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/unixpickle/model3d/model3d"
 
@@ -26,14 +27,25 @@ func main() {
 		fmt.Fprintln(os.Stderr, "read:", err)
 		os.Exit(1)
 	}
+	absInPath, err := filepath.Abs(*inPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "input path:", err)
+		os.Exit(1)
+	}
+	fsRoot := filepath.VolumeName(absInPath) + string(filepath.Separator)
+	fsFilename, err := filepath.Rel(fsRoot, absInPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "input path:", err)
+		os.Exit(1)
+	}
 
-	prog, err := scad.Parse(string(srcBytes))
+	prog, err := scad.ParseFile(filepath.ToSlash(fsFilename), string(srcBytes))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "parse:", err)
 		os.Exit(1)
 	}
 
-	shape, err := scad.Eval(prog, scad.Hooks{})
+	shape, err := scad.Eval(prog, scad.Hooks{FS: os.DirFS(fsRoot)})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "eval:", err)
 		os.Exit(1)

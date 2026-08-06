@@ -8,6 +8,9 @@ type callHandler struct {
 }
 
 var builtinHandlers = map[string]callHandler{
+	"import": {
+		Eval: handleImport,
+	},
 	"union": {
 		AllowChildren:   true,
 		RequireChildren: true,

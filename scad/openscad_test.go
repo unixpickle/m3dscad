@@ -35,15 +35,28 @@ func TestOpenSCADMeshParity(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			scadPath := filepath.Join(scadDir, entry.Name())
 			stlPath := filepath.Join(stlDir, name+".stl")
-			srcBytes, err := os.ReadFile(scadPath)
-			if os.IsNotExist(err) {
+			if _, err := os.Stat(stlPath); os.IsNotExist(err) {
 				t.Skipf("missing OpenSCAD STL: %s (run scripts/compile_openscad_testdata.sh)", stlPath)
+			} else if err != nil {
+				t.Fatalf("stat OpenSCAD STL: %v", err)
 			}
+			srcBytes, err := os.ReadFile(scadPath)
 			if err != nil {
 				t.Fatalf("read scad: %v", err)
 			}
 			src := stripLeadingOpenSCADAssignments(string(srcBytes))
-			solid := mustEvalSolid(t, src)
+			prog, err := ParseFile(entry.Name(), src)
+			if err != nil {
+				t.Fatalf("parse failed: %v", err)
+			}
+			shape, err := Eval(prog, Hooks{FS: os.DirFS(scadDir)})
+			if err != nil {
+				t.Fatalf("eval failed: %v", err)
+			}
+			solid, err := shapeToSolid3D(shape)
+			if err != nil {
+				t.Fatalf("eval to solid failed: %v", err)
+			}
 
 			delta := marchingDelta(solid, openscadTestMaxGridSide)
 			if delta <= 0 {

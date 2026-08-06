@@ -6,6 +6,25 @@
     <title>m3dscad WebUI</title>
   </head>
   <body>
+    <section class="file-browser" id="fileBrowser" hidden aria-label="Project files">
+      <header class="file-browser-header">
+        <div>
+          <div class="title">Project files</div>
+          <div class="subtitle">Stored privately in this browser</div>
+        </div>
+        <button id="closeFiles" class="secondary-button">Back to editor</button>
+      </header>
+      <div class="file-browser-toolbar">
+        <button id="newFile">New .scad file</button>
+        <button id="newDirectory">New folder</button>
+        <button id="uploadFiles">Upload files</button>
+        <button id="downloadDirectory">Download .tar</button>
+        <input id="fileUploadInput" type="file" multiple hidden />
+      </div>
+      <nav id="fileBreadcrumbs" class="file-breadcrumbs" aria-label="Current folder"></nav>
+      <div id="fileList" class="file-list"></div>
+      <div id="fileBrowserStatus" class="file-browser-status" role="status"></div>
+    </section>
     <div class="app" id="app">
       <div class="mobile-toggle">
         <button id="toggleCode" class="toggle-btn active">Code</button>
@@ -13,8 +32,10 @@
       </div>
       <div class="panel panel-left" id="panelCode">
         <header class="panel-header">
-          <div class="title">m3dscad</div>
-          <div class="subtitle">Command+S to compile</div>
+          <div class="editor-filename" id="editorFilename">main.scad</div>
+          <div class="editor-header-actions">
+            <button id="openFiles" class="secondary-button">Files</button>
+          </div>
         </header>
         <div id="code" class="code-editor"></div>
         <div class="status" id="status">WASM not loaded.</div>

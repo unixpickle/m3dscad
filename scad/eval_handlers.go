@@ -8,6 +8,9 @@ type callHandler struct {
 }
 
 var builtinHandlers = map[string]callHandler{
+	"image": {
+		Eval: handleImage,
+	},
 	"import": {
 		Eval: handleImport,
 	},
@@ -110,6 +113,12 @@ var builtinHandlers = map[string]callHandler{
 		RequireChildren: true,
 		NeedsChildUnion: true,
 		Eval:            handleMeshToHull,
+	},
+	"smooth_sq": {
+		AllowChildren:   true,
+		RequireChildren: true,
+		NeedsChildUnion: true,
+		Eval:            handleSmoothSq,
 	},
 	"inset_sdf": {
 		AllowChildren:   true,

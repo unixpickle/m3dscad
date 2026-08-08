@@ -140,3 +140,26 @@ func handleMeshToHull(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) 
 	}
 	return shapeHull2D(&Hull2D{Circles: circles}), nil
 }
+
+func handleSmoothSq(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
+	args, err := bindArgs(e, st.Call, []ArgSpec{
+		{Name: "iters", Pos: 0, Required: true},
+	})
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	iters, err := argNum(args, "iters")
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	if float64(int(iters)) != iters {
+		return ShapeRep{}, fmt.Errorf("smooth_sq(): iters must be an integer")
+	}
+	if iters < 0 {
+		return ShapeRep{}, fmt.Errorf("smooth_sq(): iters must be >= 0")
+	}
+	if childUnion.Kind != ShapeMesh2D {
+		return ShapeRep{}, fmt.Errorf("smooth_sq(): requires a 2D mesh")
+	}
+	return shapeMesh2D(childUnion.M2.SmoothSq(int(iters))), nil
+}

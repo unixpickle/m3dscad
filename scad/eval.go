@@ -57,9 +57,9 @@ func (e *env) Clone() *env {
 
 // Hooks provides built-in function implementations to the interpreter.
 type Hooks struct {
-	// FS contains files referenced by use statements, import() calls, and
-	// text() font paths. Paths are resolved relative to the file containing the
-	// reference.
+	// FS contains files referenced by use statements, import() and image()
+	// calls, and text() font paths. Paths are resolved relative to the file
+	// containing the reference.
 	FS fs.FS
 
 	// Numerics controls the numeric WGSL representation used by shape kernels.

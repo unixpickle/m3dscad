@@ -4,7 +4,9 @@ import (
 	"math/rand"
 	"strings"
 	"testing"
+	"testing/fstest"
 
+	m3dfonts "github.com/unixpickle/m3dscad/fonts"
 	"github.com/unixpickle/model3d/model2d"
 )
 
@@ -38,17 +40,101 @@ func TestTextAndTextSDFParity(t *testing.T) {
 	assertSolids2DEqual(t, shapeA.S2, shapeB.S2)
 }
 
-func TestTextUnsupportedFont(t *testing.T) {
-	prog, err := Parse(`text("Hello", font="Arial");`)
+func TestTextFontFile(t *testing.T) {
+	files := fstest.MapFS{
+		"assets/custom.ttf": {Data: m3dfonts.LiberationSansRegularTTF},
+	}
+	prog, err := ParseFile(
+		"models/main.scad",
+		`text("Hello", size=4, font="../assets/custom.ttf", halign="center", valign="center");`,
+	)
 	if err != nil {
-		t.Fatalf("parse failed: %v", err)
+		t.Fatal(err)
 	}
-	_, err = Eval(prog, Hooks{})
-	if err == nil {
-		t.Fatal("expected error")
+	shape, err := Eval(prog, Hooks{FS: files})
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(err.Error(), "unsupported font") {
-		t.Fatalf("expected unsupported font error, got: %v", err)
+	embedded := mustEvalShape(t, `text("Hello", size=4, halign="center", valign="center");`)
+	if shape.Kind != ShapeSolid2D || embedded.Kind != ShapeSolid2D {
+		t.Fatalf("expected 2D solids, got %v and %v", shape.Kind, embedded.Kind)
+	}
+	assertSolids2DEqual(t, shape.S2, embedded.S2)
+}
+
+func TestTextFontRelativeToUsedModule(t *testing.T) {
+	files := fstest.MapFS{
+		"lib/label.scad": {Data: []byte(`
+module label() {
+    text("Hello", font="../assets/custom.ttf");
+}
+`)},
+		"assets/custom.ttf": {Data: m3dfonts.LiberationSansRegularTTF},
+	}
+	prog, err := ParseFile("main.scad", `use <lib/label.scad> label();`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	shape, err := Eval(prog, Hooks{FS: files})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if shape.Kind != ShapeSolid2D {
+		t.Fatalf("expected ShapeSolid2D, got %v", shape.Kind)
+	}
+}
+
+func TestTextFontFileErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		font    string
+		files   fstest.MapFS
+		noFS    bool
+		wantErr string
+	}{
+		{
+			name:    "missing hook",
+			font:    "custom.ttf",
+			noFS:    true,
+			wantErr: "Hooks.FS is not configured",
+		},
+		{
+			name:    "missing file",
+			font:    "custom.ttf",
+			files:   fstest.MapFS{},
+			wantErr: `read font "models/custom.ttf"`,
+		},
+		{
+			name:    "malformed font",
+			font:    "bad.ttf",
+			files:   fstest.MapFS{"models/bad.ttf": {Data: []byte("not a font")}},
+			wantErr: `parse font "models/bad.ttf"`,
+		},
+		{
+			name:    "path escapes root",
+			font:    "../../bad.ttf",
+			files:   fstest.MapFS{},
+			wantErr: `invalid font path "../../bad.ttf"`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			prog, err := ParseFile(
+				"models/main.scad",
+				`text("Hello", font="`+test.font+`");`,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var hooks Hooks
+			if !test.noFS {
+				hooks.FS = test.files
+			}
+			_, err = Eval(prog, hooks)
+			if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+				t.Fatalf("expected error containing %q, got %v", test.wantErr, err)
+			}
+		})
 	}
 }
 

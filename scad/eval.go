@@ -36,16 +36,18 @@ type scope struct {
 }
 
 type env struct {
-	scopes   []*scope
-	hooks    Hooks
-	useStack []string
+	scopes        []*scope
+	hooks         Hooks
+	useStack      []string
+	textFontCache map[string]textFontCacheEntry
 }
 
 func (e *env) WithScopes(s []*scope) *env {
 	return &env{
-		scopes:   s,
-		hooks:    e.hooks,
-		useStack: e.useStack,
+		scopes:        s,
+		hooks:         e.hooks,
+		useStack:      e.useStack,
+		textFontCache: e.textFontCache,
 	}
 }
 
@@ -55,8 +57,9 @@ func (e *env) Clone() *env {
 
 // Hooks provides built-in function implementations to the interpreter.
 type Hooks struct {
-	// FS contains files referenced by use statements and import() calls. Paths
-	// are resolved relative to the file containing the reference.
+	// FS contains files referenced by use statements, import() calls, and
+	// text() font paths. Paths are resolved relative to the file containing the
+	// reference.
 	FS fs.FS
 
 	// Numerics controls the numeric WGSL representation used by shape kernels.
@@ -112,8 +115,9 @@ func newEnv(hooks Hooks) *env {
 	root := newScope()
 	root.vars["PI"] = Num(math.Pi)
 	return &env{
-		scopes: []*scope{root},
-		hooks:  hooks,
+		scopes:        []*scope{root},
+		hooks:         hooks,
+		textFontCache: map[string]textFontCacheEntry{},
 	}
 }
 

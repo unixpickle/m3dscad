@@ -2,6 +2,9 @@ package scad
 
 import (
 	"fmt"
+	"io/fs"
+	"path"
+	"strings"
 	"sync"
 
 	m3dfonts "github.com/unixpickle/m3dscad/fonts"
@@ -14,6 +17,11 @@ var (
 	liberationFont     *textcurve.ParsedFont
 	liberationFontErr  error
 )
+
+type textFontCacheEntry struct {
+	font *textcurve.ParsedFont
+	err  error
+}
 
 func handleText(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
 	mesh, err := parseTextMesh(e, st)
@@ -88,16 +96,12 @@ func parseTextMesh(e *env, st *CallStmt) (*model2d.Mesh, error) {
 		return nil, fmt.Errorf("text(): size must be > 0")
 	}
 
-	if font != "Liberation Sans" && font != "Liberation Sans:style=Regular" {
-		return nil, fmt.Errorf("text(): unsupported font %q", font)
-	}
-
 	align, err := parseTextAlign(halign, valign)
 	if err != nil {
 		return nil, err
 	}
 
-	parsed, err := getLiberationFont()
+	parsed, err := getTextFont(e, st.P, font)
 	if err != nil {
 		return nil, err
 	}
@@ -116,6 +120,41 @@ func parseTextMesh(e *env, st *CallStmt) (*model2d.Mesh, error) {
 		return nil, fmt.Errorf("text(): no outlines produced")
 	}
 	return mesh, nil
+}
+
+func getTextFont(e *env, pos Pos, font string) (*textcurve.ParsedFont, error) {
+	if font == "Liberation Sans" || font == "Liberation Sans:style=Regular" {
+		return getLiberationFont()
+	}
+	if e.hooks.FS == nil {
+		return nil, fmt.Errorf("text(): cannot load font %q: Hooks.FS is not configured", font)
+	}
+
+	filename := strings.ReplaceAll(strings.TrimSpace(font), "\\", "/")
+	base := "."
+	if pos.Filename != "" {
+		base = path.Dir(pos.Filename)
+	}
+	filename = path.Clean(path.Join(base, filename))
+	if !fs.ValidPath(filename) {
+		return nil, fmt.Errorf("text(): invalid font path %q", font)
+	}
+	if cached, ok := e.textFontCache[filename]; ok {
+		return cached.font, cached.err
+	}
+
+	var parsed *textcurve.ParsedFont
+	data, err := fs.ReadFile(e.hooks.FS, filename)
+	if err != nil {
+		err = fmt.Errorf("text(): read font %q: %w", filename, err)
+	} else {
+		parsed, err = textcurve.ParseTTF(data)
+		if err != nil {
+			err = fmt.Errorf("text(): parse font %q: %w", filename, err)
+		}
+	}
+	e.textFontCache[filename] = textFontCacheEntry{font: parsed, err: err}
+	return parsed, err
 }
 
 func parseTextAlign(halign, valign string) (textcurve.Align, error) {

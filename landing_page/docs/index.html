@@ -73,9 +73,10 @@
           <li class="toc-family"><span class="toc-link-row"><a href="#square">square</a><a href="#square_metaball">square_metaball</a><a href="#square_sdf">square_sdf</a></span></li>
           <li><a href="#fn_solid_2d_ref">fn_solid (2D)</a></li>
           <li class="toc-family"><span class="toc-link-row"><a href="#polygon">polygon</a><a href="#polygon_mesh">polygon_mesh</a><a href="#polygon_sdf">polygon_sdf</a><a href="#polygon_hull">polygon_hull</a></span></li>
+          <li><a href="#image">image</a></li>
           <li class="toc-family"><span class="toc-link-row"><a href="#hull_solid">hull_solid</a><a href="#hull_sdf">hull_sdf</a></span></li>
           <li class="toc-family"><span class="toc-link-row"><a href="#path">path</a><a href="#path_mesh">path_mesh</a><a href="#path_sdf">path_sdf</a></span></li>
-          <li class="toc-family"><span class="toc-link-row"><a href="#text">text</a><a href="#text_mesh">text_mesh</a></span></li>
+          <li class="toc-family"><span class="toc-link-row"><a href="#text">text</a><a href="#text_mesh">text_mesh</a><a href="#text_sdf">text_sdf</a></span></li>
         </ul>
         </div>
 
@@ -119,6 +120,7 @@
           <li><a href="#dual_contour">dual_contour</a></li>
           <li><a href="#mesh_to_sdf">mesh_to_sdf</a></li>
           <li><a href="#mesh_to_hull">mesh_to_hull</a></li>
+          <li><a href="#smooth_sq">smooth_sq</a></li>
           <li><a href="#inset_sdf">inset_sdf</a></li>
           <li><a href="#outset_sdf">outset_sdf</a></li>
           <li><a href="#solid">solid</a></li>
@@ -442,6 +444,17 @@ sphere(r=radius);</pre>
           <li><code>convexity</code>: Compatibility parameter (currently unused for evaluation behavior).</li>
         </ul>
 
+        <h3 id="image"><code>image</code></h3>
+        <p>Loads a bitmap image and creates a 2D boundary mesh from its foreground pixels.</p>
+        <pre class="example-code">image(file)</pre>
+        <ul>
+          <li><code>file</code> (or <code>filename</code>): Path to a PNG, JPEG, or GIF image. Relative paths are resolved from the file containing the <code>image()</code> call, including calls inside files loaded with <code>use</code>.</li>
+          <li><code>foreground</code>: The top-left pixel is treated as background; foreground pixels are inferred by comparing their colors with the image's mean color and its top-left color.</li>
+          <li><code>scale</code>: Each source pixel occupies one model unit in X and Y. Use <code>scale()</code> to change the result's size.</li>
+        </ul>
+        <pre class="example-code">smooth_sq(10)
+  image("../assets/logo.png");</pre>
+
         <h3 id="hull_solid"><code>hull_solid</code></h3>
         <p>Converts a 2D hull input into a solid. Hull inputs are typically built from <code>circle_hull()</code>, <code>polygon_hull()</code>, or <code>mesh_to_hull()</code>.</p>
         <pre class="example-code">hull_solid() { hull2d }</pre>
@@ -483,25 +496,39 @@ sphere(r=radius);</pre>
         </ul>
 
         <h3 id="text"><code>text</code></h3>
-        <p>Creates filled 2D glyph outlines using the embedded Liberation Sans font.</p>
+        <p>Creates filled 2D glyph outlines using the embedded Liberation Sans font or a font file.</p>
         <pre class="example-code">text(text, size=10, font="Liberation Sans", halign="left", valign="baseline", spacing=1, segments=8)</pre>
         <ul>
           <li><code>text</code>: Input text content to render.</li>
           <li><code>size</code>: Font size scale.</li>
-          <li><code>font</code>: Font name; currently only Liberation Sans regular is supported.</li>
+          <li><code>font</code>: <code>"Liberation Sans"</code> (the embedded default), <code>"Liberation Sans:style=Regular"</code>, or a path to a TTF/OTF font with TrueType outlines. Relative paths are resolved from the file containing the call, including calls inside files loaded with <code>use</code>.</li>
+          <li><code>halign</code>: Horizontal alignment (<code>left</code>, <code>center</code>, <code>right</code>).</li>
+          <li><code>valign</code>: Vertical alignment (<code>baseline</code>, <code>top</code>, <code>center</code>, <code>bottom</code>).</li>
+          <li><code>spacing</code>: Additional spacing multiplier between glyphs.</li>
+          <li><code>segments</code>: Curve tessellation segments per glyph curve.</li>
+        </ul>
+        <pre class="example-code">text("Custom font", font="../assets/custom.ttf");</pre>
+
+        <h3 id="text_mesh"><code>text_mesh</code></h3>
+        <p>Creates text outlines as a 2D mesh using the embedded Liberation Sans font or a font file.</p>
+        <pre class="example-code">text_mesh(text, size=10, font="Liberation Sans", halign="left", valign="baseline", spacing=1, segments=8)</pre>
+        <ul>
+          <li><code>text</code>: Input text content to render.</li>
+          <li><code>size</code>: Font size scale.</li>
+          <li><code>font</code>: Embedded Liberation Sans or a font path, as described for <code>text()</code>.</li>
           <li><code>halign</code>: Horizontal alignment (<code>left</code>, <code>center</code>, <code>right</code>).</li>
           <li><code>valign</code>: Vertical alignment (<code>baseline</code>, <code>top</code>, <code>center</code>, <code>bottom</code>).</li>
           <li><code>spacing</code>: Additional spacing multiplier between glyphs.</li>
           <li><code>segments</code>: Curve tessellation segments per glyph curve.</li>
         </ul>
 
-        <h3 id="text_mesh"><code>text_mesh</code></h3>
-        <p>Creates text outlines as a 2D mesh using the embedded Liberation Sans font.</p>
-        <pre class="example-code">text_mesh(text, size=10, font="Liberation Sans", halign="left", valign="baseline", spacing=1, segments=8)</pre>
+        <h3 id="text_sdf"><code>text_sdf</code></h3>
+        <p>Creates text outlines as a 2D SDF using the embedded Liberation Sans font or a font file.</p>
+        <pre class="example-code">text_sdf(text, size=10, font="Liberation Sans", halign="left", valign="baseline", spacing=1, segments=8)</pre>
         <ul>
           <li><code>text</code>: Input text content to render.</li>
           <li><code>size</code>: Font size scale.</li>
-          <li><code>font</code>: Font name; currently only Liberation Sans regular is supported.</li>
+          <li><code>font</code>: Embedded Liberation Sans or a font path, as described for <code>text()</code>.</li>
           <li><code>halign</code>: Horizontal alignment (<code>left</code>, <code>center</code>, <code>right</code>).</li>
           <li><code>valign</code>: Vertical alignment (<code>baseline</code>, <code>top</code>, <code>center</code>, <code>bottom</code>).</li>
           <li><code>spacing</code>: Additional spacing multiplier between glyphs.</li>
@@ -645,6 +672,15 @@ transform(fn) { mesh }</pre>
         <ul>
           <li><code>children</code>: 2D mesh child geometry.</li>
           <li><code>behavior</code>: The resulting hull can be turned into geometry with <code>hull_solid()</code> or <code>hull_sdf()</code>.</li>
+        </ul>
+
+        <h3 id="smooth_sq"><code>smooth_sq</code></h3>
+        <p>Smooths a 2D mesh by moving its existing vertices to minimize squared segment lengths, producing more even boundary segments.</p>
+        <pre class="example-code">smooth_sq(iters) { mesh2d }</pre>
+        <ul>
+          <li><code>iters</code>: Non-negative integer number of smoothing iterations.</li>
+          <li><code>children</code>: 2D mesh geometry, such as the result of <code>image()</code>, <code>polygon_mesh()</code>, or <code>marching_squares()</code>.</li>
+          <li><code>behavior</code>: Smoothing moves vertices but does not add segments. Larger iteration counts produce a smoother result and may change or shrink the outline.</li>
         </ul>
 
         <h3 id="inset_sdf"><code>inset_sdf</code></h3>

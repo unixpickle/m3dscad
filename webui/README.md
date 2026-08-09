@@ -67,10 +67,14 @@ Then open `http://localhost:8080`.
 - `Command+S` (or `Ctrl+S`) compiles the code and updates the preview.
 - `Files` opens the browser-backed project filesystem. Projects start in
   `main.scad`, and can contain uploaded files, folders, and additional `.scad`
-  files for `use <path>` statements. File contents are stored per path in
-  IndexedDB; the WASM worker reads dependencies on demand instead of loading a
-  complete project snapshot. `Download .tar` exports the current folder and its
-  descendants, with archive paths relative to that folder.
+  files for `use <path>` statements. Uploaded PNG, JPEG, and GIF files can be
+  loaded with `image()`, and uploaded TTF/OTF fonts with TrueType outlines can
+  be selected with the `font` parameter of `text()`, `text_mesh()`, and
+  `text_sdf()`. Asset paths are relative to the SCAD file containing the call.
+  File contents are stored per path in IndexedDB; the WASM worker reads
+  dependencies on demand instead of loading a complete project snapshot.
+  `Download .tar` exports the current folder and its descendants, with archive
+  paths relative to that folder.
 - Mesh grid size controls the maximum dual contour cell side length (default 128).
 - Drag to orbit.
 - Scroll to zoom.

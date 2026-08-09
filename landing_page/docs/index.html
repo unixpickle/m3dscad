@@ -449,9 +449,9 @@ sphere(r=radius);</pre>
         <pre class="example-code">image(file)</pre>
         <ul>
           <li><code>file</code> (or <code>filename</code>): Path to a PNG, JPEG, or GIF image. Relative paths are resolved from the file containing the <code>image()</code> call, including calls inside files loaded with <code>use</code>.</li>
-          <li><code>foreground</code>: The top-left pixel is treated as background; foreground pixels are inferred by comparing their colors with the image's mean color and its top-left color.</li>
-          <li><code>scale</code>: Each source pixel occupies one model unit in X and Y. Use <code>scale()</code> to change the result's size.</li>
         </ul>
+        <p>The top-left pixel is treated as background. Foreground pixels are inferred by comparing their colors with the image's mean color and its top-left color.</p>
+        <p>Each source pixel occupies one model unit in X and Y. Wrap the result in <code>scale()</code> to change its size.</p>
         <pre class="example-code">smooth_sq(10)
   image("../assets/logo.png");</pre>
 

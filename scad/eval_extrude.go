@@ -86,6 +86,34 @@ func handleLinearExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRe
 	}
 }
 
+func handleSlice(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
+	args, err := bindArgs(e, st.Call, []ArgSpec{
+		{Name: "z", Pos: 0, Default: Num(0)},
+	})
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	z, err := argNum(args, "z")
+	if err != nil {
+		return ShapeRep{}, err
+	}
+
+	switch childUnion.Kind {
+	case ShapeSolid3D:
+		var k *shapekernel.ShapeKernel
+		if childUnion.Kernel != nil {
+			k = asPtr(shapekernel.SliceSolid(e.hooks.Numerics, *childUnion.Kernel, z))
+		}
+		return shapeSolid2D(model3d.CrossSectionSolid(childUnion.S3, 2, z), k), nil
+	case ShapeMesh2D, ShapeMesh3D:
+		return ShapeRep{}, fmt.Errorf("slice(): meshes are not supported")
+	case ShapeSDF2D, ShapeSDF3D:
+		return ShapeRep{}, fmt.Errorf("slice(): SDFs are not supported")
+	default:
+		return ShapeRep{}, fmt.Errorf("slice(): requires a 3D solid")
+	}
+}
+
 func handleInsetExtrude(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (ShapeRep, error) {
 	if childUnion.Kind != ShapeSDF2D {
 		return ShapeRep{}, fmt.Errorf("inset_extrude() requires 2D SDF children")

@@ -8,7 +8,7 @@ require github.com/unixpickle/path2d v0.2.0
 
 require github.com/unixpickle/textcurve v0.1.0
 
-require github.com/unixpickle/webgpu-meshes v0.1.0
+require github.com/unixpickle/webgpu-meshes v0.1.1
 
 require (
 	github.com/go-text/typesetting v0.3.4 // indirect

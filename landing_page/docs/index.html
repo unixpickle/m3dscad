@@ -103,6 +103,7 @@
           <li><a href="#rotate">rotate</a></li>
           <li><a href="#mirror">mirror</a></li>
           <li><a href="#transform">transform</a></li>
+          <li><a href="#slice">slice</a></li>
           <li><a href="#linear_extrude">linear_extrude</a></li>
           <li><a href="#inset_extrude">inset_extrude</a></li>
           <li><a href="#rotate_extrude">rotate_extrude</a></li>
@@ -595,6 +596,14 @@ transform(fn) { mesh }</pre>
           <li><code>min</code>, <code>max</code>: Required bounds for solid/SDF output; vectors must match child dimensionality (2D or 3D).</li>
           <li><code>fn</code>: Mapping function. For solids/SDFs, maps outer coordinates to inner coordinates; for meshes, maps old mesh coordinates to new coordinates.</li>
           <li><code>children</code>: Solid, SDF, or mesh child geometry to transform.</li>
+        </ul>
+
+        <h3 id="slice"><code>slice</code></h3>
+        <p>Takes the XY cross-section of a 3D solid at a given Z coordinate.</p>
+        <pre class="example-code">slice(z=0) { solid3d }</pre>
+        <ul>
+          <li><code>z</code>: Z coordinate of the cross-section plane.</li>
+          <li><code>children</code>: 3D solid geometry to slice. Meshes and SDFs are not supported.</li>
         </ul>
 
         <h3 id="linear_extrude"><code>linear_extrude</code></h3>

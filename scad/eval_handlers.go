@@ -60,6 +60,12 @@ var builtinHandlers = map[string]callHandler{
 		NeedsChildUnion: true,
 		Eval:            handleTransform,
 	},
+	"slice": {
+		AllowChildren:   true,
+		RequireChildren: true,
+		NeedsChildUnion: true,
+		Eval:            handleSlice,
+	},
 	"clip": {
 		AllowChildren:   true,
 		RequireChildren: true,

@@ -16,6 +16,6 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/unixpickle/essentials v1.3.0 // indirect
 	github.com/unixpickle/splaytree v1.2.0 // indirect
-	golang.org/x/image v0.42.0 // indirect
-	golang.org/x/text v0.38.0 // indirect
+	golang.org/x/image v0.45.0 // indirect
+	golang.org/x/text v0.41.0 // indirect
 )

@@ -117,9 +117,11 @@ func handleMeshToSDF(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (
 			asPtr(shapekernel.Mesh2DSDF(e.hooks.Numerics, childUnion.M2)),
 		), nil
 	case ShapeMesh3D:
+		tris := childUnion.M3.TriangleSlice()
+		model3d.GroupTriangles(tris)
 		return shapeSDF3D(
-			model3d.MeshToSDF(childUnion.M3),
-			asPtr(shapekernel.Mesh3DSDF(e.hooks.Numerics, childUnion.M3)),
+			model3d.GroupedTrianglesToSDF(tris),
+			asPtr(shapekernel.GroupedTrianglesSDF(e.hooks.Numerics, tris)),
 		), nil
 	default:
 		return ShapeRep{}, fmt.Errorf("mesh_to_sdf(): requires a mesh")

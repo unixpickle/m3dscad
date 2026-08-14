@@ -307,9 +307,11 @@ func handleSolid(e *env, st *CallStmt, _ []ShapeRep, childUnion *ShapeRep) (Shap
 			asPtr(shapekernel.Mesh2DSolid(e.hooks.Numerics, childUnion.M2)),
 		), nil
 	case ShapeMesh3D:
+		tris := childUnion.M3.TriangleSlice()
+		model3d.GroupTriangles(tris)
 		return shapeSolid3D(
-			childUnion.M3.Solid(),
-			asPtr(shapekernel.Mesh3DSolid(e.hooks.Numerics, childUnion.M3)),
+			model3d.NewColliderSolid(model3d.GroupedTrianglesToCollider(tris)),
+			asPtr(shapekernel.GroupedTrianglesSolid(e.hooks.Numerics, tris)),
 		), nil
 	case ShapeSDF2D, ShapeSDF3D:
 		return SDFToSolid(e.hooks.Numerics, *childUnion), nil

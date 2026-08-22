@@ -126,6 +126,12 @@ var builtinHandlers = map[string]callHandler{
 		NeedsChildUnion: true,
 		Eval:            handleSmoothSq,
 	},
+	"decimate": {
+		AllowChildren:   true,
+		RequireChildren: true,
+		NeedsChildUnion: true,
+		Eval:            handleDecimate,
+	},
 	"inset_sdf": {
 		AllowChildren:   true,
 		RequireChildren: true,

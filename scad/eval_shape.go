@@ -3,6 +3,7 @@ package scad
 import (
 	"fmt"
 
+	"github.com/unixpickle/meshbool"
 	"github.com/unixpickle/model3d/model2d"
 	"github.com/unixpickle/model3d/model3d"
 	shapekernel "github.com/unixpickle/webgpu-meshes/shapekernel"
@@ -387,15 +388,15 @@ func unionAll(n shapekernel.Numerics, children []ShapeRep) (ShapeRep, error) {
 		}
 		return shapeHull2D(out), nil
 	case ShapeMesh3D:
-		out := model3d.NewMesh()
-		for _, ch := range children {
-			out.AddMesh(ch.M3)
+		out, err := meshbool.Union3D(meshBooleanOptions3D(), meshChildren3D(children)...)
+		if err != nil {
+			return ShapeRep{}, err
 		}
 		return shapeMesh3D(out), nil
 	case ShapeMesh2D:
-		out := model2d.NewMesh()
-		for _, ch := range children {
-			out.AddMesh(ch.M2)
+		out, err := meshbool.Union2D(meshbool.DefaultOptions2D(), meshChildren2D(children)...)
+		if err != nil {
+			return ShapeRep{}, err
 		}
 		return shapeMesh2D(out), nil
 	default:
@@ -448,11 +449,45 @@ func intersectAll(n shapekernel.Numerics, children []ShapeRep) (ShapeRep, error)
 			k = asPtr(shapekernel.IntersectSDFs(n, kernels))
 		}
 		return shapeSDF2D(sdfIntersect2D(children), k), nil
-	case ShapeMesh2D, ShapeMesh3D:
-		return ShapeRep{}, fmt.Errorf("intersection() not supported for meshes")
+	case ShapeMesh3D:
+		out, err := meshbool.Intersection3D(meshBooleanOptions3D(), meshChildren3D(children)...)
+		if err != nil {
+			return ShapeRep{}, err
+		}
+		return shapeMesh3D(out), nil
+	case ShapeMesh2D:
+		out, err := meshbool.Intersection2D(meshbool.DefaultOptions2D(), meshChildren2D(children)...)
+		if err != nil {
+			return ShapeRep{}, err
+		}
+		return shapeMesh2D(out), nil
 	default:
 		return ShapeRep{}, fmt.Errorf("intersection(): unknown shape kind")
 	}
+}
+
+func meshChildren2D(children []ShapeRep) []*model2d.Mesh {
+	meshes := make([]*model2d.Mesh, len(children))
+	for i, child := range children {
+		meshes[i] = child.M2
+	}
+	return meshes
+}
+
+func meshChildren3D(children []ShapeRep) []*model3d.Mesh {
+	meshes := make([]*model3d.Mesh, len(children))
+	for i, child := range children {
+		meshes[i] = child.M3
+	}
+	return meshes
+}
+
+func meshBooleanOptions3D() meshbool.Options3D {
+	options := meshbool.DefaultOptions3D()
+	options.MaxInputTriangles = 10_000_000
+	options.MaxTotalFragments = 10_000_000
+	options.MaxOutputTriangles = 10_000_000
+	return options
 }
 
 func ensureSameKind(children []ShapeRep) (ShapeKind, error) {

@@ -93,22 +93,6 @@ func assertSDFsEqual2D(t *testing.T, a, b model2d.SDF, min, max model2d.Coord, t
 	}
 }
 
-func countMesh2DSegments(m *model2d.Mesh) int {
-	n := 0
-	m.Iterate(func(*model2d.Segment) {
-		n++
-	})
-	return n
-}
-
-func countMesh3DTriangles(m *model3d.Mesh) int {
-	n := 0
-	m.Iterate(func(*model3d.Triangle) {
-		n++
-	})
-	return n
-}
-
 func TestSolidsIntegration(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -2292,42 +2276,64 @@ func TestRootLevelUnion(t *testing.T) {
 	}
 }
 
-func TestUnionMeshesConcatenates(t *testing.T) {
+func TestMeshBooleans(t *testing.T) {
 	t.Run("2D", func(t *testing.T) {
-		a := mustEvalShape(t, `polygon_mesh(points=[[0,0],[1,0],[1,1],[0,1]]);`)
-		b := mustEvalShape(t, `translate([3,0,0]) polygon_mesh(points=[[0,0],[1,0],[1,1],[0,1]]);`)
-		u := mustEvalShape(t, `
-			union() {
-				polygon_mesh(points=[[0,0],[1,0],[1,1],[0,1]]);
-				translate([3,0,0]) polygon_mesh(points=[[0,0],[1,0],[1,1],[0,1]]);
-			}
-		`)
-		if a.Kind != ShapeMesh2D || b.Kind != ShapeMesh2D || u.Kind != ShapeMesh2D {
-			t.Fatalf("expected ShapeMesh2D outputs, got %v %v %v", a.Kind, b.Kind, u.Kind)
-		}
-		want := countMesh2DSegments(a.M2) + countMesh2DSegments(b.M2)
-		got := countMesh2DSegments(u.M2)
-		if got != want {
-			t.Fatalf("segment count mismatch: got %d want %d", got, want)
+		for _, test := range []struct {
+			name string
+			op   string
+			area float64
+		}{
+			{name: "Union", op: "union", area: 7},
+			{name: "Difference", op: "difference", area: 3},
+			{name: "Intersection", op: "intersection", area: 1},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				shape := mustEvalShape(t, fmt.Sprintf(`
+					%s() {
+						polygon_mesh(points=[[0,0],[2,0],[2,2],[0,2]]);
+						translate([1,1]) polygon_mesh(points=[[0,0],[2,0],[2,2],[0,2]]);
+					}
+				`, test.op))
+				if shape.Kind != ShapeMesh2D {
+					t.Fatalf("expected ShapeMesh2D, got %v", shape.Kind)
+				}
+				if !shape.M2.Manifold() {
+					t.Fatal("result is not manifold")
+				}
+				if got := shape.M2.Area(); math.Abs(got-test.area) > 1e-8 {
+					t.Fatalf("area mismatch: got %g want %g", got, test.area)
+				}
+			})
 		}
 	})
 
 	t.Run("3D", func(t *testing.T) {
-		a := mustEvalShape(t, `linear_extrude(height=1) polygon_mesh(points=[[0,0],[1,0],[1,1],[0,1]]);`)
-		b := mustEvalShape(t, `translate([3,0,0]) linear_extrude(height=1) polygon_mesh(points=[[0,0],[1,0],[1,1],[0,1]]);`)
-		u := mustEvalShape(t, `
-			union() {
-				linear_extrude(height=1) polygon_mesh(points=[[0,0],[1,0],[1,1],[0,1]]);
-				translate([3,0,0]) linear_extrude(height=1) polygon_mesh(points=[[0,0],[1,0],[1,1],[0,1]]);
-			}
-		`)
-		if a.Kind != ShapeMesh3D || b.Kind != ShapeMesh3D || u.Kind != ShapeMesh3D {
-			t.Fatalf("expected ShapeMesh3D outputs, got %v %v %v", a.Kind, b.Kind, u.Kind)
-		}
-		want := countMesh3DTriangles(a.M3) + countMesh3DTriangles(b.M3)
-		got := countMesh3DTriangles(u.M3)
-		if got != want {
-			t.Fatalf("triangle count mismatch: got %d want %d", got, want)
+		for _, test := range []struct {
+			name   string
+			op     string
+			volume float64
+		}{
+			{name: "Union", op: "union", volume: 15},
+			{name: "Difference", op: "difference", volume: 7},
+			{name: "Intersection", op: "intersection", volume: 1},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				shape := mustEvalShape(t, fmt.Sprintf(`
+					%s() {
+						linear_extrude(height=2) polygon_mesh(points=[[0,0],[2,0],[2,2],[0,2]]);
+						translate([1,1,1]) linear_extrude(height=2) polygon_mesh(points=[[0,0],[2,0],[2,2],[0,2]]);
+					}
+				`, test.op))
+				if shape.Kind != ShapeMesh3D {
+					t.Fatalf("expected ShapeMesh3D, got %v", shape.Kind)
+				}
+				if shape.M3.NeedsRepair() {
+					t.Fatal("result needs repair")
+				}
+				if got := shape.M3.Volume(); math.Abs(got-test.volume) > 1e-7 {
+					t.Fatalf("volume mismatch: got %g want %g", got, test.volume)
+				}
+			})
 		}
 	})
 }

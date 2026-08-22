@@ -3,6 +3,7 @@ package scad
 import (
 	"fmt"
 
+	"github.com/unixpickle/meshbool"
 	"github.com/unixpickle/model3d/model2d"
 	"github.com/unixpickle/model3d/model3d"
 	shapekernel "github.com/unixpickle/webgpu-meshes/shapekernel"
@@ -31,6 +32,20 @@ func handleDifference(e *env, st *CallStmt, children []ShapeRep, _ *ShapeRep) (S
 	}
 	if len(children) == 1 {
 		return children[0], nil
+	}
+	if kind == ShapeMesh2D {
+		out, err := meshbool.Difference2D(meshbool.DefaultOptions2D(), children[0].M2, meshChildren2D(children[1:])...)
+		if err != nil {
+			return ShapeRep{}, fmt.Errorf("difference(): %w", err)
+		}
+		return shapeMesh2D(out), nil
+	}
+	if kind == ShapeMesh3D {
+		out, err := meshbool.Difference3D(meshBooleanOptions3D(), children[0].M3, meshChildren3D(children[1:])...)
+		if err != nil {
+			return ShapeRep{}, fmt.Errorf("difference(): %w", err)
+		}
+		return shapeMesh3D(out), nil
 	}
 	subUnion, err := unionAll(e.hooks.Numerics, children[1:])
 	if err != nil {
@@ -71,8 +86,6 @@ func handleDifference(e *env, st *CallStmt, children []ShapeRep, _ *ShapeRep) (S
 			Kind: ShapeMetaball3D,
 			MB3:  children[0].MB3.Join(subUnion.MB3.Scale(-1)),
 		}, nil
-	case ShapeMesh2D, ShapeMesh3D:
-		return ShapeRep{}, fmt.Errorf("difference() not supported for meshes")
 	default:
 		return ShapeRep{}, fmt.Errorf("difference(): unknown shape kind")
 	}
@@ -126,8 +139,18 @@ func handleIntersection(e *env, st *CallStmt, children []ShapeRep, _ *ShapeRep) 
 			k = asPtr(shapekernel.IntersectSDFs(e.hooks.Numerics, kernels))
 		}
 		return shapeSDF2D(sdfIntersect2D(children), k), nil
-	case ShapeMesh2D, ShapeMesh3D:
-		return ShapeRep{}, fmt.Errorf("intersection() not supported for meshes")
+	case ShapeMesh3D:
+		out, err := meshbool.Intersection3D(meshBooleanOptions3D(), meshChildren3D(children)...)
+		if err != nil {
+			return ShapeRep{}, fmt.Errorf("intersection(): %w", err)
+		}
+		return shapeMesh3D(out), nil
+	case ShapeMesh2D:
+		out, err := meshbool.Intersection2D(meshbool.DefaultOptions2D(), meshChildren2D(children)...)
+		if err != nil {
+			return ShapeRep{}, fmt.Errorf("intersection(): %w", err)
+		}
+		return shapeMesh2D(out), nil
 	default:
 		return ShapeRep{}, fmt.Errorf("intersection(): unknown shape kind")
 	}

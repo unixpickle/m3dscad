@@ -122,6 +122,7 @@
           <li><a href="#mesh_to_sdf">mesh_to_sdf</a></li>
           <li><a href="#mesh_to_hull">mesh_to_hull</a></li>
           <li><a href="#smooth_sq">smooth_sq</a></li>
+          <li><a href="#decimate">decimate</a></li>
           <li><a href="#inset_sdf">inset_sdf</a></li>
           <li><a href="#outset_sdf">outset_sdf</a></li>
           <li><a href="#solid">solid</a></li>
@@ -537,19 +538,20 @@ sphere(r=radius);</pre>
         </ul>
 
         <h2 id="csg">CSG</h2>
+        <p>For 2D and 3D meshes, all three CSG operations use <a href="https://github.com/unixpickle/meshbool"><code>unixpickle/meshbool</code></a> to operate directly on mesh facets. This preserves vertices and flat surfaces instead of voxelizing the inputs. Mesh inputs should be closed, consistently oriented, and manifold. 3D mesh inputs, retained surface fragments, and outputs are limited to 10,000,000 triangles or fragments; invalid topology or excessive intersection complexity produces an evaluation error.</p>
 
         <h3 id="union"><code>union</code></h3>
-        <p>Combines child shapes of the same kind into one shape.</p>
+        <p>Combines child shapes of the same kind into one shape. Mesh children produce a geometric union with internal and overlapping facets removed, rather than simply concatenating their facets.</p>
         <pre class="example-code">union() { ... }</pre>
         <ul><li><code>children</code>: One or more child shapes; all children must share the same shape kind.</li></ul>
 
         <h3 id="difference"><code>difference</code></h3>
-        <p>Subtracts the union of later children from the first child.</p>
+        <p>Subtracts every later child from the first child. This works directly on both 2D and 3D meshes as well as solids and SDFs.</p>
         <pre class="example-code">difference() { a; b; ... }</pre>
-        <ul><li><code>children</code>: At least one child shape; first is minuend, rest are subtrahends.</li></ul>
+        <ul><li><code>children</code>: At least one child shape of the same kind; the first is the minuend and the rest are subtrahends.</li></ul>
 
         <h3 id="intersection"><code>intersection</code></h3>
-        <p>Keeps only the volume/area shared by all children.</p>
+        <p>Keeps only the volume or area shared by all children, including 2D and 3D mesh children.</p>
         <pre class="example-code">intersection() { ... }</pre>
         <ul><li><code>children</code>: One or more child shapes of the same kind.</li></ul>
 
@@ -690,6 +692,19 @@ transform(fn) { mesh }</pre>
           <li><code>iters</code>: Non-negative integer number of smoothing iterations.</li>
           <li><code>children</code>: 2D mesh geometry, such as the result of <code>image()</code>, <code>polygon_mesh()</code>, or <code>marching_squares()</code>.</li>
           <li><code>behavior</code>: Smoothing moves vertices but does not add segments. Larger iteration counts produce a smoother result and may change or shrink the outline.</li>
+        </ul>
+
+        <h3 id="decimate"><code>decimate</code></h3>
+        <p>Simplifies a manifold 3D triangle mesh using quadric error functions while preserving its topology.</p>
+        <pre class="example-code">decimate(triangles_fraction, min_det=1e-8, min_normal_dot_product=0, tikhonov_regularization=1e-5) { mesh3d }
+decimate(triangle_count=N, min_det=1e-8, min_normal_dot_product=0, tikhonov_regularization=1e-5) { mesh3d }</pre>
+        <ul>
+          <li><code>triangles_fraction</code>: Fraction of the input mesh's current triangle count to retain, from <code>0</code> to <code>1</code>. It can be passed positionally or by name.</li>
+          <li><code>triangle_count</code>: Named-only, non-negative integer target triangle count. Specify exactly one of <code>triangles_fraction</code> and <code>triangle_count</code>.</li>
+          <li><code>min_det</code>: Minimum QEF matrix determinant before treating the matrix as singular. Defaults to <code>model3d.QEFDecimatorDefaultMinDet</code>, currently <code>1e-8</code>.</li>
+          <li><code>min_normal_dot_product</code>: Minimum allowed dot product between old and replacement triangle normals, from <code>-1</code> to <code>1</code>. Defaults to <code>0</code>, preventing flips greater than 90 degrees.</li>
+          <li><code>tikhonov_regularization</code>: Non-negative regularization weight toward the original vertices. Defaults to <code>1e-5</code>.</li>
+          <li><code>children</code>: A manifold 3D mesh.</li>
         </ul>
 
         <h3 id="inset_sdf"><code>inset_sdf</code></h3>

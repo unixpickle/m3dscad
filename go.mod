@@ -2,14 +2,14 @@ module github.com/unixpickle/m3dscad
 
 go 1.25.0
 
-require github.com/unixpickle/model3d v0.4.21
+require github.com/unixpickle/model3d v0.4.22
 
 require github.com/unixpickle/path2d v0.2.0
 
 require github.com/unixpickle/textcurve v0.1.0
 
 require (
-	github.com/unixpickle/meshbool v0.1.12
+	github.com/unixpickle/meshbool v0.1.13
 	github.com/unixpickle/webgpu-meshes v0.1.2
 )
 

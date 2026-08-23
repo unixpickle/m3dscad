@@ -30,8 +30,12 @@ github.com/unixpickle/meshbool v0.1.11 h1:CMyo1gjHV5stM5k0aPvzxZ+u5NIoDXUBOFAny9
 github.com/unixpickle/meshbool v0.1.11/go.mod h1:OfuUINKAnMcLLSMkGigR8spNUyAle+5uqBMFmubKBhw=
 github.com/unixpickle/meshbool v0.1.12 h1:Cd+kf7KWNl5/Dflgr5bkaFAlr0mMdRaTti7PHVOUPxA=
 github.com/unixpickle/meshbool v0.1.12/go.mod h1:OfuUINKAnMcLLSMkGigR8spNUyAle+5uqBMFmubKBhw=
+github.com/unixpickle/meshbool v0.1.13 h1:qty4iMYBvwlkrQE8D4k5fxft1VTG/L2mc5+LrX4LOrA=
+github.com/unixpickle/meshbool v0.1.13/go.mod h1:OfuUINKAnMcLLSMkGigR8spNUyAle+5uqBMFmubKBhw=
 github.com/unixpickle/model3d v0.4.21 h1:fwXC1B5fMnMdZ/F6Y/kJvJMnZCsp0DXyx+U9toTSnjc=
 github.com/unixpickle/model3d v0.4.21/go.mod h1:bk9rFuX4Lc0Bii9rVzfTd/+E/eKJnqe21QZfhcxUGsM=
+github.com/unixpickle/model3d v0.4.22 h1:o+JxJQOLecomrSvu2uh8t4HJBw4u2JrEfKvE6VFR1I8=
+github.com/unixpickle/model3d v0.4.22/go.mod h1:bk9rFuX4Lc0Bii9rVzfTd/+E/eKJnqe21QZfhcxUGsM=
 github.com/unixpickle/path2d v0.2.0 h1:bQ6CIS6aEF4+UohNzAkpSyJf97OSsmjrrf3AOdUlZck=
 github.com/unixpickle/path2d v0.2.0/go.mod h1:LElNG8JOiKyLlqUOfB8aLGG22NiZhFkow3CBq7g+gxg=
 github.com/unixpickle/splaytree v1.2.0 h1:GCXr7opRXvTfMCIONcx3z4ST66LIe13bNGWaDCeTq+c=

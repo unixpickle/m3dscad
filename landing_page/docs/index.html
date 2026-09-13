@@ -192,6 +192,17 @@ echo(selector("add")(5));</pre>
 
 post(0);
 post(3);</pre>
+        <p>Modules can also accept a child statement or a block of children. Inside the module, <code>$children</code> is the number of child statements, <code>children()</code> unions them, and <code>children(i)</code> selects the child at zero-based index <code>i</code>. The index must be an integer within bounds; <code>children(index=i)</code> is also supported. Assignments and definitions in the child block do not count as children. Children evaluate in the caller's scope when selected.</p>
+        <pre class="example-code">module copy_first(offset) {
+  children();
+  if ($children &gt; 0)
+    translate(offset) children(0);
+}
+
+copy_first([3, 0, 0]) {
+  sphere(1);
+  translate([0, 3, 0]) cube(1);
+}</pre>
 
         <h3 id="if-else">If / Else</h3>
         <p>Conditionals choose which branch of geometry to evaluate. Note that they introduce their own scope, so assignments cannot escape.</p>

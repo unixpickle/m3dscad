@@ -256,7 +256,7 @@ func (l *Lexer) match(s string) bool {
 }
 
 func isIdentStart(b byte) bool {
-	return b == '_' || unicode.IsLetter(rune(b))
+	return b == '_' || b == '$' || unicode.IsLetter(rune(b))
 }
 func isIdentContinue(b byte) bool {
 	return isIdentStart(b) || unicode.IsDigit(rune(b))

@@ -21,6 +21,9 @@ type moduleDef struct {
 	Params   []Param
 	Body     *BlockStmt
 	Captured []*scope
+
+	// Native evaluates a module implemented in Go instead of a SCAD body.
+	Native func(e *env, st *CallStmt) (*ShapeRep, error)
 }
 
 type funcDef struct {
@@ -494,25 +497,25 @@ func evalCallStmt(e *env, st *CallStmt) (*ShapeRep, error) {
 
 	// User-defined module call (solids)
 	if md, ok := e.getModule(name); ok {
-		if len(st.Children) > 0 {
-			return nil, fmt.Errorf("module %s does not support children", name)
+		if md.Native != nil {
+			return md.Native(e, st)
 		}
 		caller := e.Clone()
+		childrenModule, numChildren := newChildrenModule(caller, st.Children)
 		var out *ShapeRep
 		err := e.withCapturedScopes(md.Captured, func() error {
 			if err := bindParams(e, caller, md.Params, st.Call.Args); err != nil {
 				return err
 			}
-			solids, err := evalStmts(e, md.Body.Stmts)
-			if err != nil {
+			if err := e.set("$children", Num(float64(numChildren))); err != nil {
 				return err
 			}
-			u, err := unionAll(e.hooks.Numerics, solids)
-			if err != nil {
+			if err := e.defineModule("children", childrenModule); err != nil {
 				return err
 			}
-			out = &u
-			return nil
+			var err error
+			out, err = evalStmtsAsOne(e, md.Body.Stmts)
+			return err
 		})
 		if err != nil {
 			return nil, err

@@ -10,7 +10,7 @@ require github.com/unixpickle/textcurve v0.1.0
 
 require (
 	github.com/unixpickle/meshbool v0.1.13
-	github.com/unixpickle/webgpu-meshes v0.1.2
+	github.com/unixpickle/webgpu-meshes v0.1.3
 )
 
 require (

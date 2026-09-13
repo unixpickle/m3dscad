@@ -44,6 +44,8 @@ github.com/unixpickle/textcurve v0.1.0 h1:l+6korAF4Ffgahnr1XZua5M2NEvEHj4tdUQ5+X
 github.com/unixpickle/textcurve v0.1.0/go.mod h1:GNN/ygzxhQGiL0uSaLHOb9RX26M0yNCZB4H8zqvoI44=
 github.com/unixpickle/webgpu-meshes v0.1.2 h1:hzdTn7HePzvJ/R4mOIs5y+I2jjdoraZVQxl1z5Ut8o8=
 github.com/unixpickle/webgpu-meshes v0.1.2/go.mod h1:E5abF7L71Oau5kcFxyoqLUnvgvwOUtVU5bnd3WEb9gI=
+github.com/unixpickle/webgpu-meshes v0.1.3 h1:cRGDHcS67RWenV2Cn/xIajSqPOL8h2kjp6j8eqwHCo4=
+github.com/unixpickle/webgpu-meshes v0.1.3/go.mod h1:E5abF7L71Oau5kcFxyoqLUnvgvwOUtVU5bnd3WEb9gI=
 golang.org/x/image v0.45.0 h1:FMb1nTbH5H9vF55SriQHgFw5GnNL9Jg6L25BwXKzhB0=
 golang.org/x/image v0.45.0/go.mod h1:n62x/7RqlwXDvGsSU4u6IUTUf6KghUZ9Bt7cG/T9Fx4=
 golang.org/x/text v0.41.0 h1:vz/seA0lnX87Othu2f/0L24RcgrXD9/YFTSuGjj3rH8=

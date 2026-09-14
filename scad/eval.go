@@ -326,6 +326,9 @@ func evalStmt(e *env, s Stmt) (shape *ShapeRep, err error) {
 		return evalForStmt(e, st)
 
 	case *ModuleDefStmt:
+		if st.Cache {
+			return nil, e.defineModule(st.Name, newCacheModule(e.captureScopes(), st.Body))
+		}
 		err := e.defineModule(st.Name, moduleDef{
 			Params:   st.Params,
 			Body:     st.Body,

@@ -54,7 +54,7 @@ func (p *Parser) parseStmt() (Stmt, error) {
 		switch p.cur.Lexeme {
 		case "use":
 			return p.parseUse()
-		case "module":
+		case "module", "cache":
 			return p.parseModuleDef()
 		case "function":
 			return p.parseFuncDef()
@@ -211,11 +211,10 @@ func (p *Parser) parseForStmt(intersection bool) (Stmt, error) {
 
 func (p *Parser) parseModuleDef() (Stmt, error) {
 	pos := p.cur.Pos
-	if err := p.expectIdent("module"); err != nil {
-		return nil, err
-	}
+	kind := p.cur.Lexeme
+	p.advance()
 	if p.cur.Kind != TokIdent {
-		return nil, PosErrorf(p.cur.Pos, "expected module name")
+		return nil, PosErrorf(p.cur.Pos, "expected %s name", kind)
 	}
 	name := p.cur.Lexeme
 	p.advance()
@@ -224,12 +223,15 @@ func (p *Parser) parseModuleDef() (Stmt, error) {
 	if err != nil {
 		return nil, err
 	}
+	if kind == "cache" && len(params) != 0 {
+		return nil, PosErrorf(params[0].P, "cache declarations cannot have parameters")
+	}
 
 	body, err := p.parseBlock()
 	if err != nil {
 		return nil, err
 	}
-	return &ModuleDefStmt{Name: name, Params: params, Body: body, P: pos}, nil
+	return &ModuleDefStmt{Name: name, Params: params, Body: body, Cache: kind == "cache", P: pos}, nil
 }
 
 func (p *Parser) parseFuncDef() (Stmt, error) {

@@ -41,6 +41,7 @@
           <li><a href="#functions">Functions</a></li>
           <li><a href="#anonymous-functions">Anonymous Functions</a></li>
           <li><a href="#modules">Modules</a></li>
+          <li><a href="#caches">Caches</a></li>
           <li><a href="#if-else">If / Else</a></li>
           <li><a href="#for-loops">For Loops</a></li>
           <li><a href="#list-comprehension">List Comprehension</a></li>
@@ -203,6 +204,22 @@ copy_first([3, 0, 0]) {
   sphere(1);
   translate([0, 3, 0]) cube(1);
 }</pre>
+
+        <h3 id="caches">Caches</h3>
+        <p>Declare <code>cache name() { ... }</code> to compute geometry on the first call and return the same shape on later calls. Caches take no parameters, arguments, or attached children. Their bodies capture the enclosing scope, including an outer module's variables and <code>children()</code>. An unused cache never runs its body; side effects such as <code>echo()</code> run only on the first evaluation, even if the body produces no geometry.</p>
+        <p>Each time the scope containing a cache declaration is entered, a fresh cache is created. A cache inside a module therefore computes once per call to that outer module.</p>
+        <p>Each <code>children()</code> or <code>children(i)</code> call reevaluates its selected children in a fresh child-block scope, recreating any caches declared there. To reuse evaluated children, declare the cache inside the enclosing module instead: <code>cache saved() { children(); }</code>.</p>
+        <pre class="example-code">module pair(r) {
+  cache meshed() {
+    echo("meshing", r);
+    marching_cubes(delta=0.1) sphere(r);
+  }
+  meshed();
+  translate([3 * r, 0, 0]) meshed();
+}
+
+pair(1);
+translate([0, 8, 0]) pair(2);</pre>
 
         <h3 id="if-else">If / Else</h3>
         <p>Conditionals choose which branch of geometry to evaluate. Note that they introduce their own scope, so assignments cannot escape.</p>

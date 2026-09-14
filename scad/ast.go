@@ -79,6 +79,7 @@ type ModuleDefStmt struct {
 	Name   string
 	Params []Param
 	Body   *BlockStmt
+	Cache  bool // declared with cache instead of module
 	P      Pos
 }
 

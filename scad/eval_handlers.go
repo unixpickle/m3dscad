@@ -214,6 +214,15 @@ var builtinHandlers = map[string]callHandler{
 	"capsule_sdf": {
 		Eval: handleCapsuleSDF,
 	},
+	"polyhedron": {
+		Eval: handlePolyhedron,
+	},
+	"polyhedron_mesh": {
+		Eval: handlePolyhedronMesh,
+	},
+	"polyhedron_sdf": {
+		Eval: handlePolyhedronSDF,
+	},
 	"line_join": {
 		Eval: handleLineJoin,
 	},

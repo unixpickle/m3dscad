@@ -24,6 +24,10 @@ func TestFormat(t *testing.T) {
 		{"if else", "if(a){cube();}else if(b) sphere();else {a();}", "if (a) {\n  cube();\n} else if (b)\n  sphere();\nelse {\n  a();\n}\n"},
 		{"comments", "// hi  \nx=1;// trailing\n\n/* untouched\n    body\n */\ny=2; // end", "// hi  \nx = 1; // trailing\n\n/* untouched\n    body\n */\ny = 2; // end\n"},
 		{"interior comments", "module /*name*/ m(){// start\nx=1/*number*/+2; /* end */\n}", "module /*name*/ m() { // start\n  x = 1 /*number*/ + 2; /* end */\n}\n"},
+		{"inline argument comments", "cube(size=2 /* width */, /* placement */ center=true /* centered */);", "cube(size=2 /* width */, /* placement */ center=true /* centered */);\n"},
+		{"inline entry comments", "x=[1/*one*/,2/*two*/]; y=(x/*vector*/)[0/*index*/]/*value*/; z=x/*vector*/.x;", "x = [1 /*one*/, 2 /*two*/];\ny = (x /*vector*/)[0 /*index*/] /*value*/;\nz = x /*vector*/.x;\n"},
+		{"inline comments before trailing commas", "foo(a=1/*a*/,b=2/*b*/,); x=[1/*one*/,2/*two*/,];", "foo(\n  a=1 /*a*/,\n  b=2 /*b*/,\n);\nx = [\n  1 /*one*/,\n  2 /*two*/,\n];\n"},
+		{"consecutive inline comments", "foo(1/*one*//*more*/,2);", "foo(1 /*one*/ /*more*/, 2);\n"},
 		{"list comment", "a([1, // one\n2, /* two */]);", "a([\n  1, // one\n  2, /* two */\n]);\n"},
 		{"comprehension", "x=[\nfor(i=[0:3])\nlet(a=i+1,b=2,) [a,b]\n];", "x = [\n  for (i = [0:3])\n    let (\n      a = i + 1,\n      b = 2,\n    ) [a, b]\n];\n"},
 		{"numeric member", "x=1 .x; y=1. .x;", "x = 1 .x;\ny = 1. .x;\n"},
@@ -119,7 +123,7 @@ func TestFormatInvalid(t *testing.T) {
 }
 
 func FuzzFormat(f *testing.F) {
-	for _, src := range []string{"x=a*b+c;", "a()\nb()\nc();", "x=[1,2,]; // ok", "x=[for(i=[0:2]) i];", "if(a)if(b)a();else b();", "x=a[1?2:3];"} {
+	for _, src := range []string{"x=a*b+c;", "a()\nb()\nc();", "x=[1,2,]; // ok", "x=[for(i=[0:2]) i];", "if(a)if(b)a();else b();", "x=a[1?2:3];", "cube(size=2 /* width */, center=true /* centered */);"} {
 		f.Add(src)
 	}
 	f.Fuzz(func(t *testing.T, src string) {

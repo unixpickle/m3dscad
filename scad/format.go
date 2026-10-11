@@ -132,7 +132,12 @@ func (f *sourceFormatter) emit(i, indent int, before string) {
 		if f.tokens[i].Pos.Line > f.last.Line {
 			before = "\n"
 		} else if before == "" {
-			before = " "
+			switch f.tokens[i].Kind {
+			case TokComma, TokSemi, TokRParen, TokRBrack, TokDot:
+				// Keep punctuation next to the preceding inline comment.
+			default:
+				before = " "
+			}
 		}
 	}
 	t := f.tokens[i]

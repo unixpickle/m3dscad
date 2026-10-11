@@ -70,7 +70,22 @@ export interface FileReadError {
 
 export type FileReadResult = FileReadSuccess | FileReadError;
 
-export type WorkerRequest = CompileRequest | InitRequest | FileReadResult;
+export interface FormatRequest {
+  type: "format";
+  id: number;
+  code: string;
+  filename: string;
+}
+
+export type FormatResult =
+  | { type: "format_result"; id: number; ok: true; code: string }
+  | { type: "format_result"; id: number; ok: false; error: string };
+
+export type WorkerRequest =
+  | CompileRequest
+  | FormatRequest
+  | InitRequest
+  | FileReadResult;
 
 export interface CompileSuccess {
   type: "result";
@@ -158,6 +173,7 @@ export type WebGPUMeshResultMessage =
   | WebGPUMeshErrorMessage;
 
 export type WorkerResponse =
+  | FormatResult
   | CompileSuccess
   | CompileError
   | FileReadRequest

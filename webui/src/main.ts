@@ -45,6 +45,7 @@ const overlayText = requireElement("overlayText");
 const spinnerEl = requireElement("spinner");
 const cancelBtn = requireElement<HTMLButtonElement>("cancel");
 const compileBtn = requireElement<HTMLButtonElement>("compile");
+const formatBtn = requireElement<HTMLButtonElement>("format");
 const resetViewBtn = requireElement<HTMLButtonElement>("resetView");
 const downloadBtn = requireElement<HTMLButtonElement>("download");
 const gridEl = requireElement<HTMLInputElement>("grid");
@@ -289,6 +290,37 @@ async function compile(): Promise<void> {
     handleWorkerError(errText);
   }
 }
+
+formatBtn.addEventListener("click", async () => {
+  const filename = activeFilename;
+  if (!filename) {
+    statusEl.textContent = "Open a .scad file before formatting.";
+    return;
+  }
+  if (workerClient.isBusy()) {
+    statusEl.textContent =
+      "Wait for the current operation to finish before formatting.";
+    return;
+  }
+  const document = editor.view.state.doc;
+  formatBtn.disabled = true;
+  statusEl.textContent = "Formatting...";
+  try {
+    const formatted = await workerClient.format(document.toString(), filename);
+    if (activeFilename !== filename || editor.view.state.doc !== document) {
+      statusEl.textContent =
+        "Code changed while formatting. Press Format again.";
+      return;
+    }
+    editor.applyFormattedSource(formatted);
+    statusEl.textContent = "Code formatted.";
+    editor.view.focus();
+  } catch (err: unknown) {
+    statusEl.textContent = err instanceof Error ? err.message : String(err);
+  } finally {
+    formatBtn.disabled = false;
+  }
+});
 
 compileBtn.addEventListener("click", () => {
   void compile();

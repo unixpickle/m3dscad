@@ -6,6 +6,9 @@ import (
 )
 
 type Lexer struct {
+	// KeepComments includes comments in the token stream, with their exact text.
+	KeepComments bool
+
 	s               string
 	i               int
 	pos             Pos
@@ -21,8 +24,11 @@ func NewLexerFile(filename, s string) *Lexer {
 	return &Lexer{s: s, pos: Pos{Filename: filename, Line: 1, Col: 1}}
 }
 
-func (l *Lexer) Next() (Token, error) {
-	l.skipSpaceAndComments()
+func (l *Lexer) Next() (token Token, err error) {
+	defer func() { token.End = l.pos }()
+	if comment, ok, err := l.skipSpaceAndComments(); err != nil || ok {
+		return comment, err
+	}
 	if l.awaitingUsePath {
 		l.awaitingUsePath = false
 		if l.i < len(l.s) && l.peek() == '<' {
@@ -190,7 +196,7 @@ func (l *Lexer) Next() (Token, error) {
 	}
 }
 
-func (l *Lexer) skipSpaceAndComments() {
+func (l *Lexer) skipSpaceAndComments() (Token, bool, error) {
 	for {
 		// whitespace
 		for l.i < len(l.s) {
@@ -203,25 +209,34 @@ func (l *Lexer) skipSpaceAndComments() {
 		}
 		// line comment //
 		if l.i+1 < len(l.s) && l.s[l.i] == '/' && l.s[l.i+1] == '/' {
+			start := l.pos
 			for l.i < len(l.s) && l.peek() != '\n' {
 				l.advance()
+			}
+			if l.KeepComments {
+				return Token{Kind: TokComment, Lexeme: l.s[start.Offset:l.i], Pos: start}, true, nil
 			}
 			continue
 		}
 		// block comment /* */
 		if l.i+1 < len(l.s) && l.s[l.i] == '/' && l.s[l.i+1] == '*' {
+			start := l.pos
 			l.advance()
 			l.advance()
 			for l.i+1 < len(l.s) && !(l.s[l.i] == '*' && l.s[l.i+1] == '/') {
 				l.advance()
 			}
-			if l.i+1 < len(l.s) {
-				l.advance()
-				l.advance()
+			if l.i+1 >= len(l.s) {
+				return Token{}, false, PosErrorf(start, "unterminated block comment")
+			}
+			l.advance()
+			l.advance()
+			if l.KeepComments {
+				return Token{Kind: TokComment, Lexeme: l.s[start.Offset:l.i], Pos: start}, true, nil
 			}
 			continue
 		}
-		return
+		return Token{}, false, nil
 	}
 }
 

@@ -1,0 +1,133 @@
+thickness = 0.05;
+pinRadius = 0.04;
+sideLength = 0.4;
+
+dividerZ0 = 0.2;
+dividerZ1 = -0.5;
+dividerY = 0.2;
+
+module cavity() {
+  rotate(-10)
+    import("frog_high.stl");
+}
+
+module outset_cavity(outset=thickness) {
+  solid()
+    outset_sdf(outset)
+    mesh_to_sdf()
+    cavity();
+}
+
+//translate([0, 1, -0.1]) sphere(r=0.2);
+
+module mask() {
+  translate([0, -2.5, -2.5])
+    cube([5, 5, 5]);
+
+  points = [[0.0, 0.9], [-0.6, -1], [0.6, -1], [1.1, 0]];
+  for (p = points)
+    translate([0, p.x, p.y])
+      sphere(r=pinRadius);
+}
+
+module full_cast() {
+  difference() {
+    union() {
+      outset_cavity();
+      for (z = [dividerZ0, dividerZ1])
+        clip(min_z=z - thickness, max_z=z + thickness)
+          outset_cavity(sideLength);
+      clip(min_z=dividerZ1, max_z=dividerZ0, min_y=dividerY - thickness, max_y=dividerY + thickness)
+          outset_cavity(sideLength);
+    }
+    solid()
+      cavity();
+  }
+}
+
+module pin() {
+  line_join([[0, 0, 0], [0, 0, 0]], r=pinRadius, norm="l1");
+}
+
+module top_pins() {
+  z = dividerZ0;
+  translate([0.1, 0.9, z])
+    pin();
+  translate([-0.05, -1.25, z])
+    pin();
+  translate([-1, 0.0, z])
+    pin();
+  translate([1, 0.4, z])
+    pin();
+}
+
+module bottom_pins() {
+  z = dividerZ1;
+  translate([0.1, 1.15, z])
+    pin();
+  translate([0.2, -1.05, z])
+    pin();
+  translate([-1.2, 0.0, z])
+    pin();
+  translate([1.2, 0.4, z])
+    pin();
+}
+
+module side_pins() {
+  y = dividerY;
+  z = (dividerZ0 + dividerZ1) / 2;
+  translate([-1.2, y, z])
+    pin();
+  translate([1.2, y, z])
+    pin();
+}
+
+module pour_hole() {
+  translate([0, 0, -1.5])
+  rotate([45, 90, 0])
+    cube([3, 0.7, 0.7], center=true);
+}
+
+module part_top() {
+  clip(min_z=dividerZ0)
+    full_cast();
+  top_pins();
+}
+
+module part_bottom() {
+  clip(max_z=dividerZ1)
+    difference() {
+      full_cast();
+      pour_hole();
+    }
+  bottom_pins();
+}
+
+module part_mid_A() {
+  clip(min_z=dividerZ1, max_z=dividerZ0, min_y=dividerY)
+    difference() {
+      full_cast();
+      top_pins();
+      bottom_pins();
+    }
+  side_pins();
+}
+
+module part_mid_B() {
+  clip(min_z=dividerZ1, max_z=dividerZ0, max_y=dividerY)
+    difference() {
+      full_cast();
+      top_pins();
+      bottom_pins();
+      side_pins();
+    }
+}
+
+fullScale = 50;
+
+scale(fullScale) {
+  rotate([180, 0, 0]) part_top();
+  //part_bottom();
+  //rotate([180, 0, 0]) part_mid_A();
+  //rotate([180, 0, 0]) part_mid_B();
+}

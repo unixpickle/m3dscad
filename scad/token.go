@@ -43,6 +43,8 @@ const (
 
 	TokQuestion // ?
 	TokColon    // :
+
+	TokComment // returned only when Lexer.KeepComments is set
 )
 
 type Pos struct {
@@ -68,4 +70,5 @@ type Token struct {
 	Lexeme string
 	Num    float64
 	Pos    Pos
+	End    Pos // position immediately after the token
 }

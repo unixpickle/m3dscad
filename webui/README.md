@@ -64,6 +64,9 @@ Then open `http://localhost:8080`.
 
 ## Controls
 
+- `Format` reformats the current file using two-space indentation and one modifier
+  per line. A trailing comma expands a list onto separate lines. Formatting is a
+  single Undo step; syntax errors leave the editor unchanged.
 - `Command+S` (or `Ctrl+S`) compiles the code and updates the preview.
 - `Files` opens the browser-backed project filesystem. Projects start in
   `main.scad`, and can contain uploaded files, folders, and additional `.scad`

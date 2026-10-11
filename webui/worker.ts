@@ -25,6 +25,7 @@ interface CompileOptions {
 }
 
 interface WorkerGlobalWithRuntime extends DedicatedWorkerGlobalScope {
+  m3dscadFormat?: (code: string, filename: string) => Promise<string>;
   m3dscadCompile?: (
     code: string,
     gridSize: number,
@@ -51,6 +52,7 @@ function resetWasmState(): void {
   ready = false;
   wasmReadyPromise = null;
   workerScope.m3dscadCompile = undefined;
+  workerScope.m3dscadFormat = undefined;
 }
 
 function postWorkerMessage(message: WorkerResponse): void {
@@ -198,6 +200,30 @@ workerScope.addEventListener(
       } else {
         pending.reject(new Error(msg.error));
       }
+      return;
+    }
+    if (msg.type === "format") {
+      void initWasm()
+        .then(async () => {
+          if (!ready || typeof workerScope.m3dscadFormat !== "function") {
+            throw new Error(goExitedError);
+          }
+          const code = await workerScope.m3dscadFormat(msg.code, msg.filename);
+          postWorkerMessage({
+            type: "format_result",
+            id: msg.id,
+            ok: true,
+            code,
+          });
+        })
+        .catch((err: unknown) => {
+          postWorkerMessage({
+            type: "format_result",
+            id: msg.id,
+            ok: false,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
       return;
     }
     if (msg.type !== "compile") {

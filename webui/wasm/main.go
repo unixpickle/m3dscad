@@ -24,7 +24,25 @@ const (
 
 func main() {
 	js.Global().Set("m3dscadCompile", js.FuncOf(compile))
+	js.Global().Set("m3dscadFormat", js.FuncOf(formatSource))
 	select {}
+}
+
+func formatSource(_ js.Value, args []js.Value) any {
+	return newPromise(func() (js.Value, error) {
+		if len(args) < 1 {
+			return js.Null(), fmt.Errorf("format(code, filename?) requires source code")
+		}
+		filename := "main.scad"
+		if len(args) >= 2 {
+			filename = args[1].String()
+		}
+		formatted, err := scad.FormatFile(filename, args[0].String())
+		if err != nil {
+			return js.Null(), err
+		}
+		return js.ValueOf(formatted), nil
+	})
 }
 
 func compile(_ js.Value, args []js.Value) any {

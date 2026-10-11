@@ -1,0 +1,40 @@
+slitSize = 3;
+height = 40;
+width = 80;
+depth = 3;
+border = 3;
+
+module slits(theta, off=0) {
+  w = slitSize * cos(theta);
+  intersection() {
+    for (x = [-100 : slitSize*2 : 100])
+      translate([off + x, 0, 0])
+        rotate(theta)
+        cube([w, 100, 100], center=true);
+    cube([width, depth, height], center=true);
+  }
+}
+
+difference() {
+  b = border * 2;
+  cube([width + b, depth, height + b], center=true);
+  slits(45);
+  slits(-45, off=depth * tan(45));
+}
+
+intersection() {
+  slits(45, off=slitSize);
+  rotate(-45)
+    rotate([90, 0, 0])
+    linear_extrude(depth * 100, center=true)
+    text("Bean", size=0.2 * width, halign="center", valign="center");
+}
+
+intersection() {
+  slits(-45, off=depth*tan(45) + slitSize);
+  rotate(45)
+    rotate([90, 0, 0])
+    linear_extrude(depth * 100, center=true)
+    translate([0.5, 0])
+    text("Nug", size=0.19 * width, halign="center", valign="center");
+}

@@ -5,6 +5,7 @@ type Parser struct {
 	cur   Token
 	peek  Token
 	depth int
+	err   error // first lexer error, including errors from unchecked advances
 }
 
 type namedExprBind struct {
@@ -31,7 +32,12 @@ func NewParserFile(filename, src string) (*Parser, error) {
 	return &Parser{lx: lx, cur: t0, peek: t1}, nil
 }
 
-func (p *Parser) ParseProgram() (*Program, error) {
+func (p *Parser) ParseProgram() (program *Program, err error) {
+	defer func() {
+		if p.err != nil {
+			program, err = nil, p.err
+		}
+	}()
 	var stmts []Stmt
 	for p.cur.Kind != TokEOF {
 		s, err := p.parseStmt()
@@ -288,6 +294,9 @@ func (p *Parser) parseParamList() ([]Param, error) {
 			params = append(params, Param{Name: name, Default: def, P: paramPos})
 			if p.cur.Kind == TokComma {
 				p.advance()
+				if p.cur.Kind == TokRParen {
+					break
+				}
 				continue
 			}
 			break
@@ -794,10 +803,13 @@ func (p *Parser) parseNamedExprBinds(openErr, nameErr, assignErr, closeErr strin
 func (p *Parser) advance() error {
 	t, err := p.lx.Next()
 	if err != nil {
-		return err
+		if p.err == nil {
+			p.err = err
+		}
+		t = Token{Kind: TokEOF, Pos: p.lx.pos}
 	}
 	p.cur, p.peek = p.peek, t
-	return nil
+	return err
 }
 
 func (p *Parser) expect(k TokenKind, msg string) error {

@@ -38,6 +38,7 @@ interface WorkerClient {
     meshBackend?: MeshBackend,
     filename?: string,
   ): Promise<MeshData | null>;
+  format(code: string, filename: string): Promise<string>;
   cancel(): boolean;
   isReady(): boolean;
   isBusy(): boolean;
@@ -90,19 +91,21 @@ export function createWorkerClient({
   let rejectWorkerInit: PromiseRejector | null = null;
   let requestId = 0;
   let pendingRequestId: number | null = null;
-  let compilePreparing = false;
+  let requestPreparing = false;
   let resolveCompile: PromiseResolver<MeshData> | null = null;
-  let rejectCompile: PromiseRejector | null = null;
+  let resolveFormat: PromiseResolver<string> | null = null;
+  let rejectRequest: PromiseRejector | null = null;
 
   function clearWorkerInitHandlers(): void {
     resolveWorkerInit = null;
     rejectWorkerInit = null;
   }
 
-  function clearPendingCompile(): void {
+  function clearPendingRequest(): void {
     pendingRequestId = null;
     resolveCompile = null;
-    rejectCompile = null;
+    resolveFormat = null;
+    rejectRequest = null;
   }
 
   function init(options: InitOptions = {}): Promise<void> {
@@ -113,8 +116,8 @@ export function createWorkerClient({
       clearWorkerInitHandlers();
     }
     if (pendingRequestId != null) {
-      const rejectCurrent = rejectCompile;
-      clearPendingCompile();
+      const rejectCurrent = rejectRequest;
+      clearPendingRequest();
       rejectCurrent?.(new Error(WORKER_RESTARTED_ERROR));
     }
     worker?.terminate();
@@ -184,8 +187,8 @@ export function createWorkerClient({
         rejectWorkerInit?.(new Error(errText));
         clearWorkerInitHandlers();
         if (pendingRequestId != null) {
-          const rejectCurrent = rejectCompile;
-          clearPendingCompile();
+          const rejectCurrent = rejectRequest;
+          clearPendingRequest();
           rejectCurrent?.(new Error(errText));
         }
         onInitError?.(errText);
@@ -195,13 +198,18 @@ export function createWorkerClient({
         return;
       }
       const resolveCurrent = resolveCompile;
-      const rejectCurrent = rejectCompile;
-      clearPendingCompile();
+      const resolveFormatted = resolveFormat;
+      const rejectCurrent = rejectRequest;
+      clearPendingRequest();
       if (!msg.ok) {
         rejectCurrent?.(new Error(msg.error || "Unknown error."));
         return;
       }
-      resolveCurrent?.(toMeshData(msg));
+      if (msg.type === "format_result") {
+        resolveFormatted?.(msg.code);
+      } else {
+        resolveCurrent?.(toMeshData(msg));
+      }
     };
     worker.onerror = (event: ErrorEvent) => {
       if (worker !== currentWorker) {
@@ -212,8 +220,8 @@ export function createWorkerClient({
       rejectWorkerInit?.(new Error(errText));
       clearWorkerInitHandlers();
       if (pendingRequestId != null) {
-        const rejectCurrent = rejectCompile;
-        clearPendingCompile();
+        const rejectCurrent = rejectRequest;
+        clearPendingRequest();
         rejectCurrent?.(new Error(errText));
       }
       onWorkerError?.(errText);
@@ -228,10 +236,10 @@ export function createWorkerClient({
     meshBackend: MeshBackend = "cpu",
     filename = "main.scad",
   ): Promise<MeshData | null> {
-    if (pendingRequestId != null || compilePreparing) {
+    if (pendingRequestId != null || requestPreparing) {
       return null;
     }
-    compilePreparing = true;
+    requestPreparing = true;
     try {
       if (!worker) {
         void init({ silent: true });
@@ -245,7 +253,7 @@ export function createWorkerClient({
       pendingRequestId = ++requestId;
       const resultPromise = new Promise<MeshData>((resolve, reject) => {
         resolveCompile = resolve;
-        rejectCompile = reject;
+        rejectRequest = reject;
       });
       worker.postMessage(
         compileMessage(pendingRequestId, code, gridSize, meshBackend, filename),
@@ -257,7 +265,39 @@ export function createWorkerClient({
       }
       throw err;
     } finally {
-      compilePreparing = false;
+      requestPreparing = false;
+    }
+  }
+
+  async function format(code: string, filename: string): Promise<string> {
+    if (pendingRequestId != null || requestPreparing) {
+      throw new Error("WASM worker is busy.");
+    }
+    requestPreparing = true;
+    try {
+      await ensureReady({ silent: true });
+      if (!workerReady || !worker) {
+        throw new Error("WASM initialization failed.");
+      }
+      pendingRequestId = ++requestId;
+      const resultPromise = new Promise<string>((resolve, reject) => {
+        resolveFormat = resolve;
+        rejectRequest = reject;
+      });
+      worker.postMessage({
+        type: "format",
+        id: pendingRequestId,
+        code,
+        filename,
+      } satisfies WorkerRequest);
+      return await resultPromise;
+    } catch (err) {
+      if (err instanceof Error && err.message === GO_EXITED_ERROR) {
+        void init({ silent: true });
+      }
+      throw err;
+    } finally {
+      requestPreparing = false;
     }
   }
 
@@ -275,8 +315,8 @@ export function createWorkerClient({
     if (pendingRequestId == null) {
       return false;
     }
-    const rejectCurrent = rejectCompile;
-    clearPendingCompile();
+    const rejectCurrent = rejectRequest;
+    clearPendingRequest();
     rejectCurrent?.(new Error(COMPILATION_CANCELED_ERROR));
     void init({ silent: true });
     return true;
@@ -286,12 +326,13 @@ export function createWorkerClient({
     init,
     ensureReady,
     compile,
+    format,
     cancel,
     isReady() {
       return workerReady;
     },
     isBusy() {
-      return compilePreparing || pendingRequestId != null;
+      return requestPreparing || pendingRequestId != null;
     },
   };
 }

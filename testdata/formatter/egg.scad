@@ -1,0 +1,112 @@
+units = 0.18676470588235294;
+radiiPoints = [
+  [0, 0],
+  [35, 3],
+  [52, 5],
+  [82, 9],
+  [125, 17],
+  [176, 35],
+  [221, 56],
+  [244, 72],
+  [274, 96],
+  [288, 114],
+  [298, 132],
+  [305, 144],
+  [319, 202],
+  [0, 202],
+];
+
+eggHeight = units * radiiPoints[len(radiiPoints)-1].y;
+eggRadius = units * radiiPoints[len(radiiPoints)-2].x / 2;
+
+rows = 2;
+cols = 5;
+spacing = 5;
+bottomThickness = 5;
+
+dentHeight = 2;
+dentRadius = 10.5;
+
+cornerRadius = 10;
+bottomRadius = 5;
+
+totalWidth = (spacing + eggRadius*2) * cols + spacing;
+totalDepth = (spacing + eggRadius*2) * rows + spacing;
+
+connectorRadius = 3;
+connectorLength = 10;
+connectorSlack = 0.2;
+
+module egg_bottom() {
+  scale(units)
+    rotate_extrude()
+    scale([0.5, 1])
+    polygon(radiiPoints);
+}
+
+module full_object() {
+  difference() {
+    translate([cornerRadius, cornerRadius, -bottomThickness])
+      inset_extrude(eggHeight + bottomThickness, bottom=bottomRadius)
+      outset_sdf(cornerRadius)
+      square_sdf([
+        totalWidth - cornerRadius*2,
+        totalDepth - cornerRadius*2,
+      ]);
+  
+    for (row = [0 : rows-1], col = [0 : cols-1])
+      translate([
+        (spacing + eggRadius*2) * col + eggRadius + spacing,
+        (spacing + eggRadius*2) * row + eggRadius + spacing,
+        0
+      ])
+        egg_bottom();
+  
+    for (row = [1 : rows-1], col = [1 : cols-1])
+      translate([
+        (spacing + eggRadius*2)*col + spacing/2,
+        (spacing + eggRadius*2)*row + spacing/2,
+        eggHeight,
+      ])
+        scale([1, 1, dentHeight / dentRadius])
+        sphere(r=dentRadius);
+  }
+}
+
+module side_connectors(slack=0) {
+  r = connectorRadius + slack;
+  for (y = [10, totalDepth / 2, totalDepth - 10])
+    translate([totalWidth / 2, y, 5])
+      rotate([0, 90, 0])
+      inset_extrude(
+        connectorLength + slack,
+        center=true,
+        top=connectorRadius / 4,
+      )
+      polygon_sdf([
+        [r, 0],
+        [0, r],
+        [-r, 0],
+        [0, -r],
+      ]);
+}
+
+module left_half() {
+  clip(max_x=totalWidth / 2)
+    full_object();
+
+  side_connectors();
+}
+
+module right_half() {
+  difference() {
+    clip(min_x=totalWidth / 2)
+      full_object();
+
+    side_connectors(slack=connectorSlack);
+  }
+}
+
+left_half();
+
+translate([connectorLength * 2, 0, 0]) right_half();

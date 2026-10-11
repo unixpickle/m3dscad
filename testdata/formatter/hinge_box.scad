@@ -1,0 +1,79 @@
+thickness = 8;
+hingeWidth = 5;
+hingeJut = 1;
+boxWidth = 50;
+boxDepth = 50;
+boxHeight = 50;
+horizSpace = 1;
+poleSpace = 0.5;
+poleRadius = 2;
+lidBrimDepth = 1;
+lidBrimGap = 0.5;
+delta = 0.5;
+
+hingeYs = [8, boxDepth - 8];
+
+module pole(y, r) {
+  translate([0, y, 0])
+    rotate([90, 0, 0])
+    cylinder(r=r, h=hingeWidth + horizSpace*2.01, center=true);
+}
+
+module bottomHinge(y) {
+  hingeHook(y - hingeWidth - horizSpace/2);
+  hingeHook(y + hingeWidth + horizSpace/2);
+  pole(y, poleRadius);
+}
+
+module topHinge(y) {
+  difference() {
+    rotate([0, 180, 0]) hingeHook(y);
+    pole(y, poleRadius + poleSpace);
+  }
+}
+
+module hingeHook(y) {
+  translate([0, y, 0])
+    rotate([90, 0, 0])
+    linear_extrude(hingeWidth, center=true)
+    union() {
+      circle(r=thickness / 2);
+      translate([-thickness / 2, -hingeJut - thickness/2])
+        square([thickness, hingeJut + thickness/2]);
+    }
+}
+
+module body() {
+  difference() {
+    translate([-thickness / 2, 0, -boxHeight - (thickness/2 + hingeJut)])
+      cube([boxWidth, boxDepth, boxHeight]);
+    translate([thickness/2, thickness, -boxHeight + thickness])
+      cube([boxWidth - thickness*2, boxDepth - thickness*2, boxHeight - thickness]);
+  }
+  for (y = hingeYs)
+    bottomHinge(y);
+}
+
+module lid() {
+  // Change this rotation to watch the lid move
+  rotate([0, 0, 0]) {
+    translate([-thickness/2, 0, thickness/2 + hingeJut])
+      cube([thickness + hingeJut, boxDepth, boxWidth - thickness - hingeJut]);
+    for (y = hingeYs)
+      topHinge(y);
+
+    // Lid brim that fits into the hole.
+    rotate([0, -90, 0])
+      translate([thickness/2 + hingeJut + lidBrimGap, thickness + lidBrimGap, -(hingeJut + thickness/2 + lidBrimDepth)])
+        cube([boxWidth - thickness*2 - hingeJut - lidBrimGap*2, boxDepth - thickness*2 - hingeJut, lidBrimDepth]);
+  }
+}
+
+// These two meshes don't overlap, and this prevents the
+// parts from getting fused.
+union() {
+  dual_contour(delta)
+    lid();
+  dual_contour(delta)
+    body();
+}

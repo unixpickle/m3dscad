@@ -34,7 +34,7 @@ func handleDifference(e *env, st *CallStmt, children []ShapeRep, _ *ShapeRep) (S
 		return children[0], nil
 	}
 	if kind == ShapeMesh2D {
-		out, err := meshbool.Difference2D(meshbool.DefaultOptions2D(), children[0].M2, meshChildren2D(children[1:])...)
+		out, err := meshbool.Difference2D(meshBooleanOptions2D(), children[0].M2, meshChildren2D(children[1:])...)
 		if err != nil {
 			return ShapeRep{}, fmt.Errorf("difference(): %w", err)
 		}
@@ -146,7 +146,7 @@ func handleIntersection(e *env, st *CallStmt, children []ShapeRep, _ *ShapeRep) 
 		}
 		return shapeMesh3D(out), nil
 	case ShapeMesh2D:
-		out, err := meshbool.Intersection2D(meshbool.DefaultOptions2D(), meshChildren2D(children)...)
+		out, err := meshbool.Intersection2D(meshBooleanOptions2D(), meshChildren2D(children)...)
 		if err != nil {
 			return ShapeRep{}, fmt.Errorf("intersection(): %w", err)
 		}

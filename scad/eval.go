@@ -435,6 +435,28 @@ func evalUse(e *env, st *UseStmt) error {
 func evalCallStmt(e *env, st *CallStmt) (*ShapeRep, error) {
 	name := st.Call.Name
 
+	if name == "let" {
+		e.push()
+		defer e.pop()
+		// Bind sequentially so each expression can use earlier bindings.
+		for _, arg := range st.Call.Args {
+			if arg.Name == "" {
+				return nil, PosErrorf(arg.P, "let() requires named bindings")
+			}
+			v, err := evalExpr(e, arg.Expr)
+			if err != nil {
+				return nil, err
+			}
+			if err := e.set(arg.Name, v); err != nil {
+				return nil, WithPos(err, arg.P)
+			}
+		}
+		// The child block has its own scope and may shadow the bindings.
+		e.push()
+		defer e.pop()
+		return evalStmtsAsOne(e, st.Children)
+	}
+
 	if name == "echo" {
 		if len(st.Children) > 0 {
 			return nil, fmt.Errorf("%s() does not take children", name)

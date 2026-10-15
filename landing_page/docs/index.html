@@ -38,9 +38,11 @@
         <ul>
           <li><a href="#calls-and-modifiers">Calls And Modifiers</a></li>
           <li><a href="#variables">Variables</a></li>
+          <li><a href="#let">Let</a></li>
           <li><a href="#functions">Functions</a></li>
           <li><a href="#anonymous-functions">Anonymous Functions</a></li>
           <li><a href="#modules">Modules</a></li>
+          <li><a href="#use-statements">Use Statements</a></li>
           <li><a href="#caches">Caches</a></li>
           <li><a href="#if-else">If / Else</a></li>
           <li><a href="#for-loops">For Loops</a></li>
@@ -166,6 +168,16 @@ height = 4;
 
 cylinder(r=radius, h=height, center=true);</pre>
 
+        <h3 id="let">Let</h3>
+        <p><code>let(name=value, ...)</code> introduces local variables for an expression, a child geometry statement, or a block of children. Bindings are evaluated from left to right, so later bindings can use earlier ones. They can shadow outer variables without changing the surrounding scope.</p>
+        <pre class="example-code">let(radius = 2, height = radius * 3)
+  cylinder(r=radius, h=height);
+
+let(size = 2) {
+  cube(size);
+  translate([size + 1, 0, 0]) sphere(r=size / 2);
+}</pre>
+
         <h3 id="functions">Functions</h3>
         <p>User-defined functions return a single expression and can be used in parameters and other expressions.</p>
         <pre class="example-code">function ring_r(base, wall) = base - wall;
@@ -206,6 +218,23 @@ copy_first([3, 0, 0]) {
   sphere(1);
   translate([0, 3, 0]) cube(1);
 }</pre>
+
+        <h3 id="use-statements">Use Statements</h3>
+        <p><code>use &lt;path/to/library.scad&gt;</code> imports the modules and functions defined directly in another file. Place <code>use</code> statements at the top level, outside modules and blocks. The trailing semicolon is optional. Paths are resolved relative to the file containing the <code>use</code> statement.</p>
+        <p>For example, save this library as <code>lib/posts.scad</code>:</p>
+        <pre class="example-code">default_radius = 0.6;
+function post_spacing(r) = 3 * r;
+
+module post(h, r=default_radius) {
+  cylinder(h=h, r=r);
+}</pre>
+        <p>Then use its definitions from <code>main.scad</code>:</p>
+        <pre class="example-code">use &lt;lib/posts.scad&gt;
+
+post(h=4);
+translate([post_spacing(1), 0, 0]) post(h=6, r=1);</pre>
+        <p>The library's variables remain private, but its functions and modules can use them. Top-level geometry in the library is not evaluated. Imported definitions use the library's scope and cannot see definitions from the calling file.</p>
+        <p>A library can use other libraries, and those definitions remain available inside it. They are not automatically re-exported to the caller; add a separate <code>use</code> statement to access them directly. Circular <code>use</code> dependencies are rejected.</p>
 
         <h3 id="caches">Caches</h3>
         <p>Declare <code>cache name() { ... }</code> to compute geometry on the first call and return the same shape on later calls. Caches take no parameters, arguments, or attached children. Their bodies capture the enclosing scope, including an outer module's variables and <code>children()</code>. An unused cache never runs its body; side effects such as <code>echo()</code> run only on the first evaluation, even if the body produces no geometry.</p>
@@ -589,7 +618,7 @@ polyhedron(points, faces);</pre>
         </ul>
 
         <h2 id="csg">CSG</h2>
-        <p>For 2D and 3D meshes, all three CSG operations use <a href="https://github.com/unixpickle/meshbool"><code>unixpickle/meshbool</code></a> to operate directly on mesh facets. This preserves vertices and flat surfaces instead of voxelizing the inputs. Mesh inputs should be closed, consistently oriented, and manifold. 3D mesh inputs, retained surface fragments, and outputs are limited to 10,000,000 triangles or fragments; invalid topology or excessive intersection complexity produces an evaluation error.</p>
+        <p>For 2D and 3D meshes, all three CSG operations use <a href="https://github.com/unixpickle/meshbool"><code>unixpickle/meshbool</code></a> to operate directly on mesh facets. This preserves vertices and flat surfaces instead of voxelizing the inputs. Mesh inputs should be closed, consistently oriented, and manifold. 2D boolean operations, including planar operations within 3D booleans, are limited to 1,000,000 input segments. 3D mesh inputs, retained surface fragments, and outputs are limited to 10,000,000 triangles or fragments; invalid topology or excessive intersection complexity produces an evaluation error.</p>
 
         <h3 id="union"><code>union</code></h3>
         <p>Combines child shapes of the same kind into one shape. Mesh children produce a geometric union with internal and overlapping facets removed, rather than simply concatenating their facets.</p>

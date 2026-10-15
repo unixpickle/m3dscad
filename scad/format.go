@@ -227,7 +227,11 @@ func (f *sourceFormatter) stmt(indent int, inChain bool, before string) {
 		f.throughSemi(indent, " ")
 		return
 	}
-	f.statementGroup(indent, "", false)
+	groupBefore := ""
+	if t.Lexeme == "let" {
+		groupBefore = " "
+	}
+	f.statementGroup(indent, groupBefore, false)
 	switch f.tokens[f.next].Kind {
 	case TokSemi:
 		f.take(indent, "")

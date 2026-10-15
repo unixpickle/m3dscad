@@ -394,7 +394,7 @@ func unionAll(n shapekernel.Numerics, children []ShapeRep) (ShapeRep, error) {
 		}
 		return shapeMesh3D(out), nil
 	case ShapeMesh2D:
-		out, err := meshbool.Union2D(meshbool.DefaultOptions2D(), meshChildren2D(children)...)
+		out, err := meshbool.Union2D(meshBooleanOptions2D(), meshChildren2D(children)...)
 		if err != nil {
 			return ShapeRep{}, err
 		}
@@ -456,7 +456,7 @@ func intersectAll(n shapekernel.Numerics, children []ShapeRep) (ShapeRep, error)
 		}
 		return shapeMesh3D(out), nil
 	case ShapeMesh2D:
-		out, err := meshbool.Intersection2D(meshbool.DefaultOptions2D(), meshChildren2D(children)...)
+		out, err := meshbool.Intersection2D(meshBooleanOptions2D(), meshChildren2D(children)...)
 		if err != nil {
 			return ShapeRep{}, err
 		}
@@ -482,8 +482,16 @@ func meshChildren3D(children []ShapeRep) []*model3d.Mesh {
 	return meshes
 }
 
+func meshBooleanOptions2D() meshbool.Options2D {
+	options := meshbool.DefaultOptions2D()
+	options.MaxInputSegments = 1_000_000
+	options.MaxIntersectionCuts = 5_000_000
+	return options
+}
+
 func meshBooleanOptions3D() meshbool.Options3D {
 	options := meshbool.DefaultOptions3D()
+	options.PlanarOptions = meshBooleanOptions2D()
 	options.MaxInputTriangles = 10_000_000
 	options.MaxTotalFragments = 10_000_000
 	options.MaxOutputTriangles = 10_000_000

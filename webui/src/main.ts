@@ -1,7 +1,8 @@
 import "../style.css";
 import { DEFAULT_SOURCE, createEditor } from "./editor";
 import { buildBinarySTL } from "./export/stl";
-import { BrowserFileSystem } from "./filesystem";
+import { BrowserFileSystem, type FileSystemEntryKind } from "./filesystem";
+import { hashPath, parentDirectory, pathHash } from "./navigation";
 import { MeshRenderer } from "./renderer/mesh_renderer";
 import type { AxisElements, MeshBackend } from "./types";
 import { createFileBrowser } from "./ui/file_browser";
@@ -60,24 +61,11 @@ const editorFilenameEl = requireElement("editorFilename");
 const closeFilesBtn = requireElement<HTMLButtonElement>("closeFiles");
 
 const fileSystem = await BrowserFileSystem.open(DEFAULT_SOURCE);
-const initialEntries = await fileSystem.list();
-const storedActiveFilename = window.localStorage.getItem(
-  LAST_OPEN_FILE_STORAGE_KEY,
-);
-const initialActiveFilename =
-  storedActiveFilename === null ? "main.scad" : storedActiveFilename;
-let activeFilename: string | null = initialEntries.some(
-  (entry) =>
-    entry.kind === "file" &&
-    entry.path === initialActiveFilename &&
-    entry.path.toLowerCase().endsWith(".scad"),
-)
-  ? initialActiveFilename
-  : null;
-if (activeFilename) {
-  window.localStorage.setItem(LAST_OPEN_FILE_STORAGE_KEY, activeFilename);
-}
-editorFilenameEl.textContent = activeFilename || "No file open";
+let activeFilename: string | null = null;
+let fileRevision = 0;
+let navigationRevision = 0;
+editorFilenameEl.textContent = "No file open";
+closeFilesBtn.disabled = true;
 
 const axisElements: AxisElements = {
   axisLineX: requireSVGElement<SVGLineElement>("axisLineX"),
@@ -130,9 +118,7 @@ function handleWorkerError(errText: string): void {
 
 const editor = createEditor({
   parent: codeHostEl,
-  initialSource: activeFilename
-    ? await fileSystem.readTextFile(activeFilename)
-    : "",
+  initialSource: "",
   onSave: () => {
     void compile();
   },
@@ -161,15 +147,23 @@ const fileBrowser = createFileBrowser({
     fileList: requireElement("fileList"),
     status: requireElement("fileBrowserStatus"),
   },
-  onEditFile: async (filename) => {
-    const source = await fileSystem.readTextFile(filename);
-    activeFilename = filename;
-    window.localStorage.setItem(LAST_OPEN_FILE_STORAGE_KEY, filename);
-    editorFilenameEl.textContent = filename;
-    closeFilesBtn.disabled = false;
-    editor.setSource(source);
-    fileBrowser.hide();
-    editor.view.focus();
+  onOpen: () => {
+    void navigate(parentDirectory(activeFilename || ""), "directory");
+  },
+  onClose: () => {
+    if (activeFilename) {
+      void navigate(activeFilename, "file");
+    }
+  },
+  onEditFile: (filename) => navigate(filename, "file"),
+  onWriteFile: async (filename) => {
+    if (activeFilename === filename) {
+      const revision = fileRevision;
+      const source = await fileSystem.readTextFile(filename);
+      if (revision === fileRevision) {
+        loadEditor(filename, source);
+      }
+    }
   },
   onRenameEntry: (oldPath, newPath, kind) => {
     if (!activeFilename) {
@@ -182,6 +176,7 @@ const fileBrowser = createFileBrowser({
       return;
     }
     activeFilename = `${newPath}${activeFilename.slice(oldPath.length)}`;
+    resetFileResult();
     window.localStorage.setItem(LAST_OPEN_FILE_STORAGE_KEY, activeFilename);
     editorFilenameEl.textContent = activeFilename;
   },
@@ -195,19 +190,9 @@ const fileBrowser = createFileBrowser({
     ) {
       return;
     }
-    activeFilename = null;
-    editorFilenameEl.textContent = "No file open";
-    closeFilesBtn.disabled = true;
-    editor.setSource("");
+    loadEditor(null, "");
   },
 });
-
-if (activeFilename) {
-  closeFilesBtn.disabled = false;
-} else {
-  closeFilesBtn.disabled = true;
-  await fileBrowser.show();
-}
 
 let lastMesh: ExportMesh | null = null;
 
@@ -240,8 +225,98 @@ const workerClient = createWorkerClient({
   onWorkerError: handleWorkerError,
 });
 
+function resetFileResult(): void {
+  fileRevision++;
+  workerClient.cancel();
+  clearMeshResult();
+  renderer.clearMesh();
+  statusEl.textContent = "";
+  overlay.set("", { idle: true });
+}
+
+function loadEditor(filename: string | null, source: string): void {
+  resetFileResult();
+  activeFilename = filename;
+  editorFilenameEl.textContent = filename || "No file open";
+  closeFilesBtn.disabled = !filename;
+  window.localStorage.setItem(LAST_OPEN_FILE_STORAGE_KEY, filename || "");
+  editor.setSource(source);
+}
+
+async function navigate(
+  path: string,
+  kind: FileSystemEntryKind,
+): Promise<void> {
+  const hash = pathHash(path, kind);
+  if (window.location.hash !== hash) {
+    window.history.pushState(null, "", hash);
+  }
+  await loadLocation();
+}
+
+async function loadLocation(): Promise<void> {
+  const revision = ++navigationRevision;
+  const hash = window.location.hash;
+  // The URL changes before hashchange is dispatched, so a revision alone
+  // cannot detect a Back/Forward click while an IndexedDB read is finishing.
+  const isCurrent = () =>
+    revision === navigationRevision && window.location.hash === hash;
+  let path = "";
+  try {
+    path = hashPath(hash);
+    const entries = await fileSystem.list();
+    if (!isCurrent()) {
+      return;
+    }
+    const entry = entries.find((entry) => entry.path === path);
+    if (path && !entry) {
+      throw new Error(`Path not found: ${path}`);
+    }
+    if (entry?.kind === "file") {
+      if (!path.toLowerCase().endsWith(".scad")) {
+        throw new Error(`Only .scad files can be edited: ${path}`);
+      }
+      const source = await fileSystem.readTextFile(path);
+      if (!isCurrent()) {
+        return;
+      }
+      if (activeFilename !== path || editor.getSource() !== source) {
+        loadEditor(path, source);
+      }
+      window.history.replaceState(null, "", pathHash(path, "file"));
+      fileBrowser.hide();
+      renderer.requestRender();
+      editor.view.focus();
+    } else {
+      window.history.replaceState(null, "", pathHash(path, "directory"));
+      await fileBrowser.show(path);
+    }
+  } catch (error) {
+    const entries = await fileSystem.list();
+    if (!isCurrent()) {
+      return;
+    }
+    // Old history entries can outlive renamed/deleted files. Show the nearest
+    // surviving folder with an explanation instead of opening an unrelated file.
+    let directory = parentDirectory(path);
+    while (
+      directory &&
+      !entries.some(
+        (entry) => entry.path === directory && entry.kind === "directory",
+      )
+    ) {
+      directory = parentDirectory(directory);
+    }
+    window.history.replaceState(null, "", pathHash(directory, "directory"));
+    await fileBrowser.show(
+      directory,
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+}
+
 async function compile(): Promise<void> {
-  if (workerClient.isBusy()) {
+  if (appEl.hidden || workerClient.isBusy()) {
     return;
   }
   const filename = activeFilename;
@@ -250,22 +325,27 @@ async function compile(): Promise<void> {
     overlay.set("", { idle: true });
     return;
   }
+  const revision = fileRevision;
+  const source = editor.getSource();
   try {
     if (!workerClient.isReady()) {
       statusEl.textContent = "Loading WASM...";
       overlay.set(statusEl.textContent, { cancelable: false });
       await workerClient.ensureReady();
     }
+    if (revision !== fileRevision) {
+      return;
+    }
     const gridSize = Number(gridEl.value || "128");
     statusEl.textContent = "Compiling...";
     overlay.set("Compiling...", { cancelable: true });
     const result = await workerClient.compile(
-      editor.getSource(),
+      source,
       gridSize,
       isMeshBackend(meshBackendEl.value) ? meshBackendEl.value : "cpu",
       filename,
     );
-    if (!result) {
+    if (!result || revision !== fileRevision) {
       return;
     }
     renderer.setMesh(result.positions, result.normals, result.bounds);
@@ -277,6 +357,9 @@ async function compile(): Promise<void> {
     statusEl.textContent = `Triangles: ${result.positions.length / 9}`;
     overlay.set("", { idle: true });
   } catch (err: unknown) {
+    if (revision !== fileRevision) {
+      return;
+    }
     const message = err instanceof Error ? err.message : undefined;
     if (message === COMPILATION_CANCELED_ERROR) {
       return;
@@ -303,10 +386,14 @@ formatBtn.addEventListener("click", async () => {
     return;
   }
   const document = editor.view.state.doc;
+  const revision = fileRevision;
   formatBtn.disabled = true;
   statusEl.textContent = "Formatting...";
   try {
     const formatted = await workerClient.format(document.toString(), filename);
+    if (revision !== fileRevision) {
+      return;
+    }
     if (activeFilename !== filename || editor.view.state.doc !== document) {
       statusEl.textContent =
         "Code changed while formatting. Press Format again.";
@@ -316,7 +403,9 @@ formatBtn.addEventListener("click", async () => {
     statusEl.textContent = "Code formatted.";
     editor.view.focus();
   } catch (err: unknown) {
-    statusEl.textContent = err instanceof Error ? err.message : String(err);
+    if (revision === fileRevision) {
+      statusEl.textContent = err instanceof Error ? err.message : String(err);
+    }
   } finally {
     formatBtn.disabled = false;
   }
@@ -373,4 +462,27 @@ setupMobileToggle({
   togglePreviewBtn,
 });
 
+window.addEventListener("hashchange", () => {
+  void loadLocation();
+});
+
+// Only an unaddressed visit uses the legacy last-open preference. Once a tab
+// has a hash, its own location takes precedence over other tabs' selections.
+if (!window.location.hash) {
+  const entries = await fileSystem.list();
+  const preferred =
+    window.localStorage.getItem(LAST_OPEN_FILE_STORAGE_KEY) ?? "main.scad";
+  const filename = entries.find(
+    (entry) =>
+      entry.path === preferred &&
+      entry.kind === "file" &&
+      entry.path.toLowerCase().endsWith(".scad"),
+  );
+  window.history.replaceState(
+    null,
+    "",
+    pathHash(filename?.path || "", filename ? "file" : "directory"),
+  );
+}
+await loadLocation();
 void workerClient.init();

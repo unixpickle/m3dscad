@@ -131,6 +131,15 @@ export class MeshRenderer {
     this.requestRender();
   }
 
+  clearMesh(): void {
+    this.meshData = null;
+    this.vertexCount = 0;
+    this.bounds = null;
+    this.camera.radius = 6;
+    this.camera.target = [0, 0, 0];
+    this.resetView();
+  }
+
   fitView(): void {
     if (!this.bounds) {
       return;

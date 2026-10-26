@@ -32,6 +32,12 @@ npm run dev
 
 Then open the local URL printed by Vite.
 
+## Test the UI
+
+From `webui/`, run `npx playwright install chromium` once, then `npm test`.
+The browser tests use the real editor, IndexedDB, history, and renderer with a
+stubbed compiler worker, so they do not require building WASM.
+
 ## Build the WASM
 
 From the repo root:
@@ -78,6 +84,12 @@ Then open `http://localhost:8080`.
   dependencies on demand instead of loading a complete project snapshot.
   `Download .tar` exports the current folder and its descendants, with archive
   paths relative to that folder.
+  The URL hash tracks the current file or folder (for example,
+  `#/parts/bracket.scad` or `#/parts/`). Browser Back/Forward and reload restore
+  that location, and file/folder links can be opened in separate tabs.
+  Loading a different file starts a fresh undo history and clears the preview.
+  Uploading an existing filename asks whether to replace it; Cancel skips that
+  file and continues with the remaining uploads.
 - Mesh grid size controls the maximum dual contour cell side length (default 128).
 - Drag to orbit.
 - Scroll to zoom.

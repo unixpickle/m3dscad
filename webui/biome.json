@@ -4,6 +4,8 @@
     "ignore": ["src/webgpu_meshes/**/*"],
     "include": [
       "src/**/*",
+      "tests/**/*",
+      "playwright.config.ts",
       "worker.ts",
       "index.html",
       "package.json",

@@ -4,6 +4,7 @@ import {
   type FileSystemEntry,
   normalizePath,
 } from "../filesystem";
+import { pathHash } from "../navigation";
 
 interface FileBrowserElements {
   browser: HTMLElement;
@@ -23,7 +24,10 @@ interface FileBrowserElements {
 interface FileBrowserOptions {
   fileSystem: BrowserFileSystem;
   elements: FileBrowserElements;
+  onOpen: () => void;
+  onClose: () => void;
   onEditFile: (path: string) => Promise<void>;
+  onWriteFile: (path: string) => Promise<void>;
   onRenameEntry: (
     oldPath: string,
     newPath: string,
@@ -33,7 +37,7 @@ interface FileBrowserOptions {
 }
 
 export interface FileBrowserController {
-  show(): Promise<void>;
+  show(directory: string, error?: string): Promise<void>;
   hide(): void;
   refresh(): Promise<void>;
 }
@@ -53,7 +57,10 @@ function validateName(input: string): string {
 export function createFileBrowser({
   fileSystem,
   elements,
+  onOpen,
+  onClose,
   onEditFile,
+  onWriteFile,
   onRenameEntry,
   onDeleteEntry,
 }: FileBrowserOptions): FileBrowserController {
@@ -85,13 +92,10 @@ export function createFileBrowser({
         separator.className = "breadcrumb-separator";
         elements.breadcrumbs.append(separator);
       }
-      const button = document.createElement("button");
-      button.textContent = names[i];
-      button.addEventListener("click", () => {
-        currentDirectory = parts.slice(0, i).join("/");
-        void refresh();
-      });
-      elements.breadcrumbs.append(button);
+      const link = document.createElement("a");
+      link.textContent = names[i];
+      link.href = pathHash(parts.slice(0, i).join("/"), "directory");
+      elements.breadcrumbs.append(link);
     }
   };
 
@@ -102,7 +106,12 @@ export function createFileBrowser({
     const name = pathParts[pathParts.length - 1] || entry.path;
     const editable =
       entry.kind === "file" && entry.path.toLowerCase().endsWith(".scad");
-    const openButton = document.createElement("button");
+    const openButton =
+      entry.kind === "directory" || editable
+        ? Object.assign(document.createElement("a"), {
+            href: pathHash(entry.path, entry.kind),
+          })
+        : Object.assign(document.createElement("button"), { disabled: true });
     openButton.className = "file-row-open";
     const icon = document.createElement("span");
     icon.className = "file-row-icon";
@@ -115,18 +124,7 @@ export function createFileBrowser({
     detail.className = "file-row-detail";
     detail.textContent =
       entry.kind === "directory" ? "Folder" : editable ? "Edit" : "";
-    if (entry.kind === "file" && !editable) {
-      openButton.disabled = true;
-    }
     openButton.append(icon, label, detail);
-    openButton.addEventListener("click", () => {
-      if (entry.kind === "directory") {
-        currentDirectory = entry.path;
-        void refresh();
-        return;
-      }
-      void onEditFile(entry.path);
-    });
     row.append(openButton);
     const actions = document.createElement("div");
     actions.className = "file-row-actions";
@@ -195,9 +193,15 @@ export function createFileBrowser({
     return row;
   };
 
+  let refreshRevision = 0;
   async function refresh(): Promise<void> {
+    const revision = ++refreshRevision;
     try {
-      const children = immediateChildren(await fileSystem.list());
+      const entries = await fileSystem.list();
+      if (revision !== refreshRevision) {
+        return;
+      }
+      const children = immediateChildren(entries);
       renderBreadcrumbs();
       elements.fileList.replaceChildren(...children.map(renderEntry));
       if (children.length === 0) {
@@ -208,14 +212,14 @@ export function createFileBrowser({
       }
       setStatus("");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error), true);
+      if (revision === refreshRevision) {
+        setStatus(error instanceof Error ? error.message : String(error), true);
+      }
     }
   }
 
-  elements.openButton.addEventListener("click", () => {
-    void controller.show();
-  });
-  elements.closeButton.addEventListener("click", () => controller.hide());
+  elements.openButton.addEventListener("click", onOpen);
+  elements.closeButton.addEventListener("click", onClose);
   elements.newFileButton.addEventListener("click", () => {
     const input = window.prompt("Name for the new .scad file:", "library.scad");
     if (!input) {
@@ -261,29 +265,52 @@ export function createFileBrowser({
   );
   elements.uploadInput.addEventListener("change", () => {
     const files = [...(elements.uploadInput.files || [])];
+    const directory = currentDirectory;
+    // Reset even after a cancellation or failure so the same file can be retried.
+    elements.uploadInput.value = "";
     void (async () => {
+      let uploaded = 0;
+      let skipped = 0;
+      let failure = "";
       try {
-        const existing = new Set(
-          (await fileSystem.list()).map((entry) => entry.path),
-        );
         for (const file of files) {
-          const path = joinPath(currentDirectory, file.name);
-          if (existing.has(path)) {
-            throw new Error(`${path} already exists.`);
+          const path = joinPath(directory, file.name);
+          const existing = (await fileSystem.list()).find(
+            (entry) => entry.path === path,
+          );
+          if (existing?.kind === "directory") {
+            window.alert(
+              `Cannot upload ${file.name}: a folder with that name already exists.`,
+            );
+            skipped++;
+            continue;
+          }
+          if (
+            existing &&
+            !window.confirm(
+              `Replace ${file.name}? A file with that name already exists in this folder.`,
+            )
+          ) {
+            skipped++;
+            continue;
           }
           await fileSystem.writeFile(
             path,
             new Uint8Array(await file.arrayBuffer()),
           );
-          existing.add(path);
+          uploaded++;
+          await onWriteFile(path);
         }
-        elements.uploadInput.value = "";
+      } catch (error) {
+        failure = error instanceof Error ? error.message : String(error);
+      }
+      if (currentDirectory === directory) {
         await refresh();
         setStatus(
-          `${files.length} file${files.length === 1 ? "" : "s"} uploaded.`,
+          failure ||
+            `${uploaded} file${uploaded === 1 ? "" : "s"} uploaded.${skipped ? ` ${skipped} skipped.` : ""}`,
+          Boolean(failure),
         );
-      } catch (error) {
-        setStatus(error instanceof Error ? error.message : String(error), true);
       }
     })();
   });
@@ -330,12 +357,17 @@ export function createFileBrowser({
   });
 
   const controller: FileBrowserController = {
-    async show() {
+    async show(directory, error) {
+      currentDirectory = directory;
       elements.app.hidden = true;
       elements.browser.hidden = false;
       await refresh();
+      if (error && currentDirectory === directory) {
+        setStatus(error, true);
+      }
     },
     hide() {
+      refreshRevision++;
       elements.browser.hidden = true;
       elements.app.hidden = false;
     },

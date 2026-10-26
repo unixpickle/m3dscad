@@ -199,7 +199,9 @@ body {
   overflow-x: auto;
 }
 
-.file-breadcrumbs button {
+.file-breadcrumbs a {
+  font-size: 13.3333px;
+  text-decoration: none;
   padding: 4px 6px;
   border: none;
   color: var(--accent-2);
@@ -233,6 +235,8 @@ body {
 }
 
 .file-row-open {
+  font-size: 13.3333px;
+  text-decoration: none;
   display: grid;
   grid-template-columns: 54px minmax(0, 1fr) auto;
   align-items: center;

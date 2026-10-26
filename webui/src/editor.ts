@@ -30,9 +30,9 @@ export function createEditor({
   onSave,
   onChange,
 }: EditorOptions): SourceEditor {
-  const editorView = new EditorView({
-    state: EditorState.create({
-      doc: initialSource,
+  const createState = (source: string): EditorState =>
+    EditorState.create({
+      doc: source,
       extensions: [
         basicSetup,
         EditorState.tabSize.of(2),
@@ -54,7 +54,9 @@ export function createEditor({
           onChange?.(editorView.state.doc.toString());
         }),
       ],
-    }),
+    });
+  const editorView = new EditorView({
+    state: createState(initialSource),
     parent,
   });
 
@@ -63,13 +65,9 @@ export function createEditor({
       return editorView.state.doc.toString();
     },
     setSource(source: string) {
-      editorView.dispatch({
-        changes: {
-          from: 0,
-          to: editorView.state.doc.length,
-          insert: source,
-        },
-      });
+      // Loading a document starts a fresh history and selection, and must not
+      // trigger autosave as though the user had edited the previous document.
+      editorView.setState(createState(source));
     },
     applyFormattedSource(source: string) {
       const previous = editorView.state.doc.toString();

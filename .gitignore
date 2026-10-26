@@ -3,6 +3,8 @@
 .DS_Store
 webui/dist
 webui/node_modules
+webui/test-results
+webui/playwright-report
 webui/public/m3dscad.wasm
 webui/public/wasm_exec.js
 /publish.sh

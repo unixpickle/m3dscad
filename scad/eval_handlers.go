@@ -190,6 +190,9 @@ var builtinHandlers = map[string]callHandler{
 	"cube": {
 		Eval: handleCube,
 	},
+	"cube_mesh": {
+		Eval: handleCubeMesh,
+	},
 	"cube_metaball": {
 		Eval: handleCubeMetaball,
 	},
@@ -246,6 +249,9 @@ var builtinHandlers = map[string]callHandler{
 	},
 	"square": {
 		Eval: handleSquare,
+	},
+	"square_mesh": {
+		Eval: handleSquareMesh,
 	},
 	"square_metaball": {
 		Eval: handleSquareMetaball,

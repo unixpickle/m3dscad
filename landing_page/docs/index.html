@@ -57,7 +57,7 @@
         </div>
         <ul>
           <li class="toc-family"><span class="toc-link-row"><a href="#sphere">sphere</a><a href="#sphere_metaball">sphere_metaball</a><a href="#sphere_sdf">sphere_sdf</a></span></li>
-          <li class="toc-family"><span class="toc-link-row"><a href="#cube">cube</a><a href="#cube_metaball">cube_metaball</a><a href="#cube_sdf">cube_sdf</a></span></li>
+          <li class="toc-family"><span class="toc-link-row"><a href="#cube">cube</a><a href="#cube_mesh">cube_mesh</a><a href="#cube_metaball">cube_metaball</a><a href="#cube_sdf">cube_sdf</a></span></li>
           <li class="toc-family"><span class="toc-link-row"><a href="#cylinder">cylinder</a><a href="#cylinder_metaball">cylinder_metaball</a><a href="#cylinder_sdf">cylinder_sdf</a></span></li>
           <li class="toc-family"><span class="toc-link-row"><a href="#capsule">capsule</a><a href="#capsule_metaball">capsule_metaball</a><a href="#capsule_sdf">capsule_sdf</a></span></li>
           <li class="toc-family"><span class="toc-link-row"><a href="#polyhedron">polyhedron</a><a href="#polyhedron_mesh">polyhedron_mesh</a><a href="#polyhedron_sdf">polyhedron_sdf</a></span></li>
@@ -74,7 +74,7 @@
         <ul>
           <li class="toc-family"><span class="toc-link-row"><a href="#circle">circle</a><a href="#circle_metaball">circle_metaball</a><a href="#circle_sdf">circle_sdf</a><a href="#circle_hull">circle_hull</a></span></li>
           <li><a href="#teardrop">teardrop</a></li>
-          <li class="toc-family"><span class="toc-link-row"><a href="#square">square</a><a href="#square_metaball">square_metaball</a><a href="#square_sdf">square_sdf</a></span></li>
+          <li class="toc-family"><span class="toc-link-row"><a href="#square">square</a><a href="#square_mesh">square_mesh</a><a href="#square_metaball">square_metaball</a><a href="#square_sdf">square_sdf</a></span></li>
           <li><a href="#fn_solid_2d_ref">fn_solid (2D)</a></li>
           <li class="toc-family"><span class="toc-link-row"><a href="#polygon">polygon</a><a href="#polygon_mesh">polygon_mesh</a><a href="#polygon_sdf">polygon_sdf</a><a href="#polygon_hull">polygon_hull</a></span></li>
           <li><a href="#image">image</a></li>
@@ -297,6 +297,14 @@ sphere(r=radius);</pre>
           <li><code>center</code>: If true, centers the cube at the origin.</li>
         </ul>
 
+        <h3 id="cube_mesh"><code>cube_mesh</code></h3>
+        <p>Creates an axis-aligned box as a mesh with 12 triangles.</p>
+        <pre class="example-code">cube_mesh(size=1, center=false)</pre>
+        <ul>
+          <li><code>size</code>: Edge length or per-axis size vector <code>[x, y, z]</code>.</li>
+          <li><code>center</code>: If true, centers the box at the origin.</li>
+        </ul>
+
         <h3 id="cube_metaball"><code>cube_metaball</code></h3>
         <p>Creates an axis-aligned box as a metaball primitive.</p>
         <pre class="example-code">cube_metaball(size=1, center=false)</pre>
@@ -461,6 +469,14 @@ polyhedron(points, faces);</pre>
         <pre class="example-code">square(size=1, center=false)</pre>
         <ul>
           <li><code>size</code>: Edge length or per-axis size vector.</li>
+          <li><code>center</code>: If true, centers the rectangle at the origin.</li>
+        </ul>
+
+        <h3 id="square_mesh"><code>square_mesh</code></h3>
+        <p>Creates an axis-aligned rectangle as a 2D boundary mesh with four segments.</p>
+        <pre class="example-code">square_mesh(size=1, center=false)</pre>
+        <ul>
+          <li><code>size</code>: Edge length or per-axis size vector <code>[x, y]</code>.</li>
           <li><code>center</code>: If true, centers the rectangle at the origin.</li>
         </ul>
 

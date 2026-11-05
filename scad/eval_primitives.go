@@ -72,6 +72,14 @@ func handleCube(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, erro
 	return shapeSolid3D(rect, rect3DSolidKernel(e.hooks.Numerics, rect)), nil
 }
 
+func handleCubeMesh(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
+	rect, err := parseCube(e, st)
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	return shapeMesh3D(model3d.NewMeshRect(rect.Min(), rect.Max())), nil
+}
+
 func handleCubeMetaball(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
 	rect, err := parseCube(e, st)
 	if err != nil {
@@ -226,6 +234,14 @@ func handleSquare(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, er
 		return ShapeRep{}, err
 	}
 	return shapeSolid2D(rect, rect2DSolidKernel(e.hooks.Numerics, rect)), nil
+}
+
+func handleSquareMesh(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {
+	rect, err := parseSquare(e, st)
+	if err != nil {
+		return ShapeRep{}, err
+	}
+	return shapeMesh2D(model2d.NewMeshRect(rect.Min(), rect.Max())), nil
 }
 
 func handleSquareMetaball(e *env, st *CallStmt, _ []ShapeRep, _ *ShapeRep) (ShapeRep, error) {

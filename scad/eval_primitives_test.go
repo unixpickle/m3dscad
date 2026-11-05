@@ -10,6 +10,58 @@ import (
 	"github.com/unixpickle/model3d/model3d"
 )
 
+func TestCubeMesh(t *testing.T) {
+	for _, args := range []string{"", "3", "3, true", "[2, 4, 6]", "size=[2, 4, 6], center=true"} {
+		t.Run(args, func(t *testing.T) {
+			shape := mustEvalShape(t, "cube_mesh("+args+");")
+			if shape.Kind != ShapeMesh3D {
+				t.Fatalf("expected 3D mesh, got %v", shape.Kind)
+			}
+			if shape.M3.NumTriangles() != 12 || shape.M3.NeedsRepair() {
+				t.Fatal("expected a closed box with 12 triangles")
+			}
+			want := mustEvalShape(t, "cube("+args+");").S3
+			if shape.M3.Min() != want.Min() || shape.M3.Max() != want.Max() {
+				t.Fatalf("unexpected bounds: %v %v", shape.M3.Min(), shape.M3.Max())
+			}
+			center := want.Min().Mid(want.Max())
+			shape.M3.Iterate(func(tri *model3d.Triangle) {
+				if tri.Normal().Dot(tri[0].Sub(center)) <= 0 {
+					t.Fatal("expected outward-facing triangle normals")
+				}
+			})
+			solid := mustEvalShape(t, "solid() cube_mesh("+args+");").S3
+			assertSolids3DEqual(t, solid, want)
+		})
+	}
+}
+
+func TestSquareMesh(t *testing.T) {
+	for _, args := range []string{"", "3", "3, true", "[2, 4]", "size=[2, 4], center=true"} {
+		t.Run(args, func(t *testing.T) {
+			shape := mustEvalShape(t, "square_mesh("+args+");")
+			if shape.Kind != ShapeMesh2D {
+				t.Fatalf("expected 2D mesh, got %v", shape.Kind)
+			}
+			if shape.M2.NumSegments() != 4 {
+				t.Fatal("expected a rectangle with four segments")
+			}
+			want := mustEvalShape(t, "square("+args+");").S2
+			if shape.M2.Min() != want.Min() || shape.M2.Max() != want.Max() {
+				t.Fatalf("unexpected bounds: %v %v", shape.M2.Min(), shape.M2.Max())
+			}
+			center := want.Min().Mid(want.Max())
+			shape.M2.Iterate(func(seg *model2d.Segment) {
+				if seg.Normal().Dot(seg[0].Sub(center)) <= 0 {
+					t.Fatal("expected outward-facing segment normals")
+				}
+			})
+			solid := mustEvalShape(t, "solid() square_mesh("+args+");").S2
+			assertSolids2DEqual(t, solid, want)
+		})
+	}
+}
+
 func TestSolidConversions(t *testing.T) {
 	tests := []struct {
 		name string
